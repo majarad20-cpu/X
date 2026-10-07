@@ -6,7 +6,7 @@ const STORE_KEY = 'enfoque:v1';
 const defaults = () => ({
   tasks: [],
   habits: [],
-  settings: { focus: 25, short: 5, long: 15 },
+  settings: { focus: 25, short: 5, long: 15, sort: 'priority', accent: 'indigo' },
   pomodoros: {}, // { 'YYYY-MM-DD': n }
   focusMinutes: {}, // { 'YYYY-MM-DD': minutos de enfoque completados }
   completions: {}, // { 'YYYY-MM-DD': tareas completadas ese día }
@@ -30,7 +30,8 @@ function load() {
         }
       }
     }
-    return { ...defaults(), ...data };
+    const fresh = defaults();
+    return { ...fresh, ...data, settings: { ...fresh.settings, ...data.settings } };
   } catch {
     return defaults();
   }
@@ -95,7 +96,7 @@ let toastTimeout = null;
 
 // Aplica un cambio destructivo y ofrece deshacerlo durante unos segundos.
 function withUndo(message, change) {
-  const snapshot = JSON.stringify({ tasks: state.tasks, habits: state.habits, completions: state.completions });
+  const snapshot = JSON.stringify(Object.fromEntries(SYNCED_KEYS.filter((k) => k !== 'updatedAt').map((k) => [k, state[k]])));
   change();
   save();
   renderAll();
@@ -104,6 +105,7 @@ function withUndo(message, change) {
   undo.addEventListener('click', () => {
     Object.assign(state, JSON.parse(snapshot));
     save();
+    applySettings();
     renderAll();
     hideToast();
   });
@@ -183,14 +185,18 @@ function nextDue(t) {
 }
 
 function addTask(text, { priority = 2, due = null, repeat = null } = {}) {
-  const { title, tags } = parseTitle(text);
+  const parsed = parseInput(text);
+  priority = parsed.priority ?? priority;
+  due = parsed.due ?? due;
+  repeat = parsed.repeat ?? repeat;
   state.tasks.push({
     id: uid(),
-    title,
-    tags,
+    title: parsed.title,
+    tags: parsed.tags,
     priority,
     due: due || (repeat ? dateKey() : null),
     repeat: repeat || null,
+    order: Date.now(),
     subtasks: [],
     done: false,
     pomodoros: 0,
@@ -235,7 +241,17 @@ const byImportance = (a, b) =>
   (a.due || '9999').localeCompare(b.due || '9999') ||
   a.createdAt - b.createdAt;
 
+const byManualOrder = (a, b) => a.done - b.done || (a.order ?? a.createdAt) - (b.order ?? b.createdAt);
+
 const isDueToday = (t) => !t.done && t.due && t.due <= dateKey();
+
+const manualSort = () => state.settings.sort === 'manual';
+
+$('#task-sort').addEventListener('change', (e) => {
+  state.settings.sort = e.target.value;
+  save();
+  renderTasks();
+});
 
 function allTags() {
   return [...new Set(state.tasks.flatMap((t) => t.tags || []))].sort((a, b) => a.localeCompare(b, 'es'));
@@ -251,7 +267,7 @@ function visibleTasks() {
   return state.tasks
     .filter(filters[taskFilter])
     .filter((t) => !tagFilter || (t.tags || []).includes(tagFilter))
-    .sort(byImportance);
+    .sort(manualSort() ? byManualOrder : byImportance);
 }
 
 function formatDue(due) {
@@ -297,7 +313,7 @@ function setTagFilter(tag) {
   renderTasks();
 }
 
-function taskItem(t) {
+function taskItem(t, { draggable = false } = {}) {
   if (t.id === editingId) return taskEditor(t);
   const subtasks = t.subtasks || [];
   const isOpen = expanded.has(t.id);
@@ -339,9 +355,10 @@ function taskItem(t) {
     })
   );
 
-  const li = el('li', { className: `task p${t.priority}${t.done ? ' done' : ''}` }, [
-    el('div', { className: 'task-row' }, [check, body, toggle, del]),
-  ]);
+  const row = [check, body, toggle, del];
+  if (draggable && !t.done) row.unshift(dragHandle(t));
+  const li = el('li', { className: `task p${t.priority}${t.done ? ' done' : ''}` }, el('div', { className: 'task-row' }, row));
+  li.dataset.id = t.id;
   if (isOpen) li.append(subtaskPanel(t));
   return li;
 }
@@ -425,10 +442,12 @@ function taskEditor(t) {
     e.preventDefault();
     const text = title.value.trim();
     if (!text) return;
-    Object.assign(t, parseTitle(text));
-    t.priority = Number(priority.value);
-    t.repeat = repeat.value || null;
-    t.due = due.value || (t.repeat ? dateKey() : null);
+    const parsed = parseInput(text);
+    t.title = parsed.title;
+    t.tags = parsed.tags;
+    t.priority = parsed.priority ?? Number(priority.value);
+    t.repeat = parsed.repeat ?? (repeat.value || null);
+    t.due = parsed.due ?? (due.value || (t.repeat ? dateKey() : null));
     save();
     stopEditing();
   });
@@ -446,12 +465,192 @@ function renderTagFilter() {
 
 function renderTasks() {
   renderTagFilter();
+  $('#task-sort').value = state.settings.sort || 'priority';
   const tasks = visibleTasks();
-  $('#task-list').replaceChildren(...tasks.map(taskItem));
+  $('#task-list').replaceChildren(...tasks.map((t) => taskItem(t, { draggable: manualSort() })));
   $('#task-empty').hidden = tasks.length > 0;
   const done = state.tasks.filter((t) => t.done).length;
   $('#task-stats').textContent = state.tasks.length ? `${done}/${state.tasks.length} completadas` : '';
   renderTimerTaskOptions();
+}
+
+
+// ---------- Reordenar arrastrando ----------
+// El asa ⠿ se arrastra con ratón o dedo; con teclado, las flechas ↑ ↓ mueven la tarea.
+function dragHandle(t) {
+  const handle = el('button', { className: 'handle', title: 'Arrastra para reordenar', ariaLabel: `Mover "${t.title}" (flechas arriba y abajo)` }, '⠿');
+  handle.addEventListener('pointerdown', (e) => startDrag(e, handle));
+  handle.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const li = handle.closest('li');
+    const sibling = e.key === 'ArrowUp' ? li.previousElementSibling : li.nextElementSibling;
+    if (!sibling || sibling.classList.contains('done')) return;
+    if (e.key === 'ArrowUp') sibling.before(li);
+    else sibling.after(li);
+    commitOrder(li.parentElement);
+    document.querySelector(`#task-list li[data-id="${t.id}"] .handle`)?.focus();
+  });
+  return handle;
+}
+
+function startDrag(e, handle) {
+  e.preventDefault();
+  const li = handle.closest('li');
+  const list = li.parentElement;
+  li.classList.add('dragging');
+
+  // Se escucha en la página: al mover el elemento en el DOM se pierde la captura del puntero.
+  const onMove = (ev) => {
+    ev.preventDefault();
+    const others = [...list.children].filter((c) => c !== li && !c.classList.contains('done'));
+    const before = others.find((c) => {
+      const r = c.getBoundingClientRect();
+      return ev.clientY < r.top + r.height / 2;
+    });
+    if (before) {
+      if (li.nextElementSibling !== before) before.before(li);
+    } else {
+      const last = others[others.length - 1];
+      if (last && last.nextElementSibling !== li) last.after(li);
+    }
+    // Desplaza la página si se arrastra cerca del borde.
+    if (ev.clientY < 60) window.scrollBy(0, -12);
+    else if (ev.clientY > window.innerHeight - 60) window.scrollBy(0, 12);
+  };
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    li.classList.remove('dragging');
+    commitOrder(list);
+  };
+  document.addEventListener('pointermove', onMove, { passive: false });
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
+}
+
+// Guarda el orden visible reutilizando las posiciones que ya tenían esas tareas,
+// así las tareas ocultas por un filtro no se mueven.
+function commitOrder(list) {
+  const tasks = [...list.children].map((c) => state.tasks.find((t) => t.id === c.dataset.id)).filter((t) => t && !t.done);
+  let slots = tasks.map((t) => t.order ?? t.createdAt).sort((a, b) => a - b);
+  if (new Set(slots).size < slots.length) slots = slots.map((_, i) => slots[0] + i);
+  const changed = tasks.some((t, i) => (t.order ?? t.createdAt) !== slots[i]);
+  tasks.forEach((t, i) => (t.order = slots[i]));
+  if (changed) save();
+  renderAll();
+}
+
+// ---------- Lenguaje natural ----------
+// "Llamar a Ana mañana !alta #trabajo" -> título "Llamar a Ana", fecha mañana, prioridad alta, etiqueta trabajo.
+const WEEKDAY_PATTERNS = ['domingo', 'lunes', 'martes', 'mi[eé]rcoles', 'jueves', 'viernes', 's[aá]bado'];
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'sep?tiembre', 'octubre', 'noviembre', 'diciembre'];
+const PRIORITY_WORDS = { alta: 3, media: 2, baja: 1 };
+const END = '(?=$|\\s|[,.;:!?])';
+const PREFIX = '(?:(?:para|el|este|esta|del|al)\\s+)*';
+
+function weekdayIndex(word) {
+  return WEEKDAY_PATTERNS.findIndex((p) => new RegExp(`^${p}$`, 'i').test(word));
+}
+
+function nextWeekday(index, { skipToday = false } = {}) {
+  const d = new Date();
+  let diff = (index - d.getDay() + 7) % 7;
+  if (diff === 0 && skipToday) diff = 7;
+  return addDays(d, diff);
+}
+
+// Fecha con día y mes; si ya pasó este año y no se indicó el año, se entiende el próximo.
+function dayMonth(day, month, year) {
+  const now = new Date();
+  let y = year ? (year < 100 ? 2000 + year : year) : now.getFullYear();
+  let d = new Date(y, month, day);
+  if (d.getMonth() !== month || d.getDate() !== day) return null;
+  if (!year && dateKey(d) < dateKey(now)) d = new Date(y + 1, month, day);
+  return d;
+}
+
+const DATE_RULES = [
+  [`pasado\\s+ma[nñ]ana`, () => addDays(new Date(), 2)],
+  [`${PREFIX}hoy`, () => new Date()],
+  // "mañana" como día, no "por la mañana" ni "esta mañana".
+  [`(?<!\\bla\\s)(?<!\\besta\\s)${PREFIX}ma[nñ]ana`, () => addDays(new Date(), 1)],
+  [`en\\s+(\\d{1,3})\\s+(d[ií]as?|semanas?|mes(?:es)?)`, (m) => {
+    const n = Number(m[1]);
+    if (/^d/i.test(m[2])) return addDays(new Date(), n);
+    if (/^s/i.test(m[2])) return addDays(new Date(), n * 7);
+    const d = new Date();
+    d.setMonth(d.getMonth() + n);
+    return d;
+  }],
+  [`${PREFIX}(pr[oó]ximo\\s+)?(${WEEKDAY_PATTERNS.join('|')})`, (m) => nextWeekday(weekdayIndex(m[2]), { skipToday: !!m[1] })],
+  [`${PREFIX}(\\d{1,2})/(\\d{1,2})(?:/(\\d{2,4}))?`, (m) => dayMonth(Number(m[1]), Number(m[2]) - 1, m[3] && Number(m[3]))],
+  [`${PREFIX}(\\d{1,2})\\s+de\\s+(${MONTHS.join('|')})(?:\\s+(?:de\\s+)?(\\d{4}))?`, (m) => {
+    const month = MONTHS.findIndex((p) => new RegExp(`^${p}$`, 'i').test(m[2]));
+    return dayMonth(Number(m[1]), month, m[3] && Number(m[3]));
+  }],
+];
+
+const REPEAT_RULES = [
+  ['(?:cada\\s+d[ií]a|todos\\s+los\\s+d[ií]as|diariamente)', 'daily'],
+  ['(?:entre\\s+semana|de\\s+lunes\\s+a\\s+viernes|d[ií]as\\s+laborables)', 'weekdays'],
+  ['(?:cada\\s+semana|todas\\s+las\\s+semanas|semanalmente)', 'weekly'],
+  ['(?:cada\\s+mes|todos\\s+los\\s+meses|mensualmente)', 'monthly'],
+];
+
+function parseInput(text) {
+  let rest = ` ${text} `;
+  const out = {};
+  const take = (pattern, fn) => {
+    const re = new RegExp(`(^|\\s)${pattern}${END}`, 'iu');
+    const m = rest.match(re);
+    if (!m) return false;
+    const result = fn([m[0], ...m.slice(2)]);
+    if (result === null || result === undefined) return false;
+    rest = rest.slice(0, m.index) + m[1] + ' ' + rest.slice(m.index + m[0].length);
+    return result;
+  };
+
+  // "cada lunes" = cada semana empezando el próximo lunes.
+  take(`cada\\s+(${WEEKDAY_PATTERNS.join('|')})`, (m) => {
+    out.repeat = 'weekly';
+    out.due = dateKey(nextWeekday(weekdayIndex(m[1])));
+    return true;
+  });
+  for (const [pattern, repeat] of REPEAT_RULES) {
+    if (!out.repeat && take(pattern, () => true)) out.repeat = repeat;
+  }
+  take('!(alta|media|baja)', (m) => (out.priority = PRIORITY_WORDS[m[1].toLowerCase()]));
+  if (!out.due) {
+    for (const [pattern, fn] of DATE_RULES) {
+      const d = take(pattern, fn);
+      if (d) {
+        out.due = dateKey(d);
+        break;
+      }
+    }
+  }
+  const { title, tags } = parseTitle(rest);
+  return { ...out, title: title || text.trim(), tags };
+}
+
+// Muestra bajo el campo lo que se ha entendido mientras se escribe.
+function attachPreview(input, preview) {
+  const update = () => {
+    const text = input.value.trim();
+    const p = text ? parseInput(text) : {};
+    const chips = [];
+    if (p.due) chips.push(`📅 ${formatDue(p.due)}`);
+    if (p.repeat) chips.push(`↻ ${REPEAT_LABEL[p.repeat]}`);
+    if (p.priority) chips.push(`Prioridad ${PRIORITY_LABEL[p.priority].toLowerCase()}`);
+    (p.tags || []).forEach((tag) => chips.push(`#${tag}`));
+    preview.replaceChildren(...chips.map((c) => el('span', { className: 'tag' }, c)));
+    preview.hidden = !chips.length;
+  };
+  input.addEventListener('input', update);
+  input.form.addEventListener('reset', () => setTimeout(update));
+  update();
 }
 
 // ---------- Hoy ----------
@@ -480,7 +679,7 @@ function renderToday() {
   $('#stat-done').textContent = doneToday;
   $('#stat-pomos').textContent = state.pomodoros[today] || 0;
 
-  $('#today-list').replaceChildren(...dueToday.map(taskItem));
+  $('#today-list').replaceChildren(...dueToday.map((t) => taskItem(t)));
   $('#today-empty').hidden = dueToday.length > 0;
 
   $('#today-habits-count').textContent = state.habits.length ? `${habitsDone}/${state.habits.length}` : '';
@@ -491,6 +690,7 @@ function renderToday() {
         el('span', { className: 'check', ariaHidden: 'true' }, on ? '✓' : ''),
         h.name,
       ]);
+      if (!isDaily(h)) chip.append(el('span', { className: 'chip-goal' }, `${weekCount(h, weekStart(new Date()))}/${goalOf(h)}`));
       chip.addEventListener('click', () => toggleHabit(h, today));
       return chip;
     })
@@ -673,12 +873,27 @@ function refreshSettingsInputs() {
 
 // ---------- Hábitos ----------
 const DAYS_SHOWN = 7;
+let editingHabitId = null;
+
+// Objetivo: 7 = cada día; 1–6 = veces por semana.
+const goalOf = (h) => h.goal || 7;
+const isDaily = (h) => goalOf(h) === 7;
+const GOAL_LABEL = (g) => (g === 7 ? 'Cada día' : `${g} ${g === 1 ? 'vez' : 'veces'} por semana`);
+
+function goalSelect(value, id) {
+  return el(
+    'select',
+    { id: id || '', ariaLabel: 'Objetivo' },
+    [7, 6, 5, 4, 3, 2, 1].map((g) => el('option', { value: g, selected: g === value }, GOAL_LABEL(g)))
+  );
+}
+
 
 $('#habit-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const name = $('#habit-name').value.trim();
   if (!name) return;
-  state.habits.push({ id: uid(), name, log: {} });
+  state.habits.push({ id: uid(), name, goal: Number($('#habit-goal').value), log: {} });
   save();
   e.target.reset();
   renderAll();
@@ -693,21 +908,96 @@ function toggleHabit(habit, key) {
   renderProgress();
 }
 
-function streak(habit) {
-  let d = new Date();
-  // Si hoy aún no está marcado, la racha cuenta desde ayer.
-  if (!habit.log[dateKey(d)]) d = addDays(d, -1);
+// Lunes de la semana de `d`.
+function weekStart(d) {
+  const r = new Date(d);
+  r.setHours(0, 0, 0, 0);
+  r.setDate(r.getDate() - ((r.getDay() + 6) % 7));
+  return r;
+}
+
+function weekCount(habit, monday) {
   let n = 0;
-  while (habit.log[dateKey(d)]) {
+  for (let i = 0; i < 7; i++) if (habit.log[dateKey(addDays(monday, i))]) n++;
+  return n;
+}
+
+// Racha actual: días seguidos (hábito diario) o semanas seguidas cumpliendo el objetivo.
+function streak(habit) {
+  if (isDaily(habit)) {
+    let d = new Date();
+    // Si hoy aún no está marcado, la racha cuenta desde ayer.
+    if (!habit.log[dateKey(d)]) d = addDays(d, -1);
+    let n = 0;
+    while (habit.log[dateKey(d)]) {
+      n++;
+      d = addDays(d, -1);
+    }
+    return n;
+  }
+  let week = weekStart(new Date());
+  // La semana en curso solo cuenta si ya se cumplió el objetivo.
+  if (weekCount(habit, week) < goalOf(habit)) week = addDays(week, -7);
+  let n = 0;
+  while (weekCount(habit, week) >= goalOf(habit)) {
     n++;
-    d = addDays(d, -1);
+    week = addDays(week, -7);
   }
   return n;
+}
+
+function longestStreak(habit) {
+  const keys = Object.keys(habit.log).sort();
+  if (!keys.length) return 0;
+  if (isDaily(habit)) {
+    let best = 0;
+    let run = 0;
+    let prev = null;
+    for (const key of keys) {
+      run = prev && dateKey(addDays(parseKey(prev), 1)) === key ? run + 1 : 1;
+      best = Math.max(best, run);
+      prev = key;
+    }
+    return best;
+  }
+  let best = 0;
+  let run = 0;
+  const end = weekStart(new Date());
+  for (let week = weekStart(parseKey(keys[0])); week <= end; week = addDays(week, 7)) {
+    run = weekCount(habit, week) >= goalOf(habit) ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  return best;
+}
+
+const streakText = (habit, n) => (isDaily(habit) ? `${n} ${n === 1 ? 'día' : 'días'}` : `${n} ${n === 1 ? 'semana' : 'semanas'}`);
+
+function habitEditorRow(h) {
+  const name = el('input', { type: 'text', value: h.name, required: true, maxLength: 60, ariaLabel: 'Nombre del hábito' });
+  const goal = goalSelect(goalOf(h));
+  const cancel = el('button', { type: 'button' }, 'Cancelar');
+  cancel.addEventListener('click', () => {
+    editingHabitId = null;
+    renderHabits();
+  });
+  const form = el('form', { className: 'row habit-edit' }, [name, goal, el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!name.value.trim()) return;
+    h.name = name.value.trim();
+    h.goal = Number(goal.value);
+    editingHabitId = null;
+    save();
+    renderAll();
+  });
+  setTimeout(() => name.focus());
+  return el('tr', {}, el('td', { colSpan: DAYS_SHOWN + 3 }, form));
 }
 
 function renderHabits() {
   const today = new Date();
   const days = Array.from({ length: DAYS_SHOWN }, (_, i) => addDays(today, i - DAYS_SHOWN + 1));
+  const monday = weekStart(today);
 
   $('#habit-head').replaceChildren(
     el('th'),
@@ -724,10 +1014,12 @@ function renderHabits() {
 
   $('#habit-body').replaceChildren(
     ...state.habits.map((h) => {
+      if (h.id === editingHabitId) return habitEditorRow(h);
+
       const cells = days.map((d) => {
         const key = dateKey(d);
         const btn = el('button', {
-          className: `dot${h.log[key] ? ' on' : ''}`,
+          className: `dot${h.log[key] ? ' on' : ''}${d < monday ? ' prev-week' : ''}`,
           ariaLabel: `${h.name} ${key}`,
           ariaPressed: String(!!h.log[key]),
         });
@@ -742,11 +1034,20 @@ function renderHabits() {
         })
       );
 
+      const nameBtn = el('button', { className: 'habit-name', title: `${h.name} · ${GOAL_LABEL(goalOf(h))} · toca para editar` }, [
+        el('span', { className: 'hn' }, h.name),
+        el('span', { className: 'hg' }, isDaily(h) ? 'Cada día' : `${weekCount(h, monday)}/${goalOf(h)} sem.`),
+      ]);
+      nameBtn.addEventListener('click', () => {
+        editingHabitId = h.id;
+        renderHabits();
+      });
+
       const s = streak(h);
       return el('tr', {}, [
-        el('td', { className: 'name', title: h.name }, h.name),
+        el('td', { className: 'name' }, nameBtn),
         ...cells,
-        el('td', { className: 'streak' }, s ? `🔥 ${s}` : '—'),
+        el('td', { className: 'streak', title: streakText(h, s) }, s ? `🔥 ${s}${isDaily(h) ? '' : ' sem'}` : '—'),
         el('td', {}, del),
       ]);
     })
@@ -786,21 +1087,6 @@ function formatMinutes(min) {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-function longestStreak(habit) {
-  const keys = Object.keys(habit.log).sort();
-  let best = 0;
-  let run = 0;
-  let prev = null;
-  for (const key of keys) {
-    const [y, m, d] = key.split('-').map(Number);
-    const date = new Date(y, m - 1, d);
-    run = prev && dateKey(addDays(prev, 1)) === key ? run + 1 : 1;
-    best = Math.max(best, run);
-    prev = date;
-  }
-  return best;
-}
-
 function statTile(value, label, delta) {
   const tile = el('div', { className: 'stat' }, [el('span', { className: 'num' }, value), el('span', { className: 'label' }, label)]);
   if (delta !== undefined) {
@@ -818,16 +1104,18 @@ function renderProgress() {
   const pomos = sumDays(state.pomodoros, today, 7);
   const tasks = sumDays(state.completions, today, 7);
   const minutes = sumDays(state.focusMinutes, today, 7);
+  // Para comparar rachas diarias y semanales, una semana cuenta como 7 días.
   const best = state.habits.reduce((acc, h) => {
     const n = longestStreak(h);
-    return n > acc.n ? { n, name: h.name } : acc;
-  }, { n: 0, name: '' });
+    const score = isDaily(h) ? n : n * 7;
+    return score > acc.score ? { n, score, habit: h } : acc;
+  }, { n: 0, score: 0, habit: null });
 
   $('#progress-stats').replaceChildren(
     statTile(pomos, 'Pomodoros', pomos - sumDays(state.pomodoros, lastWeekEnd, 7)),
     statTile(tasks, 'Tareas completadas', tasks - sumDays(state.completions, lastWeekEnd, 7)),
     statTile(formatMinutes(minutes), 'Tiempo enfocado'),
-    statTile(best.n ? `${best.n} días` : '—', best.n ? `Mejor racha · ${best.name}` : 'Mejor racha de hábito')
+    statTile(best.n ? streakText(best.habit, best.n) : '—', best.n ? `Mejor racha · ${best.habit.name}` : 'Mejor racha de hábito')
   );
 
   // Gráfico de barras de los últimos 7 días.
@@ -868,20 +1156,145 @@ function renderProgress() {
     ...state.habits.map((h) => {
       let done = 0;
       for (let i = 0; i < DAYS; i++) if (h.log[dateKey(addDays(today, -i))]) done++;
-      const pct = Math.round((done / DAYS) * 100);
+      // Porcentaje respecto al objetivo: con 3 veces por semana, ~13 días en 30 es el 100 %.
+      const expected = (goalOf(h) / 7) * DAYS;
+      const pct = Math.min(100, Math.round((done / expected) * 100));
       return el('li', { className: 'habit-progress' }, [
         el('div', { className: 'hp-head' }, [
           el('span', { className: 'hp-name' }, h.name),
-          el('span', { className: 'hp-num' }, `${done}/${DAYS} días · ${pct}%`),
+          el('span', { className: 'hp-num' }, `${done} días · ${pct}% del objetivo`),
         ]),
         el('div', { className: 'hp-track', role: 'progressbar', ariaValueNow: String(pct), ariaValueMin: '0', ariaValueMax: '100', ariaLabel: h.name },
           el('div', { className: 'hp-fill', style: `width: ${pct}%` })),
-        el('div', { className: 'hp-meta' }, `Racha actual ${streak(h)} · mejor ${longestStreak(h)}`),
+        el('div', { className: 'hp-meta' }, `${GOAL_LABEL(goalOf(h))} · racha actual ${streakText(h, streak(h))} · mejor ${streakText(h, longestStreak(h))}`),
       ]);
     })
   );
   $('#habit-progress-empty').hidden = state.habits.length > 0;
 }
+
+// ---------- Ajustes: color y copia de seguridad ----------
+const ACCENTS = { indigo: 'Índigo', blue: 'Azul', teal: 'Turquesa', fuchsia: 'Fucsia', orange: 'Naranja', slate: 'Grafito' };
+
+function applySettings() {
+  document.documentElement.dataset.accent = ACCENTS[state.settings.accent] ? state.settings.accent : 'indigo';
+  refreshSettingsInputs();
+}
+
+function renderAccents() {
+  $('#accent-picker').replaceChildren(
+    ...Object.entries(ACCENTS).map(([key, label]) => {
+      const on = (state.settings.accent || 'indigo') === key;
+      const btn = el('button', { className: `swatch${on ? ' on' : ''}`, role: 'radio', ariaChecked: String(on), title: label }, [
+        el('span', { className: 'swatch-dot', ariaHidden: 'true' }),
+        label,
+      ]);
+      btn.dataset.swatch = key;
+      btn.addEventListener('click', () => {
+        state.settings.accent = key;
+        save();
+        applySettings();
+        renderAccents();
+      });
+      return btn;
+    })
+  );
+}
+
+function setBackupMessage(text, isError = false) {
+  const node = $('#backup-message');
+  node.textContent = text;
+  node.classList.toggle('error', isError);
+}
+
+async function exportBackup() {
+  const data = Object.fromEntries(SYNCED_KEYS.map((k) => [k, state[k]]));
+  const json = JSON.stringify({ app: 'enfoque', version: 1, exportedAt: new Date().toISOString(), data }, null, 2);
+  const filename = `enfoque-copia-${dateKey()}.json`;
+
+  // Dentro de Claude: el visor pide confirmación y guarda el archivo.
+  if (window.claude?.use) {
+    const downloads = await window.claude.use('downloads');
+    if (downloads) {
+      try {
+        await downloads.save({ filename, data: json });
+        setBackupMessage(`Copia guardada como ${filename}.`);
+      } catch (e) {
+        if (e?.code !== 'declined') setBackupMessage('No se pudo guardar el archivo aquí. Usa «Copiar» y pégalo en una nota.', true);
+      }
+      return;
+    }
+  }
+  // Navegador normal: descarga directa.
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const a = el('a', { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setBackupMessage(`Copia descargada como ${filename}.`);
+}
+
+async function copyBackup() {
+  const json = JSON.stringify({ app: 'enfoque', version: 1, data: Object.fromEntries(SYNCED_KEYS.map((k) => [k, state[k]])) });
+  try {
+    await navigator.clipboard.writeText(json);
+    setBackupMessage('Copia en el portapapeles. Pégala en una nota para guardarla.');
+  } catch {
+    $('#backup-text').hidden = false;
+    $('#backup-text').value = json;
+    $('#backup-text').select();
+    setBackupMessage('Selecciona el texto de abajo y cópialo.');
+  }
+}
+
+function restoreBackup(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    setBackupMessage('Ese archivo no es una copia de Enfoque válida.', true);
+    return;
+  }
+  const data = parsed?.data ?? parsed;
+  if (!Array.isArray(data?.tasks) || !Array.isArray(data?.habits)) {
+    setBackupMessage('Ese archivo no es una copia de Enfoque válida.', true);
+    return;
+  }
+  withUndo('Copia restaurada', () => {
+    const fresh = defaults();
+    for (const k of SYNCED_KEYS) if (k !== 'updatedAt') state[k] = data[k] ?? fresh[k];
+    state.settings = { ...fresh.settings, ...state.settings };
+  });
+  applySettings();
+  renderAccents();
+  setBackupMessage(`Restauradas ${data.tasks.length} tareas y ${data.habits.length} hábitos.`);
+}
+
+$('#open-settings').addEventListener('click', () => {
+  showView('settings');
+  renderAccents();
+});
+$('#backup-export').addEventListener('click', exportBackup);
+$('#backup-copy').addEventListener('click', copyBackup);
+$('#backup-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (file) restoreBackup(await file.text());
+  e.target.value = '';
+});
+$('#backup-paste').addEventListener('click', () => {
+  const box = $('#restore-text');
+  if (box.hidden) {
+    box.hidden = false;
+    box.focus();
+    $('#backup-paste').textContent = 'Restaurar texto pegado';
+  } else if (box.value.trim()) {
+    restoreBackup(box.value.trim());
+    box.value = '';
+    box.hidden = true;
+    $('#backup-paste').textContent = 'Pegar copia';
+  }
+});
 
 // ---------- Atajos de teclado ----------
 const VIEW_KEYS = { 1: 'today', 2: 'tasks', 3: 'timer', 4: 'habits', 5: 'progress' };
@@ -966,7 +1379,8 @@ function applyRemote(data) {
   const fresh = defaults();
   for (const k of SYNCED_KEYS) state[k] = data[k] ?? fresh[k];
   saveLocal();
-  refreshSettingsInputs();
+  state.settings = { ...defaults().settings, ...state.settings };
+  applySettings();
   if (!timer.endsAt) setMode(timer.mode);
   renderAll();
   setSyncStatus('synced');
@@ -1000,7 +1414,9 @@ async function startSync() {
 }
 
 // ---------- Inicio ----------
-refreshSettingsInputs();
+applySettings();
+attachPreview($('#task-title'), $('#task-preview'));
+attachPreview($('#today-title'), $('#today-preview'));
 setSyncStatus('local');
 renderAll();
 startSync();

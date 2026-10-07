@@ -12,6 +12,7 @@
       <h1>Enfoque</h1>
       <span id="sync-status" class="sync" data-state="local"></span>
     </div>
+    <button id="open-settings" class="icon-btn" title="Ajustes" aria-label="Ajustes">⚙</button>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="today" role="tab">Hoy</button>
       <button class="tab" data-view="tasks" role="tab">Tareas</button>
@@ -34,8 +35,9 @@
 
       <h2 class="section-title">Para hoy</h2>
       <form id="today-form" class="row quick-add">
-        <input id="today-title" type="text" placeholder="Añadir tarea para hoy (#etiqueta opcional)" required maxlength="140">
+        <input id="today-title" type="text" placeholder="Añadir tarea para hoy" required maxlength="200">
         <button type="submit" class="primary">Añadir</button>
+        <div id="today-preview" class="parse-preview" aria-live="polite" hidden></div>
       </form>
       <ul id="today-list" class="list"></ul>
       <p id="today-empty" class="empty">Nada pendiente para hoy. 🎉</p>
@@ -48,7 +50,7 @@
     <!-- Tareas -->
     <section id="view-tasks" class="view">
       <form id="task-form" class="card row">
-        <input id="task-title" type="text" placeholder="¿Qué hay que hacer? Usa #etiquetas" required maxlength="200">
+        <input id="task-title" type="text" placeholder="Ej.: Llamar a Ana mañana !alta #trabajo" required maxlength="200">
         <select id="task-priority" aria-label="Prioridad">
           <option value="2">Media</option>
           <option value="3">Alta</option>
@@ -63,6 +65,7 @@
           <option value="monthly">Cada mes</option>
         </select>
         <button type="submit" class="primary">Añadir</button>
+        <div id="task-preview" class="parse-preview" aria-live="polite" hidden></div>
       </form>
 
       <div class="toolbar">
@@ -72,13 +75,19 @@
           <button class="chip" data-filter="pending">Pendientes</button>
           <button class="chip" data-filter="done">Hechas</button>
         </div>
-        <span id="task-stats" class="muted"></span>
+        <div class="sort">
+          <span id="task-stats" class="muted"></span>
+          <select id="task-sort" aria-label="Orden">
+            <option value="priority">Orden: prioridad</option>
+            <option value="manual">Orden: el mío</option>
+          </select>
+        </div>
       </div>
       <div id="tag-filter" class="tag-filter" role="group" aria-label="Etiqueta" hidden></div>
 
       <ul id="task-list" class="list"></ul>
       <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
-      <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas.</p>
+      <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas · con «Orden: el mío» arrastra ⠿ para reordenar.</p>
       <button id="clear-done" class="link">Borrar tareas completadas</button>
     </section>
 
@@ -123,6 +132,15 @@
     <section id="view-habits" class="view">
       <form id="habit-form" class="card row">
         <input id="habit-name" type="text" placeholder="Nuevo hábito (p. ej. Leer 20 min)" required maxlength="60">
+        <select id="habit-goal" aria-label="Objetivo">
+          <option value="7">Cada día</option>
+          <option value="6">6 veces por semana</option>
+          <option value="5">5 veces por semana</option>
+          <option value="4">4 veces por semana</option>
+          <option value="3">3 veces por semana</option>
+          <option value="2">2 veces por semana</option>
+          <option value="1">1 vez por semana</option>
+        </select>
         <button type="submit" class="primary">Añadir</button>
       </form>
       <div class="card habits-wrap">
@@ -132,6 +150,7 @@
         </table>
         <p id="habit-empty" class="empty">Aún no tienes hábitos. Crea el primero.</p>
       </div>
+      <p class="muted hint">Toca el nombre de un hábito para cambiarlo o ajustar su objetivo.</p>
     </section>
 
     <!-- Progreso -->
@@ -155,6 +174,26 @@
       <h2 class="section-title">Hábitos · últimos 30 días</h2>
       <ul id="habit-progress" class="list card"></ul>
       <p id="habit-progress-empty" class="empty">Crea hábitos para ver tu constancia.</p>
+    </section>
+
+    <!-- Ajustes -->
+    <section id="view-settings" class="view">
+      <h2 class="section-title first">Color de la app</h2>
+      <div id="accent-picker" class="card swatches" role="radiogroup" aria-label="Color de acento"></div>
+
+      <h2 class="section-title">Copia de seguridad</h2>
+      <div class="card backup">
+        <p>Guarda tus tareas, hábitos y estadísticas en un archivo, o restaura una copia anterior. Restaurar sustituye los datos actuales; podrás deshacerlo unos segundos.</p>
+        <div class="row">
+          <button id="backup-export" class="primary">Descargar copia</button>
+          <button id="backup-copy">Copiar</button>
+          <label class="file-btn">Restaurar desde archivo<input id="backup-file" type="file" accept="application/json,.json"></label>
+          <button id="backup-paste">Pegar copia</button>
+        </div>
+        <textarea id="backup-text" rows="4" readonly hidden aria-label="Copia de seguridad"></textarea>
+        <textarea id="restore-text" rows="4" placeholder="Pega aquí el texto de tu copia" hidden aria-label="Texto de la copia a restaurar"></textarea>
+        <p id="backup-message" class="muted" role="status"></p>
+      </div>
     </section>
   </main>
 
