@@ -13,6 +13,9 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Tareas en las notas**: cualquier `- [ ] texto` de una nota aparece en Tareas, Hoy y Semana con un distintivo 📝 que lleva a su nota. Admite `📅 2026-10-08` o `📅 mañana`, `⏰ 17:30`, `!alta`, `#etiqueta` y `+proyecto`; en una nota diaria, las tareas sin fecha son de ese día. Al completarlas se añade `✅ fecha` a la línea y cuentan en estadísticas y bitácora.
 - **Nota de proyecto**: cada proyecto puede tener su nota (`Proyectos/Nombre`); sus casillas cuentan para el avance.
 - **Pasar a notas** (Ajustes): copia el diario (en la nota diaria de cada día), las ideas (`Ideas/`) y los mapas mentales (como esquema en `Mapas/`). Los originales se conservan y al repetir solo se copia lo nuevo.
+- **Vista de grafo** (Ctrl+G): cada nota es un punto y cada enlace una línea, con colores por carpeta. Se puede mover, ampliar (rueda o pellizco), arrastrar puntos y abrir una nota al tocarla (una nota «sin crear» se crea al tocarla). Filtros: buscar, etiquetas, notas sin crear y notas sin enlaces.
+- **Grafo local** (panel derecho › Grafo): las conexiones de la nota abierta, a 1, 2 o 3 saltos.
+- **Mapa mental desde una nota** (menú ⋯ o paleta): los títulos y listas de la nota se convierten en ramas; el mapa se puede actualizar cuando cambie la nota y lleva a su nota de origen.
 - Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso) se abren como pestañas desde la barra de iconos.
 
 ## Funciones
@@ -39,7 +42,7 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Archivo de tareas**: las tareas completadas hace más de 7 días se archivan solas (un bloque por mes). Siguen apareciendo en «Hechas», cuentan para proyectos y estadísticas, y al desmarcarlas vuelven a la lista.
 - **Ajustes** (⚙): color de la app, medidor de espacio por apartado (avisa al pasar del 80 % y marca el botón ⚙) y copia de seguridad (descargar, copiar, restaurar desde archivo o texto pegado).
 
-**Atajos de teclado:** `Ctrl+O` abrir nota, `Ctrl+P` comandos, `Ctrl+N` nueva nota, `Ctrl+E` editar/leer, `Alt+D` nota diaria, `1`–`8` secciones, `N` nueva tarea, `Espacio` inicia o pausa el Pomodoro, `Esc` cancela la edición, `?` muestra la ayuda.
+**Atajos de teclado:** `Ctrl+O` abrir nota, `Ctrl+P` comandos, `Ctrl+N` nueva nota, `Ctrl+G` grafo, `Ctrl+E` editar/leer, `Alt+D` nota diaria, `1`–`8` secciones, `N` nueva tarea, `Espacio` inicia o pausa el Pomodoro, `Esc` cancela la edición, `?` muestra la ayuda.
 
 ## Uso
 

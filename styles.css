@@ -919,3 +919,28 @@ body { overflow: hidden; }
 .today-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .today-head .today-date { margin: 4px 0 12px; }
 .hint code { font-size: .85em; background: var(--side); border-radius: 4px; padding: 0 4px; }
+
+/* Grafo */
+.graph-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--editor); }
+.graph-pane[hidden] { display: none; }
+.graph-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.graph-tools input { flex: 0 1 220px; padding: 5px 10px; font-size: .88rem; }
+.graph-tools .spacer { flex: 1; }
+.graph-count { font-size: .78rem; font-variant-numeric: tabular-nums; }
+.graph-zoom { display: inline-flex; gap: 4px; }
+.graph-zoom button { padding: 4px 10px; font-size: .85rem; }
+.graph-stage { flex: 1; position: relative; min-height: 0; overflow: hidden; }
+.graph-stage canvas, .local-stage canvas { display: block; touch-action: none; cursor: grab; }
+.graph-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 24px; margin: 0; }
+.graph-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 12px; font-size: .76rem; color: var(--muted); border-top: 1px solid var(--border); }
+.gl-item { display: inline-flex; align-items: center; gap: 6px; }
+.gl-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.gl-dot.b0 { background: var(--b0); } .gl-dot.b1 { background: var(--b1); } .gl-dot.b2 { background: var(--b2); }
+.gl-dot.b3 { background: var(--b3); } .gl-dot.b4 { background: var(--b4); } .gl-dot.b5 { background: var(--b5); }
+.gl-dot.ghost { background: none; border: 1.5px dashed var(--muted); }
+.gl-dot.tag { background: var(--mid); }
+.local-graph-wrap { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+.local-graph-wrap[hidden] { display: none; }
+.local-tools { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
+.local-tools select { padding: 2px 6px; font-size: .8rem; }
+.local-stage { height: 300px; border: 1px solid var(--border); border-radius: 10px; background: var(--editor); overflow: hidden; }
