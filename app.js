@@ -47,6 +47,20 @@ function addDays(d, n) {
   return r;
 }
 
+// Confirmación en dos toques: el primer clic pide confirmar, el segundo ejecuta.
+function confirmTap(btn, label, action) {
+  if (btn.dataset.armed) return action();
+  const original = btn.textContent;
+  btn.dataset.armed = '1';
+  btn.textContent = label;
+  btn.classList.add('armed');
+  setTimeout(() => {
+    delete btn.dataset.armed;
+    btn.textContent = original;
+    btn.classList.remove('armed');
+  }, 3000);
+}
+
 function el(tag, props = {}, children = []) {
   const node = Object.assign(document.createElement(tag), props);
   for (const c of [].concat(children)) node.append(c);
@@ -92,12 +106,14 @@ $$('[data-filter]').forEach((btn) =>
   })
 );
 
-$('#clear-done').addEventListener('click', () => {
+$('#clear-done').addEventListener('click', (e) => {
   const n = state.tasks.filter((t) => t.done).length;
-  if (!n || !confirm(`¿Borrar ${n} tarea(s) completada(s)?`)) return;
-  state.tasks = state.tasks.filter((t) => !t.done);
-  save();
-  renderTasks();
+  if (!n) return;
+  confirmTap(e.currentTarget, `Toca otra vez para borrar ${n}`, () => {
+    state.tasks = state.tasks.filter((t) => !t.done);
+    save();
+    renderTasks();
+  });
 });
 
 function visibleTasks() {
@@ -163,7 +179,7 @@ function renderTasks() {
     })
   );
 
-  $('#task-empty').style.display = tasks.length ? 'none' : 'block';
+  $('#task-empty').hidden = tasks.length > 0;
   const done = state.tasks.filter((t) => t.done).length;
   $('#task-stats').textContent = state.tasks.length ? `${done}/${state.tasks.length} completadas` : '';
   renderTimerTaskOptions();
@@ -363,12 +379,13 @@ function renderHabits() {
       });
 
       const del = el('button', { className: 'del', title: 'Eliminar', ariaLabel: 'Eliminar hábito' }, '✕');
-      del.addEventListener('click', () => {
-        if (!confirm(`¿Eliminar el hábito "${h.name}"?`)) return;
-        state.habits = state.habits.filter((x) => x.id !== h.id);
-        save();
-        renderHabits();
-      });
+      del.addEventListener('click', () =>
+        confirmTap(del, '¿Borrar?', () => {
+          state.habits = state.habits.filter((x) => x.id !== h.id);
+          save();
+          renderHabits();
+        })
+      );
 
       const s = streak(h);
       return el('tr', {}, [
@@ -380,8 +397,8 @@ function renderHabits() {
     })
   );
 
-  $('#habit-empty').style.display = state.habits.length ? 'none' : 'block';
-  $('.habits').style.display = state.habits.length ? '' : 'none';
+  $('#habit-empty').hidden = state.habits.length > 0;
+  $('.habits').hidden = !state.habits.length;
 }
 
 // ---------- Inicio ----------
