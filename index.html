@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enfoque</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Enfoque</h1>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="tasks" role="tab">Tareas</button>
+      <button class="tab" data-view="timer" role="tab">Pomodoro</button>
+      <button class="tab" data-view="habits" role="tab">Hábitos</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Tareas -->
+    <section id="view-tasks" class="view active">
+      <form id="task-form" class="card row">
+        <input id="task-title" type="text" placeholder="¿Qué hay que hacer?" required maxlength="140">
+        <select id="task-priority" aria-label="Prioridad">
+          <option value="2">Media</option>
+          <option value="3">Alta</option>
+          <option value="1">Baja</option>
+        </select>
+        <input id="task-due" type="date" aria-label="Fecha límite">
+        <button type="submit" class="primary">Añadir</button>
+      </form>
+
+      <div class="toolbar">
+        <div class="filters" role="group" aria-label="Filtro">
+          <button class="chip active" data-filter="all">Todas</button>
+          <button class="chip" data-filter="today">Hoy</button>
+          <button class="chip" data-filter="pending">Pendientes</button>
+          <button class="chip" data-filter="done">Hechas</button>
+        </div>
+        <span id="task-stats" class="muted"></span>
+      </div>
+
+      <ul id="task-list" class="list"></ul>
+      <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
+      <button id="clear-done" class="link">Borrar tareas completadas</button>
+    </section>
+
+    <!-- Pomodoro -->
+    <section id="view-timer" class="view">
+      <div class="card timer-card">
+        <div class="modes" role="group" aria-label="Modo">
+          <button class="chip active" data-mode="focus">Enfoque</button>
+          <button class="chip" data-mode="short">Pausa corta</button>
+          <button class="chip" data-mode="long">Pausa larga</button>
+        </div>
+        <div class="ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-bg" cx="60" cy="60" r="54"></circle>
+            <circle id="ring-fg" class="ring-fg" cx="60" cy="60" r="54"></circle>
+          </svg>
+          <div id="timer-display" class="time">25:00</div>
+        </div>
+        <label class="current-task">
+          Trabajando en:
+          <select id="timer-task"><option value="">— ninguna —</option></select>
+        </label>
+        <div class="row center">
+          <button id="timer-start" class="primary big">Iniciar</button>
+          <button id="timer-reset">Reiniciar</button>
+          <button id="timer-skip">Saltar</button>
+        </div>
+        <p class="muted">Pomodoros hoy: <strong id="pomo-today">0</strong></p>
+      </div>
+
+      <details class="card">
+        <summary>Ajustes (minutos)</summary>
+        <div class="settings">
+          <label>Enfoque <input id="set-focus" type="number" min="1" max="120"></label>
+          <label>Pausa corta <input id="set-short" type="number" min="1" max="60"></label>
+          <label>Pausa larga <input id="set-long" type="number" min="1" max="60"></label>
+        </div>
+      </details>
+    </section>
+
+    <!-- Hábitos -->
+    <section id="view-habits" class="view">
+      <form id="habit-form" class="card row">
+        <input id="habit-name" type="text" placeholder="Nuevo hábito (p. ej. Leer 20 min)" required maxlength="60">
+        <button type="submit" class="primary">Añadir</button>
+      </form>
+      <div class="card habits-wrap">
+        <table class="habits">
+          <thead><tr id="habit-head"></tr></thead>
+          <tbody id="habit-body"></tbody>
+        </table>
+        <p id="habit-empty" class="empty">Aún no tienes hábitos. Crea el primero.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
