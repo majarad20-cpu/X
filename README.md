@@ -5,6 +5,7 @@ App de productividad ligera, sin dependencias ni paso de compilación. Todo se g
 ## Funciones
 
 - **Hoy**: resumen del día (pendientes, vencidas, hechas y pomodoros), añadir tareas para hoy al instante y marcar los hábitos del día.
+  - **Bitácora**: línea de tiempo con los hitos del día de todas las pestañas (tareas completadas, pomodoros, hábitos, rachas y objetivos semanales, entradas del diario con su ánimo, ideas, mapas y avances de proyecto al 25/50/75/100 %), con resumen y navegación a días anteriores. Se guarda aparte (un bloque por mes), así que los hitos se conservan aunque se borre el elemento, y entre dispositivos se fusiona en vez de pisarse.
 - **Tareas**: prioridad (alta/media/baja), fecha límite, filtros (Todas, Hoy, Pendientes, Hechas), aviso de tareas vencidas. Toca el texto de una tarea para editarla; al borrar puedes deshacer.
   - **Etiquetas**: escribe `#trabajo` en el título; toca una etiqueta para filtrar.
   - **Repetición**: cada día, lunes a viernes, cada semana o cada mes. Al completarla pasa sola a la siguiente fecha.

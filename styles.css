@@ -629,3 +629,25 @@ textarea.notes:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .icon-btn { position: relative; }
 .icon-btn.warn::after { content: ""; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--mid); border: 2px solid var(--surface); }
 .sync[data-state="full"]::before { background: var(--high); }
+
+/* ---------- Bitácora ---------- */
+.log-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 20px; margin-bottom: 8px; }
+.log-head .section-title { margin: 0; }
+.log-nav { display: flex; align-items: center; gap: 6px; }
+.log-nav .nav-btn { width: 32px; height: 32px; font-size: 1.1rem; }
+.log-nav .nav-btn:disabled { opacity: .35; cursor: default; }
+.log-title { min-width: 110px; text-align: center; font-weight: 600; font-size: .92rem; }
+.log-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.log-chip { display: inline-flex; gap: 6px; align-items: center; font-size: .8rem; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); font-variant-numeric: tabular-nums; }
+.log-list { list-style: none; margin: 0; padding: 0; position: relative; }
+.log-list::before { content: ""; position: absolute; left: 62px; top: 6px; bottom: 6px; width: 2px; background: var(--border); }
+.log-item { display: grid; grid-template-columns: 48px 28px 1fr; align-items: start; gap: 6px; padding: 5px 0; position: relative; }
+.log-time { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 3px; text-align: right; }
+.log-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); font-size: .85rem; position: relative; z-index: 1; }
+.log-item.type-streak .log-icon, .log-item.type-goal .log-icon, .log-item.type-milestone .log-icon { border-color: var(--accent); background: var(--accent-soft); }
+.log-body { display: flex; flex-direction: column; min-width: 0; padding-top: 1px; }
+.log-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.log-text { overflow-wrap: anywhere; }
+.log-item.type-streak .log-text, .log-item.type-goal .log-text, .log-item.type-milestone .log-text { font-weight: 600; }
+.log-detail { font-size: .8rem; color: var(--muted); }
+.log-empty { margin: 0; }

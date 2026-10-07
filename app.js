@@ -15,13 +15,14 @@ const defaults = () => ({
   ideas: [], // notas de ideas
   maps: [], // mapas mentales
   archive: [], // tareas completadas hace más de una semana
+  log: [], // bitácora: hitos de cada día
   updatedAt: 0, // última modificación local
   syncMeta: { sent: {}, times: {} }, // estado de la sincronización por bloques (solo de este dispositivo)
 });
 
 // Datos del usuario (lo que se sincroniza, se exporta y se puede deshacer).
 const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'projects'];
-const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive'];
+const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log'];
 
 function load() {
   try {
@@ -54,6 +55,7 @@ function saveLocal() {
 }
 
 function save() {
+  if (typeof checkProjectMilestones === 'function') checkProjectMilestones();
   state.updatedAt = Date.now();
   saveLocal();
   scheduleSync();
@@ -100,6 +102,7 @@ function renderAll() {
   renderProjects();
   renderJournal();
   renderIdeas();
+  renderLog();
   checkReminders();
 }
 
@@ -327,6 +330,7 @@ function toggleDone(t, done) {
     const next = nextDue(t);
     withUndo(`Hecha · vuelve ${formatDue(next).toLowerCase()}`, () => {
       bump(state.completions, dateKey(), 1);
+      logEvent('task', t.title, { ref: t.id, detail: [`↻ ${REPEAT_LABEL[t.repeat]}`, projectById(t.projectId) && `📁 ${projectById(t.projectId).name}`].filter(Boolean).join(' · ') });
       t.due = next;
       (t.subtasks || []).forEach((s) => (s.done = false));
     });
@@ -341,7 +345,9 @@ function toggleDone(t, done) {
   if (done) {
     t.completedAt = Date.now();
     bump(state.completions, dateKey(), 1);
+    logEvent('task', t.title, { ref: t.id, detail: projectById(t.projectId) ? `📁 ${projectById(t.projectId).name}` : '' });
   } else {
+    if (t.completedAt) unlogEvent('task', t.id, dateKey(new Date(t.completedAt)));
     if (t.completedAt) bump(state.completions, dateKey(new Date(t.completedAt)), -1);
     t.completedAt = null;
   }
@@ -1052,6 +1058,7 @@ function finishSession(completed) {
       bump(state.focusMinutes, key, state.settings.focus);
       const task = state.tasks.find((t) => t.id === $('#timer-task').value);
       if (task) task.pomodoros = (task.pomodoros || 0) + 1;
+      logEvent('pomodoro', task ? task.title : 'Sesión de enfoque', { ref: task?.id || null, detail: `${state.settings.focus} min` });
       save();
       renderAll();
     }
@@ -1163,8 +1170,20 @@ $('#habit-form').addEventListener('submit', (e) => {
 });
 
 function toggleHabit(habit, key) {
-  if (habit.log[key]) delete habit.log[key];
-  else habit.log[key] = true;
+  if (habit.log[key]) {
+    delete habit.log[key];
+    unlogEvent('habit', habit.id, key);
+  } else {
+    habit.log[key] = true;
+    // Un día pasado se anota a mediodía de ese día (no hay hora real).
+    const at = key === dateKey() ? Date.now() : parseKey(key).getTime() + 12 * 3600 * 1000;
+    logEvent('habit', habit.name, { ref: habit.id, date: key, at, untimed: key !== dateKey(), detail: isDaily(habit) ? '' : `${weekCount(habit, weekStart(parseKey(key)))}/${goalOf(habit)} esta semana` });
+    if (key === dateKey()) {
+      const s = streak(habit);
+      if (isDaily(habit) && STREAK_MARKS.includes(s)) logEvent('streak', `${s} días seguidos: ${habit.name}`, { ref: habit.id });
+      if (!isDaily(habit) && weekCount(habit, weekStart(new Date())) === goalOf(habit)) logEvent('goal', `${habit.name}: ${GOAL_LABEL(goalOf(habit)).toLowerCase()} cumplido`, { ref: habit.id });
+    }
+  }
   save();
   renderToday();
   renderHabits();
@@ -1633,8 +1652,10 @@ $('#project-form').addEventListener('submit', (e) => {
     deadline: $('#project-deadline').value || null,
     color: PROJECT_COLORS.find((c) => !used.includes(c)) || PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length],
     manual: null,
+    milestone: 0,
     createdAt: Date.now(),
   });
+  logEvent('project', `Nuevo proyecto: ${name}`, { ref: state.projects[state.projects.length - 1].id });
   save();
   e.target.reset();
   renderAll();
@@ -1766,6 +1787,8 @@ $('#pd-name').addEventListener('blur', () => {
 });
 $('#pd-status').addEventListener('change', (e) => {
   const p = currentProject();
+  if (e.target.value === 'done' && p.status !== 'done') logEvent('project', `Proyecto completado: ${p.name}`, { ref: p.id });
+  if (e.target.value !== 'done' && p.status === 'done') unlogEvent('project', p.id, dateKey());
   p.status = e.target.value;
   save();
   renderAll();
@@ -1943,6 +1966,8 @@ $('#journal-form').addEventListener('submit', (e) => {
     return;
   }
   state.journal.push(entry);
+  const words = `${entry.text || ''} ${(entry.sections || []).map((s) => s.a).join(' ')}`.split(/\s+/).filter(Boolean).length;
+  logEvent('journal', JOURNAL_KINDS[entry.kind].label, { ref: entry.id, detail: [MOODS.find((m) => m.v === entry.mood)?.e, plural(words, 'palabra', 'palabras')].filter(Boolean).join(' · ') });
   save();
   writeDraft({});
   journalMood = null;
@@ -2194,7 +2219,9 @@ $('#idea-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const raw = $('#idea-text').value.trim();
   if (!raw) return;
-  state.ideas.push({ id: uid(), ...extractTags(raw), pinned: false, createdAt: Date.now(), updatedAt: Date.now() });
+  const idea = { id: uid(), ...extractTags(raw), pinned: false, createdAt: Date.now(), updatedAt: Date.now() };
+  state.ideas.push(idea);
+  logEvent('idea', idea.text.split('\n')[0], { ref: idea.id, detail: idea.tags.map((t) => `#${t}`).join(' ') });
   save();
   e.target.reset();
   renderIdeas();
@@ -2323,6 +2350,7 @@ const BRANCH_COUNT = 6;
 function newMap(title) {
   const map = { id: uid(), title, createdAt: Date.now(), updatedAt: Date.now(), nodes: [{ id: 'root', parent: null, text: title }] };
   state.maps.push(map);
+  logEvent('map', `Nuevo mapa: ${title}`, { ref: map.id });
   return map;
 }
 
@@ -2891,6 +2919,144 @@ async function exportMap() {
 }
 $('#mm-export').addEventListener('click', exportMap);
 
+// ---------- Bitácora del día ----------
+// Cada logro de cualquier pestaña queda anotado con su hora. Las anotaciones se guardan
+// aparte (un bloque por mes), así que siguen ahí aunque luego se borre la tarea o la idea.
+// Deshacer un logro (desmarcar) no borra la anotación: la marca como retirada, para que
+// los dispositivos sincronizados puedan juntar sus bitácoras sin pisarse.
+let logDay = null; // null = hoy
+const LOG_TYPES = {
+  task: { icon: '✅', label: 'Tarea completada' },
+  pomodoro: { icon: '🍅', label: 'Pomodoro' },
+  habit: { icon: '🔥', label: 'Hábito' },
+  streak: { icon: '🏅', label: 'Racha' },
+  goal: { icon: '🎯', label: 'Objetivo semanal' },
+  journal: { icon: '✍️', label: 'Diario' },
+  idea: { icon: '💡', label: 'Idea' },
+  map: { icon: '🧠', label: 'Mapa mental' },
+  project: { icon: '📁', label: 'Proyecto' },
+  milestone: { icon: '🚩', label: 'Avance de proyecto' },
+};
+const STREAK_MARKS = [7, 14, 21, 30, 50, 75, 100, 150, 200, 365];
+const PROJECT_MARKS = [25, 50, 75, 100];
+
+function logEvent(type, text, { ref = null, date = dateKey(), at = Date.now(), detail = '', untimed = false } = {}) {
+  state.log.push({ id: uid(), type, text, ref, date, at, detail, ...(untimed ? { untimed: true } : {}) });
+}
+
+// Retira la última anotación de ese tipo y elemento en ese día (al desmarcar algo).
+function unlogEvent(type, ref, date) {
+  const e = state.log.filter((x) => x.type === type && x.ref === ref && x.date === date && !x.removed).pop();
+  if (e) e.removed = true;
+}
+
+// Hitos de proyecto: se anotan al cruzar el 25, 50, 75 y 100 %.
+// Si el avance baja el mismo día (p. ej. al desmarcar una tarea), el hito de hoy se retira.
+function checkProjectMilestones() {
+  state.projects.forEach((p) => {
+    const pct = projectProgress(p);
+    const reached = PROJECT_MARKS.filter((m) => pct >= m).pop() || 0;
+    const prev = p.milestone || 0;
+    if (reached > prev) logEvent('milestone', `${p.name} alcanzó el ${reached} %`, { ref: `${p.id}:${reached}` });
+    if (reached < prev) PROJECT_MARKS.filter((m) => m > reached && m <= prev).forEach((m) => unlogEvent('milestone', `${p.id}:${m}`, dateKey()));
+    p.milestone = reached;
+  });
+}
+
+function dayEvents(key) {
+  return state.log.filter((e) => e.date === key && !e.removed).sort((a, b) => a.at - b.at);
+}
+
+function eventTime(e) {
+  // Los hábitos marcados para un día pasado (o de antes de la bitácora) no tienen hora real.
+  if (e.untimed || dateKey(new Date(e.at)) !== e.date) return '—';
+  return new Date(e.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+}
+
+$('#log-prev').addEventListener('click', () => {
+  logDay = dateKey(addDays(parseKey(logDay || dateKey()), -1));
+  renderLog();
+});
+$('#log-next').addEventListener('click', () => {
+  const next = dateKey(addDays(parseKey(logDay || dateKey()), 1));
+  logDay = next >= dateKey() ? null : next;
+  renderLog();
+});
+$('#log-today').addEventListener('click', () => {
+  logDay = null;
+  renderLog();
+});
+
+function renderLog() {
+  const key = logDay || dateKey();
+  const isToday = key === dateKey();
+  const events = dayEvents(key);
+  const d = parseKey(key);
+  const label = isToday ? 'Hoy' : key === dateKey(addDays(new Date(), -1)) ? 'Ayer' : d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('#log-title').textContent = label.charAt(0).toUpperCase() + label.slice(1);
+  $('#log-next').disabled = isToday;
+  $('#log-today').hidden = isToday;
+
+  // Resumen: se usan los contadores del día, que no dependen de la bitácora.
+  const pomos = state.pomodoros[key] || 0;
+  const habitsDue = state.habits.length;
+  const habitsDone = state.habits.filter((h) => h.log[key]).length;
+  const entries = state.journal.filter((e) => e.date === key);
+  const moodEntry = entries.filter((e) => e.mood).sort((a, b) => a.createdAt - b.createdAt).pop();
+  const mood = moodEntry && MOODS.find((m) => m.v === moodEntry.mood);
+  const count = (t) => events.filter((e) => e.type === t).length;
+  const chips = [
+    ['✅', `${plural(state.completions[key] || 0, 'tarea', 'tareas')}`],
+    ['🍅', pomos ? `${plural(pomos, 'pomodoro', 'pomodoros')} · ${formatMinutes(state.focusMinutes[key] || 0)}` : '0 pomodoros'],
+    habitsDue ? ['🔥', `${habitsDone}/${habitsDue} hábitos`] : null,
+    entries.length ? ['✍️', plural(entries.length, 'entrada', 'entradas')] : null,
+    count('idea') ? ['💡', plural(count('idea'), 'idea', 'ideas')] : null,
+    mood ? [mood.e, `Ánimo: ${mood.l.toLowerCase()}`] : null,
+  ].filter(Boolean);
+  $('#log-summary').replaceChildren(...chips.map(([i, t]) => el('span', { className: 'log-chip' }, [el('span', { ariaHidden: 'true' }, i), t])));
+
+  $('#log-list').replaceChildren(
+    ...events.map((e) => {
+      const t = LOG_TYPES[e.type] || { icon: '•', label: '' };
+      return el('li', { className: `log-item type-${e.type}` }, [
+        el('span', { className: 'log-time' }, eventTime(e)),
+        el('span', { className: 'log-icon', ariaHidden: 'true' }, t.icon),
+        el('div', { className: 'log-body' }, [
+          el('span', { className: 'log-label' }, t.label),
+          el('span', { className: 'log-text' }, e.text),
+          e.detail ? el('span', { className: 'log-detail' }, e.detail) : '',
+        ]),
+      ]);
+    })
+  );
+  $('#log-empty').hidden = events.length > 0;
+  $('#log-empty').textContent = isToday
+    ? 'Aún no hay hitos hoy. Completa una tarea, un pomodoro o un hábito, escribe en el diario o apunta una idea, y aparecerá aquí.'
+    : 'No hay hitos registrados ese día.';
+}
+
+// Una sola vez: se reconstruye la bitácora pasada con lo que ya tenía fecha y hora.
+function backfillLog() {
+  if (state.settings.logVersion >= 1) return;
+  const seen = new Set(state.log.map((e) => `${e.type}:${e.ref}:${e.date}`));
+  const add = (type, text, ref, at, detail = '', date = dateKey(new Date(at)), untimed = false) => {
+    if (!at || seen.has(`${type}:${ref}:${date}`)) return;
+    state.log.push({ id: uid(), type, text, ref, date, at, detail, ...(untimed ? { untimed: true } : {}) });
+  };
+  allTasks().filter((t) => t.done && t.completedAt && !t.repeat).forEach((t) => add('task', t.title, t.id, t.completedAt, projectById(t.projectId)?.name ? `📁 ${projectById(t.projectId).name}` : ''));
+  state.journal.forEach((e) => add('journal', JOURNAL_KINDS[e.kind]?.label || 'Entrada', e.id, e.createdAt, MOODS.find((m) => m.v === e.mood)?.e || ''));
+  state.ideas.forEach((i) => add('idea', i.text.split('\n')[0], i.id, i.createdAt));
+  // Los hábitos no guardaban la hora: se anotan sin hora (a mediodía de ese día).
+  state.habits.forEach((h) => Object.keys(h.log).forEach((k) => add('habit', h.name, h.id, parseKey(k).getTime() + 12 * 3600 * 1000, '', k, true)));
+  state.maps.forEach((m) => add('map', `Nuevo mapa: ${m.title}`, m.id, m.createdAt));
+  state.projects.forEach((p) => {
+    add('project', `Nuevo proyecto: ${p.name}`, p.id, p.createdAt);
+    p.milestone = PROJECT_MARKS.filter((m) => projectProgress(p) >= m).pop() || 0;
+  });
+  state.settings.logVersion = 1;
+  save();
+}
+
 // ---------- Recordatorios ----------
 // Avisan dentro de la app a la hora indicada (y al abrirla, si la hora ya pasó hoy).
 // Una página web solo puede avisar mientras está abierta.
@@ -3000,6 +3166,8 @@ function storageReport() {
   rows.push({ key: 'journal', label: 'Diario', detail: j ? `Mes más lleno: ${monthName(j.n.slice(8))} · ${plural(state.journal.length, 'entrada', 'entradas')} en total` : 'Sin entradas', b: j ? j.b : 0 });
   const a = worst('archive-');
   rows.push({ key: 'archive', label: 'Archivo de tareas', detail: a ? `Mes más lleno: ${monthName(a.n.slice(8))} · ${plural(state.archive.length, 'tarea archivada', 'tareas archivadas')}` : 'Vacío: aquí pasan las tareas completadas hace más de 7 días', b: a ? a.b : 0 });
+  const l = worst('log-');
+  rows.push({ key: 'log', label: 'Bitácora', detail: l ? `Mes más lleno: ${monthName(l.n.slice(4))} · ${plural(state.log.filter((e) => !e.removed).length, 'hito', 'hitos')} en total` : 'Sin hitos todavía', b: l ? l.b : 0 });
   const m = worst('map-');
   const mapTitle = m && state.maps.find((x) => `map-${x.id}` === m.n)?.title;
   rows.push({ key: 'maps', label: 'Mapas mentales', detail: m ? `Mapa más grande: ${mapTitle} · ${plural(state.maps.length, 'mapa', 'mapas')}` : 'Sin mapas', b: m ? m.b : 0 });
@@ -3025,6 +3193,7 @@ const STORAGE_TIPS = {
   journal: 'Ese mes tiene mucho texto; los meses siguientes empiezan con su propio espacio.',
   archive: 'Usa «Borrar tareas completadas» en Tareas para vaciar el archivo.',
   maps: 'Divide ese mapa en varios más pequeños.',
+  log: 'Los meses siguientes empiezan con su propio espacio.',
   local: 'Descarga una copia de seguridad y borra lo que ya no uses.',
 };
 
@@ -3097,6 +3266,7 @@ $('#shortcuts-toggle').addEventListener('click', () => {
 //   ideas            notas de ideas
 //   journal-AAAA-MM  entradas del diario de ese mes
 //   archive-AAAA-MM  tareas completadas archivadas ese mes
+//   log-AAAA-MM      bitácora de hitos de ese mes (se fusiona, no se pisa)
 //   map-<id>         cada mapa mental
 // Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
 const sync = { col: null, writing: false, dirty: false, timeout: null };
@@ -3126,6 +3296,9 @@ function localBuckets() {
   // Un mes que se quedó sin entradas se sube vacío para que los demás dispositivos lo vacíen también.
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('journal-')).forEach((n) => months.add(n.slice(8)));
   months.forEach((m) => out.set(`journal-${m}`, { items: state.journal.filter((e) => monthOf(e.date) === m) }));
+  const logMonths = new Set(state.log.map((e) => monthOf(e.date)));
+  Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('log-')).forEach((n) => logMonths.add(n.slice(4)));
+  logMonths.forEach((m) => out.set(`log-${m}`, { items: state.log.filter((e) => monthOf(e.date) === m) }));
   const archMonths = new Set(state.archive.map((t) => archiveMonth(t)));
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
   archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
@@ -3149,6 +3322,14 @@ function applyBucket(name, data) {
   } else if (name.startsWith('journal-')) {
     const m = name.slice(8);
     state.journal = state.journal.filter((e) => monthOf(e.date) !== m).concat(data.items || []);
+  } else if (name.startsWith('log-')) {
+    // La bitácora se fusiona: se juntan las anotaciones de ambos lados y una retirada gana.
+    const byId = new Map(state.log.filter((e) => monthOf(e.date) === name.slice(4)).map((e) => [e.id, e]));
+    (data.items || []).forEach((e) => {
+      const mine = byId.get(e.id);
+      byId.set(e.id, mine ? { ...mine, removed: mine.removed || e.removed } : e);
+    });
+    state.log = state.log.filter((e) => monthOf(e.date) !== name.slice(4)).concat([...byId.values()].sort((a, b) => a.at - b.at));
   } else if (name.startsWith('archive-')) {
     const m = name.slice(8);
     const incoming = data.items || [];
@@ -3242,11 +3423,13 @@ function receiveSnapshot(snap, first) {
     const localDirty = localData !== undefined && localJson !== meta.sent[name];
     // Nunca se pisa con una copia vacía lo que este dispositivo tiene sin subir.
     if (localDirty && meta.sent[name] === undefined && bucketIsEmpty(name, body) && !bucketIsEmpty(name, localData)) continue;
-    // Si este bloque cambió aquí después que en la nube, gana el de aquí.
-    if (localDirty && (state.updatedAt || 0) > remoteAt) continue;
+    // Si este bloque cambió aquí después que en la nube, gana el de aquí (la bitácora siempre se fusiona).
+    const isLog = name.startsWith('log-');
+    if (!isLog && localDirty && (state.updatedAt || 0) > remoteAt) continue;
 
     applyBucket(name, body);
-    meta.sent[name] = JSON.stringify(localBuckets().get(name) ?? body);
+    // Tras fusionar la bitácora, lo que quede distinto de la nube se vuelve a subir.
+    meta.sent[name] = isLog ? JSON.stringify(body) : JSON.stringify(localBuckets().get(name) ?? body);
     meta.times[name] = remoteAt;
     changed = true;
   }
@@ -3291,6 +3474,7 @@ async function startSync() {
 }
 
 // ---------- Inicio ----------
+backfillLog();
 archiveOldTasks();
 applySettings();
 attachPreview($('#task-title'), $('#task-preview'));
