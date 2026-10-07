@@ -95,7 +95,7 @@ let toastTimeout = null;
 
 // Aplica un cambio destructivo y ofrece deshacerlo durante unos segundos.
 function withUndo(message, change) {
-  const snapshot = JSON.stringify({ tasks: state.tasks, habits: state.habits });
+  const snapshot = JSON.stringify({ tasks: state.tasks, habits: state.habits, completions: state.completions });
   change();
   save();
   renderAll();
@@ -127,15 +127,71 @@ $$('.tab').forEach((tab) => tab.addEventListener('click', () => showView(tab.dat
 
 // ---------- Tareas ----------
 let taskFilter = 'all';
+let tagFilter = null;
 let editingId = null;
+const expanded = new Set(); // tareas con las subtareas desplegadas
 const PRIORITY_LABEL = { 1: 'Baja', 2: 'Media', 3: 'Alta' };
+const REPEAT_LABEL = { daily: 'Cada día', weekdays: 'Lun a vie', weekly: 'Cada semana', monthly: 'Cada mes' };
 
-function addTask(title, priority, due) {
+// "Preparar informe #trabajo #urgente" -> título "Preparar informe", etiquetas [trabajo, urgente]
+function parseTitle(text) {
+  const tags = [];
+  const title = text
+    .replace(/(^|\s)#([\p{L}\p{N}_-]+)/gu, (_, space, tag) => {
+      tag = tag.toLowerCase();
+      if (!tags.includes(tag)) tags.push(tag);
+      return space;
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { title: title || text.trim(), tags };
+}
+
+function withTags(t) {
+  return [t.title, ...(t.tags || []).map((tag) => `#${tag}`)].join(' ');
+}
+
+function parseKey(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function nextOccurrence(date, repeat) {
+  const d = new Date(date);
+  if (repeat === 'daily') d.setDate(d.getDate() + 1);
+  else if (repeat === 'weekdays') {
+    do d.setDate(d.getDate() + 1);
+    while (d.getDay() === 0 || d.getDay() === 6);
+  } else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
+  else if (repeat === 'monthly') {
+    const day = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + 1);
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, lastDay));
+  }
+  return d;
+}
+
+// Siguiente fecha posterior a hoy, partiendo de la fecha límite actual.
+function nextDue(t) {
+  const today = dateKey();
+  let d = parseKey(t.due || today);
+  do d = nextOccurrence(d, t.repeat);
+  while (dateKey(d) <= today);
+  return dateKey(d);
+}
+
+function addTask(text, { priority = 2, due = null, repeat = null } = {}) {
+  const { title, tags } = parseTitle(text);
   state.tasks.push({
     id: uid(),
     title,
+    tags,
     priority,
-    due: due || null,
+    due: due || (repeat ? dateKey() : null),
+    repeat: repeat || null,
+    subtasks: [],
     done: false,
     pomodoros: 0,
     createdAt: Date.now(),
@@ -146,9 +202,13 @@ function addTask(title, priority, due) {
 
 $('#task-form').addEventListener('submit', (e) => {
   e.preventDefault();
-  const title = $('#task-title').value.trim();
-  if (!title) return;
-  addTask(title, Number($('#task-priority').value), $('#task-due').value);
+  const text = $('#task-title').value.trim();
+  if (!text) return;
+  addTask(text, {
+    priority: Number($('#task-priority').value),
+    due: $('#task-due').value,
+    repeat: $('#task-repeat').value,
+  });
   e.target.reset();
   $('#task-title').focus();
 });
@@ -177,6 +237,10 @@ const byImportance = (a, b) =>
 
 const isDueToday = (t) => !t.done && t.due && t.due <= dateKey();
 
+function allTags() {
+  return [...new Set(state.tasks.flatMap((t) => t.tags || []))].sort((a, b) => a.localeCompare(b, 'es'));
+}
+
 function visibleTasks() {
   const filters = {
     all: () => true,
@@ -184,7 +248,10 @@ function visibleTasks() {
     pending: (t) => !t.done,
     done: (t) => t.done,
   };
-  return state.tasks.filter(filters[taskFilter]).sort(byImportance);
+  return state.tasks
+    .filter(filters[taskFilter])
+    .filter((t) => !tagFilter || (t.tags || []).includes(tagFilter))
+    .sort(byImportance);
 }
 
 function formatDue(due) {
@@ -192,36 +259,78 @@ function formatDue(due) {
   const tomorrow = dateKey(addDays(new Date(), 1));
   if (due === today) return 'Hoy';
   if (due === tomorrow) return 'Mañana';
-  const [y, m, d] = due.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('es', { day: 'numeric', month: 'short' });
+  return parseKey(due).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function toggleDone(t, done) {
+  if (done && t.repeat) {
+    // Tarea que se repite: cuenta como hecha y pasa a la siguiente fecha.
+    const next = nextDue(t);
+    withUndo(`Hecha · vuelve ${formatDue(next).toLowerCase()}`, () => {
+      bump(state.completions, dateKey(), 1);
+      t.due = next;
+      (t.subtasks || []).forEach((s) => (s.done = false));
+    });
+    return;
+  }
+  t.done = done;
+  if (done) {
+    t.completedAt = Date.now();
+    bump(state.completions, dateKey(), 1);
+  } else {
+    if (t.completedAt) bump(state.completions, dateKey(new Date(t.completedAt)), -1);
+    t.completedAt = null;
+  }
+  save();
+  renderAll();
+}
+
+function tagChip(tag) {
+  const chip = el('button', { className: `tag${tag === tagFilter ? ' active' : ''}`, title: `Filtrar por #${tag}` }, `#${tag}`);
+  chip.addEventListener('click', () => setTagFilter(tag === tagFilter ? null : tag));
+  return chip;
+}
+
+function setTagFilter(tag) {
+  tagFilter = tag;
+  showView('tasks');
+  renderTasks();
 }
 
 function taskItem(t) {
   if (t.id === editingId) return taskEditor(t);
+  const subtasks = t.subtasks || [];
+  const isOpen = expanded.has(t.id);
 
   const check = el('input', { type: 'checkbox', checked: t.done, ariaLabel: 'Completar' });
-  check.addEventListener('change', () => {
-    t.done = check.checked;
-    if (t.done) {
-      t.completedAt = Date.now();
-      bump(state.completions, dateKey(), 1);
-    } else {
-      if (t.completedAt) bump(state.completions, dateKey(new Date(t.completedAt)), -1);
-      t.completedAt = null;
-    }
-    save();
-    renderAll();
-  });
+  check.addEventListener('change', () => toggleDone(t, check.checked));
 
   const meta = el('div', { className: 'meta' }, PRIORITY_LABEL[t.priority]);
   if (t.due) {
     const overdue = !t.done && t.due < dateKey();
     meta.append(' · ', el('span', { className: overdue ? 'overdue' : '' }, (overdue ? 'Vencida: ' : '') + formatDue(t.due)));
   }
+  if (t.repeat) meta.append(' · ', el('span', { className: 'repeat' }, `↻ ${REPEAT_LABEL[t.repeat]}`));
   if (t.pomodoros) meta.append(` · 🍅 ${t.pomodoros}`);
+  if (subtasks.length) meta.append(` · ☑ ${subtasks.filter((s) => s.done).length}/${subtasks.length}`);
 
   const title = el('button', { className: 'title', title: 'Editar' }, t.title);
   title.addEventListener('click', () => startEditing(t.id));
+
+  const body = el('div', { className: 'body' }, [title, meta]);
+  if (t.tags?.length) body.append(el('div', { className: 'tags' }, t.tags.map(tagChip)));
+
+  const toggle = el(
+    'button',
+    { className: `sub-toggle${isOpen ? ' open' : ''}`, title: 'Subtareas', ariaLabel: 'Subtareas', ariaExpanded: String(isOpen) },
+    subtasks.length ? `☰ ${subtasks.length}` : '☰ +'
+  );
+  toggle.addEventListener('click', () => {
+    if (isOpen) expanded.delete(t.id);
+    else expanded.add(t.id);
+    renderAll();
+    if (!isOpen) document.querySelector(`.view.active [data-sub-input="${t.id}"]`)?.focus();
+  });
 
   const del = el('button', { className: 'del', title: 'Eliminar', ariaLabel: 'Eliminar' }, '✕');
   del.addEventListener('click', () =>
@@ -230,11 +339,48 @@ function taskItem(t) {
     })
   );
 
-  return el('li', { className: `task p${t.priority}${t.done ? ' done' : ''}` }, [
-    check,
-    el('div', { className: 'body' }, [title, meta]),
-    del,
+  const li = el('li', { className: `task p${t.priority}${t.done ? ' done' : ''}` }, [
+    el('div', { className: 'task-row' }, [check, body, toggle, del]),
   ]);
+  if (isOpen) li.append(subtaskPanel(t));
+  return li;
+}
+
+function subtaskPanel(t) {
+  t.subtasks = t.subtasks || [];
+  const items = t.subtasks.map((s) => {
+    const check = el('input', { type: 'checkbox', checked: s.done, ariaLabel: 'Completar subtarea' });
+    check.addEventListener('change', () => {
+      s.done = check.checked;
+      save();
+      renderAll();
+    });
+    const del = el('button', { className: 'del small', title: 'Eliminar subtarea', ariaLabel: 'Eliminar subtarea' }, '✕');
+    del.addEventListener('click', () =>
+      withUndo('Subtarea borrada', () => {
+        t.subtasks = t.subtasks.filter((x) => x.id !== s.id);
+      })
+    );
+    return el('li', { className: `subtask${s.done ? ' done' : ''}` }, [
+      el('label', {}, [check, el('span', {}, s.title)]),
+      del,
+    ]);
+  });
+
+  const input = el('input', { type: 'text', placeholder: 'Añadir subtarea', maxLength: 140, required: true, ariaLabel: 'Nueva subtarea' });
+  input.dataset.subInput = t.id;
+  const form = el('form', { className: 'row sub-form' }, [input, el('button', { type: 'submit' }, 'Añadir')]);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const value = input.value.trim();
+    if (!value) return;
+    t.subtasks.push({ id: uid(), title: value, done: false });
+    save();
+    renderAll();
+    document.querySelector(`.view.active [data-sub-input="${t.id}"]`)?.focus();
+  });
+
+  return el('div', { className: 'subtasks' }, [el('ul', {}, items), form]);
 }
 
 function startEditing(id) {
@@ -248,35 +394,58 @@ function stopEditing() {
   renderAll();
 }
 
+function repeatSelect(value) {
+  return el(
+    'select',
+    { ariaLabel: 'Repetir' },
+    [['', 'No se repite'], ...Object.entries(REPEAT_LABEL)].map(([v, label]) =>
+      el('option', { value: v, selected: v === (value || '') }, label)
+    )
+  );
+}
+
 function taskEditor(t) {
-  const title = el('input', { type: 'text', value: t.title, required: true, maxLength: 140, ariaLabel: 'Título' });
+  const title = el('input', { type: 'text', value: withTags(t), required: true, maxLength: 200, ariaLabel: 'Título y #etiquetas' });
   const priority = el(
     'select',
     { ariaLabel: 'Prioridad' },
     [3, 2, 1].map((p) => el('option', { value: p, selected: p === t.priority }, PRIORITY_LABEL[p]))
   );
   const due = el('input', { type: 'date', value: t.due || '', ariaLabel: 'Fecha límite' });
+  const repeat = repeatSelect(t.repeat);
   const cancel = el('button', { type: 'button' }, 'Cancelar');
   cancel.addEventListener('click', stopEditing);
 
   const form = el('form', { className: 'task-edit' }, [
     title,
-    el('div', { className: 'row' }, [priority, due, el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
+    el('div', { className: 'row' }, [priority, due, repeat]),
+    el('div', { className: 'row' }, [el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
   ]);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const value = title.value.trim();
-    if (!value) return;
-    t.title = value;
+    const text = title.value.trim();
+    if (!text) return;
+    Object.assign(t, parseTitle(text));
     t.priority = Number(priority.value);
-    t.due = due.value || null;
+    t.repeat = repeat.value || null;
+    t.due = due.value || (t.repeat ? dateKey() : null);
     save();
     stopEditing();
   });
   return el('li', { className: `task editing p${t.priority}` }, form);
 }
 
+function renderTagFilter() {
+  const tags = allTags();
+  if (tagFilter && !tags.includes(tagFilter)) tagFilter = null;
+  const all = el('button', { className: `tag${tagFilter ? '' : ' active'}` }, 'Todas las etiquetas');
+  all.addEventListener('click', () => setTagFilter(null));
+  $('#tag-filter').replaceChildren(...(tags.length ? [all, ...tags.map(tagChip)] : []));
+  $('#tag-filter').hidden = !tags.length;
+}
+
 function renderTasks() {
+  renderTagFilter();
   const tasks = visibleTasks();
   $('#task-list').replaceChildren(...tasks.map(taskItem));
   $('#task-empty').hidden = tasks.length > 0;
@@ -288,9 +457,9 @@ function renderTasks() {
 // ---------- Hoy ----------
 $('#today-form').addEventListener('submit', (e) => {
   e.preventDefault();
-  const title = $('#today-title').value.trim();
-  if (!title) return;
-  addTask(title, 2, dateKey());
+  const text = $('#today-title').value.trim();
+  if (!text) return;
+  addTask(text, { due: dateKey() });
   e.target.reset();
   $('#today-title').focus();
 });

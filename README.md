@@ -6,6 +6,9 @@ App de productividad ligera, sin dependencias ni paso de compilación. Todo se g
 
 - **Hoy**: resumen del día (pendientes, vencidas, hechas y pomodoros), añadir tareas para hoy al instante y marcar los hábitos del día.
 - **Tareas**: prioridad (alta/media/baja), fecha límite, filtros (Todas, Hoy, Pendientes, Hechas), aviso de tareas vencidas. Toca el texto de una tarea para editarla; al borrar puedes deshacer.
+  - **Etiquetas**: escribe `#trabajo` en el título; toca una etiqueta para filtrar.
+  - **Repetición**: cada día, lunes a viernes, cada semana o cada mes. Al completarla pasa sola a la siguiente fecha.
+  - **Subtareas**: el botón ☰ abre la lista de pasos de cada tarea.
 - **Pomodoro**: enfoque / pausa corta / pausa larga (cada 4 pomodoros), duraciones configurables, aviso sonoro y notificación del navegador, contador diario. La pantalla se mantiene encendida mientras corre (si el navegador lo permite). Puedes asociar el pomodoro a una tarea y se suma a su contador 🍅.
 - **Hábitos**: marca los últimos 7 días y sigue tu racha 🔥.
 - **Progreso**: pomodoros, tareas completadas y tiempo enfocado de los últimos 7 días (comparado con la semana anterior), gráfico por día y constancia de cada hábito en 30 días.

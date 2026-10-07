@@ -34,7 +34,7 @@
 
       <h2 class="section-title">Para hoy</h2>
       <form id="today-form" class="row quick-add">
-        <input id="today-title" type="text" placeholder="Añadir tarea para hoy" required maxlength="140">
+        <input id="today-title" type="text" placeholder="Añadir tarea para hoy (#etiqueta opcional)" required maxlength="140">
         <button type="submit" class="primary">Añadir</button>
       </form>
       <ul id="today-list" class="list"></ul>
@@ -48,13 +48,20 @@
     <!-- Tareas -->
     <section id="view-tasks" class="view">
       <form id="task-form" class="card row">
-        <input id="task-title" type="text" placeholder="¿Qué hay que hacer?" required maxlength="140">
+        <input id="task-title" type="text" placeholder="¿Qué hay que hacer? Usa #etiquetas" required maxlength="200">
         <select id="task-priority" aria-label="Prioridad">
           <option value="2">Media</option>
           <option value="3">Alta</option>
           <option value="1">Baja</option>
         </select>
         <input id="task-due" type="date" aria-label="Fecha límite">
+        <select id="task-repeat" aria-label="Repetir">
+          <option value="">No se repite</option>
+          <option value="daily">Cada día</option>
+          <option value="weekdays">Lun a vie</option>
+          <option value="weekly">Cada semana</option>
+          <option value="monthly">Cada mes</option>
+        </select>
         <button type="submit" class="primary">Añadir</button>
       </form>
 
@@ -67,10 +74,11 @@
         </div>
         <span id="task-stats" class="muted"></span>
       </div>
+      <div id="tag-filter" class="tag-filter" role="group" aria-label="Etiqueta" hidden></div>
 
       <ul id="task-list" class="list"></ul>
       <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
-      <p class="muted hint">Toca el texto de una tarea para editarla.</p>
+      <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas.</p>
       <button id="clear-done" class="link">Borrar tareas completadas</button>
     </section>
 
