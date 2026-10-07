@@ -89,6 +89,7 @@ function renderAll() {
   renderTimer();
   renderHabits();
   renderProgress();
+  checkReminders();
 }
 
 // ---------- Aviso con "Deshacer" ----------
@@ -184,11 +185,15 @@ function nextDue(t) {
   return dateKey(d);
 }
 
-function addTask(text, { priority = 2, due = null, repeat = null } = {}) {
+function addTask(text, { priority = 2, due = null, repeat = null, time = null } = {}) {
   const parsed = parseInput(text);
   priority = parsed.priority ?? priority;
   due = parsed.due ?? due;
   repeat = parsed.repeat ?? repeat;
+  time = parsed.time ?? time;
+  // Con hora pero sin fecha: hoy, o mañana si esa hora ya pasó.
+  if (time && !due) due = time > nowHM() ? dateKey() : dateKey(addDays(new Date(), 1));
+  if (time) askNotificationPermission();
   state.tasks.push({
     id: uid(),
     title: parsed.title,
@@ -196,6 +201,8 @@ function addTask(text, { priority = 2, due = null, repeat = null } = {}) {
     priority,
     due: due || (repeat ? dateKey() : null),
     repeat: repeat || null,
+    time: time || null,
+    notes: '',
     order: Date.now(),
     subtasks: [],
     done: false,
@@ -214,6 +221,7 @@ $('#task-form').addEventListener('submit', (e) => {
     priority: Number($('#task-priority').value),
     due: $('#task-due').value,
     repeat: $('#task-repeat').value,
+    time: $('#task-time').value,
   });
   e.target.reset();
   $('#task-title').focus();
@@ -239,6 +247,7 @@ const byImportance = (a, b) =>
   a.done - b.done ||
   b.priority - a.priority ||
   (a.due || '9999').localeCompare(b.due || '9999') ||
+  (a.time || '99').localeCompare(b.time || '99') ||
   a.createdAt - b.createdAt;
 
 const byManualOrder = (a, b) => a.done - b.done || (a.order ?? a.createdAt) - (b.order ?? b.createdAt);
@@ -326,6 +335,7 @@ function taskItem(t, { draggable = false } = {}) {
     const overdue = !t.done && t.due < dateKey();
     meta.append(' · ', el('span', { className: overdue ? 'overdue' : '' }, (overdue ? 'Vencida: ' : '') + formatDue(t.due)));
   }
+  if (t.time) meta.append(' · ', el('span', { className: 'at-time' }, `⏰ ${t.time}`));
   if (t.repeat) meta.append(' · ', el('span', { className: 'repeat' }, `↻ ${REPEAT_LABEL[t.repeat]}`));
   if (t.pomodoros) meta.append(` · 🍅 ${t.pomodoros}`);
   if (subtasks.length) meta.append(` · ☑ ${subtasks.filter((s) => s.done).length}/${subtasks.length}`);
@@ -334,12 +344,13 @@ function taskItem(t, { draggable = false } = {}) {
   title.addEventListener('click', () => startEditing(t.id));
 
   const body = el('div', { className: 'body' }, [title, meta]);
+  if (t.notes && !isOpen) body.append(el('div', { className: 'note-preview' }, t.notes.split('\n')[0]));
   if (t.tags?.length) body.append(el('div', { className: 'tags' }, t.tags.map(tagChip)));
 
   const toggle = el(
     'button',
-    { className: `sub-toggle${isOpen ? ' open' : ''}`, title: 'Subtareas', ariaLabel: 'Subtareas', ariaExpanded: String(isOpen) },
-    subtasks.length ? `☰ ${subtasks.length}` : '☰ +'
+    { className: `sub-toggle${isOpen ? ' open' : ''}`, title: 'Subtareas y notas', ariaLabel: 'Subtareas y notas', ariaExpanded: String(isOpen) },
+    subtasks.length ? `☰ ${subtasks.length}` : t.notes ? '☰ 📝' : '☰ +'
   );
   toggle.addEventListener('click', () => {
     if (isOpen) expanded.delete(t.id);
@@ -397,7 +408,31 @@ function subtaskPanel(t) {
     document.querySelector(`.view.active [data-sub-input="${t.id}"]`)?.focus();
   });
 
-  return el('div', { className: 'subtasks' }, [el('ul', {}, items), form]);
+  // Notas: se guardan mientras escribes, sin redibujar la lista (así no se pierde el cursor).
+  const notes = el('textarea', { className: 'notes', rows: 3, placeholder: 'Notas, enlaces, ideas…', value: t.notes || '', ariaLabel: 'Notas de la tarea' });
+  let notesTimer = null;
+  notes.addEventListener('input', () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => {
+      t.notes = notes.value;
+      save();
+    }, 400);
+  });
+  notes.addEventListener('blur', () => {
+    clearTimeout(notesTimer);
+    if ((t.notes || '') !== notes.value) {
+      t.notes = notes.value;
+      save();
+    }
+  });
+
+  return el('div', { className: 'subtasks' }, [
+    el('div', { className: 'panel-label' }, 'Subtareas'),
+    el('ul', {}, items),
+    form,
+    el('div', { className: 'panel-label' }, 'Notas'),
+    notes,
+  ]);
 }
 
 function startEditing(id) {
@@ -429,13 +464,14 @@ function taskEditor(t) {
     [3, 2, 1].map((p) => el('option', { value: p, selected: p === t.priority }, PRIORITY_LABEL[p]))
   );
   const due = el('input', { type: 'date', value: t.due || '', ariaLabel: 'Fecha límite' });
+  const time = el('input', { type: 'time', value: t.time || '', ariaLabel: 'Hora del recordatorio' });
   const repeat = repeatSelect(t.repeat);
   const cancel = el('button', { type: 'button' }, 'Cancelar');
   cancel.addEventListener('click', stopEditing);
 
   const form = el('form', { className: 'task-edit' }, [
     title,
-    el('div', { className: 'row' }, [priority, due, repeat]),
+    el('div', { className: 'row' }, [priority, due, time, repeat]),
     el('div', { className: 'row' }, [el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
   ]);
   form.addEventListener('submit', (e) => {
@@ -447,7 +483,10 @@ function taskEditor(t) {
     t.tags = parsed.tags;
     t.priority = parsed.priority ?? Number(priority.value);
     t.repeat = parsed.repeat ?? (repeat.value || null);
+    t.time = parsed.time ?? (time.value || null);
     t.due = parsed.due ?? (due.value || (t.repeat ? dateKey() : null));
+    if (t.time && !t.due) t.due = t.time > nowHM() ? dateKey() : dateKey(addDays(new Date(), 1));
+    if (t.time) askNotificationPermission();
     save();
     stopEditing();
   });
@@ -465,6 +504,9 @@ function renderTagFilter() {
 
 function renderTasks() {
   renderTagFilter();
+  $('#list-pane').hidden = taskView !== 'list';
+  $('#week-pane').hidden = taskView !== 'week';
+  if (taskView === 'week') renderWeek();
   $('#task-sort').value = state.settings.sort || 'priority';
   const tasks = visibleTasks();
   $('#task-list').replaceChildren(...tasks.map((t) => taskItem(t, { draggable: manualSort() })));
@@ -599,6 +641,25 @@ const REPEAT_RULES = [
   ['(?:cada\\s+mes|todos\\s+los\\s+meses|mensualmente)', 'monthly'],
 ];
 
+// "a las 5" = 17:00 (de 1 a 7 sin más detalle se entiende tarde), "a las 9:30", "17:30", "8pm", "a las 10 de la noche".
+function toHM(h, m, suffix, fromALas) {
+  h = Number(h);
+  m = Number(m || 0);
+  suffix = (suffix || '').toLowerCase();
+  if (/pm|tarde|noche/.test(suffix) && h < 12) h += 12;
+  else if (/am|ma[nñ]ana|madrugada/.test(suffix) && h === 12) h = 0;
+  else if (!suffix && fromALas && h >= 1 && h <= 7) h += 12;
+  if (h > 23 || m > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+const TIME_SUFFIX = '(?:\\s*(am|pm|de\\s+la\\s+(?:ma[nñ]ana|tarde|noche|madrugada)))?';
+const TIME_RULES = [
+  [`a\\s+las?\\s+(\\d{1,2})(?::(\\d{2}))?${TIME_SUFFIX}`, (m) => toHM(m[1], m[2], m[3], true)],
+  [`(\\d{1,2}):(\\d{2})${TIME_SUFFIX}`, (m) => toHM(m[1], m[2], m[3], false)],
+  ['(\\d{1,2})\\s*(am|pm)', (m) => toHM(m[1], 0, m[2], false)],
+];
+
 function parseInput(text) {
   let rest = ` ${text} `;
   const out = {};
@@ -622,6 +683,13 @@ function parseInput(text) {
     if (!out.repeat && take(pattern, () => true)) out.repeat = repeat;
   }
   take('!(alta|media|baja)', (m) => (out.priority = PRIORITY_WORDS[m[1].toLowerCase()]));
+  for (const [pattern, fn] of TIME_RULES) {
+    const hm = take(pattern, fn);
+    if (hm) {
+      out.time = hm;
+      break;
+    }
+  }
   if (!out.due) {
     for (const [pattern, fn] of DATE_RULES) {
       const d = take(pattern, fn);
@@ -642,6 +710,7 @@ function attachPreview(input, preview) {
     const p = text ? parseInput(text) : {};
     const chips = [];
     if (p.due) chips.push(`📅 ${formatDue(p.due)}`);
+    if (p.time) chips.push(`⏰ ${p.time}`);
     if (p.repeat) chips.push(`↻ ${REPEAT_LABEL[p.repeat]}`);
     if (p.priority) chips.push(`Prioridad ${PRIORITY_LABEL[p.priority].toLowerCase()}`);
     (p.tags || []).forEach((tag) => chips.push(`#${tag}`));
@@ -651,6 +720,135 @@ function attachPreview(input, preview) {
   input.addEventListener('input', update);
   input.form.addEventListener('reset', () => setTimeout(update));
   update();
+}
+
+// ---------- Calendario semanal ----------
+let taskView = 'list';
+let weekOffset = 0; // 0 = esta semana
+let addingDay = null; // día con el formulario rápido abierto
+
+$$('[data-taskview]').forEach((btn) =>
+  btn.addEventListener('click', () => {
+    taskView = btn.dataset.taskview;
+    $$('[data-taskview]').forEach((b) => {
+      b.classList.toggle('active', b === btn);
+      b.ariaPressed = String(b === btn);
+    });
+    renderTasks();
+  })
+);
+$('#week-prev').addEventListener('click', () => {
+  weekOffset--;
+  renderTasks();
+});
+$('#week-next').addEventListener('click', () => {
+  weekOffset++;
+  renderTasks();
+});
+$('#week-today').addEventListener('click', () => {
+  weekOffset = 0;
+  renderTasks();
+});
+$('#week-undated').addEventListener('click', () => $('[data-taskview="list"]').click());
+
+// Fechas futuras de una tarea que se repite dentro de un rango (sin contar la actual).
+function occurrencesBetween(t, fromKey, toKey) {
+  if (!t.repeat || t.done || !t.due) return [];
+  const out = [];
+  let d = parseKey(t.due);
+  for (let i = 0; i < 400; i++) {
+    d = nextOccurrence(d, t.repeat);
+    const key = dateKey(d);
+    if (key > toKey) break;
+    if (key >= fromKey) out.push(key);
+  }
+  return out;
+}
+
+function weekTitle(start, end) {
+  const sameMonth = start.getMonth() === end.getMonth();
+  const a = start.toLocaleDateString('es', sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+  const b = end.toLocaleDateString('es', { day: 'numeric', month: 'long' });
+  return `${a} – ${b}`;
+}
+
+function ghostItem(t) {
+  return el('li', { className: 'task ghost', title: 'Repetición prevista' }, el('div', { className: 'task-row' }, [
+    el('span', { className: 'ghost-icon', ariaHidden: 'true' }, '↻'),
+    el('div', { className: 'body' }, [
+      el('div', { className: 'ghost-title' }, t.title),
+      el('div', { className: 'meta' }, `${REPEAT_LABEL[t.repeat]}${t.time ? ` · ⏰ ${t.time}` : ''} · repetición prevista`),
+    ]),
+  ]));
+}
+
+function renderWeek() {
+  const start = addDays(weekStart(new Date()), weekOffset * 7);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const fromKey = dateKey(days[0]);
+  const toKey = dateKey(days[6]);
+  const today = dateKey();
+  const tasks = state.tasks.filter((t) => !tagFilter || (t.tags || []).includes(tagFilter));
+
+  const ghosts = {};
+  tasks.forEach((t) => occurrencesBetween(t, fromKey, toKey).forEach((k) => (ghosts[k] = [...(ghosts[k] || []), t])));
+
+  $('#week-title').textContent = weekTitle(days[0], days[6]);
+  $('#week-today').hidden = weekOffset === 0;
+
+  const byDay = days.map((d) => {
+    const key = dateKey(d);
+    return { d, key, real: tasks.filter((t) => t.due === key).sort(byImportance), ghosts: (ghosts[key] || []).sort((a, b) => (a.time || '99').localeCompare(b.time || '99')) };
+  });
+
+  $('#week-strip').replaceChildren(
+    ...byDay.map(({ d, key, real, ghosts: g }) => {
+      const pending = real.filter((t) => !t.done).length + g.length;
+      const btn = el('button', { className: `strip-day${key === today ? ' today' : ''}${key < today ? ' past' : ''}`, ariaLabel: `${d.toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}: ${pending} pendientes` }, [
+        el('span', { className: 'sd-name' }, d.toLocaleDateString('es', { weekday: 'short' })),
+        el('span', { className: 'sd-num' }, String(d.getDate())),
+        el('span', { className: `sd-count${pending ? '' : ' zero'}` }, pending ? String(pending) : '·'),
+      ]);
+      btn.addEventListener('click', () => document.getElementById(`day-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      return btn;
+    })
+  );
+
+  $('#week-days').replaceChildren(
+    ...byDay.map(({ d, key, real, ghosts: g }) => {
+      const add = el('button', { className: 'day-add', title: 'Añadir tarea este día', ariaLabel: `Añadir tarea el ${d.toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}` }, '+');
+      add.addEventListener('click', () => {
+        addingDay = addingDay === key ? null : key;
+        renderTasks();
+        document.querySelector('.day-form input')?.focus();
+      });
+      const name = d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'short' });
+      const head = el('div', { className: 'day-head' }, [
+        el('h4', {}, [name.charAt(0).toUpperCase() + name.slice(1), key === today ? el('span', { className: 'today-badge' }, 'Hoy') : '']),
+        add,
+      ]);
+
+      const block = el('section', { id: `day-${key}`, className: `day${key === today ? ' is-today' : ''}${key < today ? ' past' : ''}` }, head);
+      if (addingDay === key) {
+        const input = el('input', { type: 'text', placeholder: 'Nueva tarea (p. ej. Dentista a las 10)', required: true, maxLength: 200, ariaLabel: 'Nueva tarea' });
+        const form = el('form', { className: 'row day-form' }, [input, el('button', { type: 'submit', className: 'primary' }, 'Añadir')]);
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          if (!input.value.trim()) return;
+          addingDay = null;
+          addTask(input.value.trim(), { due: key });
+        });
+        block.append(form);
+      }
+      if (real.length || g.length) block.append(el('ul', { className: 'list' }, [...real.map((t) => taskItem(t)), ...g.map(ghostItem)]));
+      else if (addingDay !== key) block.append(el('p', { className: 'day-free' }, 'Libre'));
+      return block;
+    })
+  );
+
+  const undated = tasks.filter((t) => !t.due && !t.done).length;
+  $('#week-undated').textContent = undated ? `${undated} ${undated === 1 ? 'tarea' : 'tareas'} sin fecha · ver en la lista` : '';
+  $('#week-undated').hidden = !undated;
 }
 
 // ---------- Hoy ----------
@@ -1294,6 +1492,85 @@ $('#backup-paste').addEventListener('click', () => {
     box.hidden = true;
     $('#backup-paste').textContent = 'Pegar copia';
   }
+});
+
+// ---------- Recordatorios ----------
+// Avisan dentro de la app a la hora indicada (y al abrirla, si la hora ya pasó hoy).
+// Una página web solo puede avisar mientras está abierta.
+const alerted = new Set(); // avisos que ya sonaron en esta sesión
+const reminderKey = (t) => `${t.id}@${t.due} ${t.time}`;
+
+function nowHM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function askNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    try {
+      Notification.requestPermission().catch(() => {});
+    } catch {
+      // Navegador sin notificaciones: queda el aviso dentro de la app.
+    }
+  }
+}
+
+function pendingReminders() {
+  const today = dateKey();
+  const now = nowHM();
+  return state.tasks
+    .filter((t) => !t.done && t.time && t.due === today && t.time <= now)
+    .filter((t) => t.remindedFor !== reminderKey(t) && !(t.snoozeUntil > Date.now()))
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
+function checkReminders() {
+  const list = pendingReminders();
+  const fresh = list.filter((t) => !alerted.has(reminderKey(t)));
+  fresh.forEach((t) => {
+    alerted.add(reminderKey(t));
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`⏰ ${t.time} · ${t.title}`, { body: 'Recordatorio de Enfoque', tag: t.id });
+      } catch {
+        // Algunos navegadores móviles no permiten notificaciones desde la página.
+      }
+    }
+  });
+  if (fresh.length) beep();
+
+  $('#reminders').replaceChildren(
+    ...list.map((t) => {
+      const done = el('button', { className: 'primary' }, 'Hecha');
+      done.addEventListener('click', () => {
+        t.remindedFor = reminderKey(t);
+        toggleDone(t, true);
+      });
+      const snooze = el('button', {}, '10 min más');
+      snooze.addEventListener('click', () => {
+        t.snoozeUntil = Date.now() + 10 * 60 * 1000;
+        alerted.delete(reminderKey(t));
+        save();
+        renderAll();
+      });
+      const close = el('button', { className: 'del', title: 'Cerrar aviso', ariaLabel: 'Cerrar aviso' }, '✕');
+      close.addEventListener('click', () => {
+        t.remindedFor = reminderKey(t);
+        save();
+        renderAll();
+      });
+      return el('div', { className: 'reminder', role: 'alert' }, [
+        el('span', { className: 'reminder-time' }, `⏰ ${t.time}`),
+        el('span', { className: 'reminder-title' }, t.title),
+        el('div', { className: 'reminder-actions' }, [done, snooze, close]),
+      ]);
+    })
+  );
+}
+
+setInterval(checkReminders, 15000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkReminders();
 });
 
 // ---------- Atajos de teclado ----------

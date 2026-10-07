@@ -366,3 +366,65 @@ kbd { font: inherit; font-size: .8rem; border: 1px solid var(--border); border-b
 .file-btn { position: relative; display: inline-block; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; background: var(--surface); }
 .file-btn:hover, .file-btn:focus-within { border-color: var(--accent); }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+
+/* Recordatorios */
+.reminders { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.reminders:empty { display: none; }
+.reminder {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.reminder-time { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.reminder-title { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.reminder-actions { display: flex; gap: 6px; align-items: center; }
+.reminder-actions button { padding: 5px 10px; font-size: .85rem; }
+.reminder .del { border: 0; background: none; color: var(--muted); }
+.task .meta .at-time { color: var(--text); }
+
+/* Notas */
+.note-preview { font-size: .8rem; color: var(--muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.panel-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 4px 0 4px; }
+.subtasks .panel-label:not(:first-child) { margin-top: 12px; }
+textarea.notes {
+  width: 100%; resize: vertical; min-height: 64px;
+  font: inherit; font-size: .9rem; color: inherit;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+}
+textarea.notes:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Lista / Semana */
+.view-switch { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px; margin-bottom: 12px; }
+.seg { border: 0; background: none; border-radius: 999px; padding: 4px 16px; font-size: .9rem; }
+.seg.active { background: var(--accent); color: var(--on-accent); }
+
+/* Calendario semanal */
+.week-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.week-title { margin: 0; font-size: 1.05rem; flex: 1; min-width: 0; text-align: center; }
+.nav-btn { width: 36px; height: 36px; padding: 0; border-radius: 999px; font-size: 1.2rem; line-height: 1; }
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 14px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 1; background: var(--bg); padding-block: 4px; }
+.strip-day { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 0; min-width: 0; border-radius: 10px; }
+.strip-day .sd-name { font-size: .7rem; color: var(--muted); text-transform: capitalize; }
+.strip-day .sd-num { font-weight: 700; font-variant-numeric: tabular-nums; }
+.strip-day .sd-count { font-size: .7rem; min-width: 18px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-variant-numeric: tabular-nums; }
+.strip-day .sd-count.zero { background: none; color: var(--muted); }
+.strip-day.today { border-color: var(--accent); background: var(--accent-soft); }
+.strip-day.today .sd-name, .strip-day.today .sd-num { color: var(--accent); }
+.strip-day.past { opacity: .6; }
+.week-days { display: flex; flex-direction: column; gap: 14px; }
+.day { scroll-margin-top: 80px; }
+.day.past { opacity: .7; }
+.day-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.day-head h4 { margin: 0; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
+.day.is-today .day-head h4 { color: var(--accent); }
+.today-badge { font-size: .7rem; font-weight: 700; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 1px 8px; }
+.day-add { width: 30px; height: 30px; padding: 0; border-radius: 999px; font-size: 1.1rem; line-height: 1; color: var(--muted); }
+.day-add:hover { color: var(--accent); border-color: var(--accent); }
+.day-form { margin-bottom: 8px; }
+.day-form input { flex: 1 1 180px; }
+.day-free { margin: 0; padding: 8px 12px; color: var(--muted); font-size: .85rem; border: 1px dashed var(--border); border-radius: 10px; }
+.day .list { margin: 0; }
+.task.ghost { background: transparent; border-style: dashed; border-left-style: dashed; border-left-color: var(--border); opacity: .75; }
+.ghost-icon { color: var(--accent); width: 18px; text-align: center; }
+.ghost-title { overflow-wrap: anywhere; }
+#week-undated { margin-top: 12px; }

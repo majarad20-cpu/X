@@ -10,6 +10,9 @@ App de productividad ligera, sin dependencias ni paso de compilación. Todo se g
   - **Repetición**: cada día, lunes a viernes, cada semana o cada mes. Al completarla pasa sola a la siguiente fecha.
   - **Subtareas**: el botón ☰ abre la lista de pasos de cada tarea.
   - **Lenguaje natural**: «Llamar a Ana mañana !alta #trabajo» crea la tarea con fecha, prioridad y etiqueta. Entiende hoy, mañana, pasado mañana, días de la semana, «en 3 días», «15/10», «15 de octubre», `!alta`/`!media`/`!baja` y «cada día/semana/mes», «cada lunes», «de lunes a viernes». Una vista previa muestra lo que se ha entendido.
+  - **Recordatorios**: pon una hora a la tarea (campo de hora o «a las 5», «17:30», «8pm», «a las 10 de la noche»). A esa hora la app muestra un aviso con sonido, con «Hecha», «10 min más» o cerrar; si la abres más tarde, el aviso sigue ahí. Solo avisa mientras la app está abierta.
+  - **Notas**: el panel ☰ de cada tarea incluye subtareas y notas; la primera línea de la nota se ve en la lista.
+  - **Vista Semana**: calendario de lunes a domingo con tus tareas por día, repeticiones previstas, navegación entre semanas y «+» para añadir una tarea a un día concreto.
   - **Orden manual**: con «Orden: el mío», arrastra el asa ⠿ (o usa ↑ ↓ con el teclado) para reordenar.
 - **Pomodoro**: enfoque / pausa corta / pausa larga (cada 4 pomodoros), duraciones configurables, aviso sonoro y notificación del navegador, contador diario. La pantalla se mantiene encendida mientras corre (si el navegador lo permite). Puedes asociar el pomodoro a una tarea y se suma a su contador 🍅.
 - **Hábitos**: marca los últimos 7 días y sigue tu racha 🔥. Cada hábito puede ser diario o tener un objetivo semanal (por ejemplo, 3 veces por semana); entonces la racha cuenta semanas cumplidas.

@@ -23,6 +23,7 @@
   </header>
 
   <main>
+    <div id="reminders" class="reminders" aria-live="assertive"></div>
     <!-- Hoy -->
     <section id="view-today" class="view active">
       <p id="today-date" class="today-date"></p>
@@ -50,13 +51,14 @@
     <!-- Tareas -->
     <section id="view-tasks" class="view">
       <form id="task-form" class="card row">
-        <input id="task-title" type="text" placeholder="Ej.: Llamar a Ana mañana !alta #trabajo" required maxlength="200">
+        <input id="task-title" type="text" placeholder="Ej.: Llamar a Ana mañana a las 5 !alta #trabajo" required maxlength="200">
         <select id="task-priority" aria-label="Prioridad">
           <option value="2">Media</option>
           <option value="3">Alta</option>
           <option value="1">Baja</option>
         </select>
         <input id="task-due" type="date" aria-label="Fecha límite">
+        <input id="task-time" type="time" aria-label="Hora del recordatorio" title="Hora del recordatorio">
         <select id="task-repeat" aria-label="Repetir">
           <option value="">No se repite</option>
           <option value="daily">Cada día</option>
@@ -68,6 +70,14 @@
         <div id="task-preview" class="parse-preview" aria-live="polite" hidden></div>
       </form>
 
+      <div class="view-switch" role="group" aria-label="Vista">
+        <button class="seg active" data-taskview="list" aria-pressed="true">Lista</button>
+        <button class="seg" data-taskview="week" aria-pressed="false">Semana</button>
+      </div>
+
+      <div id="tag-filter" class="tag-filter" role="group" aria-label="Etiqueta" hidden></div>
+
+      <div id="list-pane">
       <div class="toolbar">
         <div class="filters" role="group" aria-label="Filtro">
           <button class="chip active" data-filter="all">Todas</button>
@@ -83,12 +93,24 @@
           </select>
         </div>
       </div>
-      <div id="tag-filter" class="tag-filter" role="group" aria-label="Etiqueta" hidden></div>
 
       <ul id="task-list" class="list"></ul>
       <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
       <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas · con «Orden: el mío» arrastra ⠿ para reordenar.</p>
       <button id="clear-done" class="link">Borrar tareas completadas</button>
+      </div>
+
+      <div id="week-pane" hidden>
+        <div class="week-head">
+          <button id="week-prev" class="nav-btn" aria-label="Semana anterior">‹</button>
+          <h3 id="week-title" class="week-title"></h3>
+          <button id="week-next" class="nav-btn" aria-label="Semana siguiente">›</button>
+          <button id="week-today" class="chip">Esta semana</button>
+        </div>
+        <div id="week-strip" class="week-strip"></div>
+        <div id="week-days" class="week-days"></div>
+        <button id="week-undated" class="link"></button>
+      </div>
     </section>
 
     <!-- Pomodoro -->
