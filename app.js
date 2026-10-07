@@ -1398,8 +1398,15 @@ async function startSync() {
     (snap) => {
       if (snap.metadata.hasPendingWrites) return;
       const remote = snap.exists ? JSON.parse(JSON.stringify(snap.data())) : null;
+      const remoteEmpty = !remote || (!remote.tasks?.length && !remote.habits?.length);
+      const localHasData = state.tasks.length > 0 || state.habits.length > 0;
       const remoteNewer = remote && (remote.updatedAt || 0) > (state.updatedAt || 0);
-      if (remoteNewer) {
+      if (first && remoteEmpty && localHasData) {
+        // La nube está vacía y este dispositivo tiene datos (p. ej. de antes de sincronizar): nunca se pisan.
+        state.updatedAt = Date.now();
+        saveLocal();
+        pushState();
+      } else if (remoteNewer) {
         applyRemote(remote);
       } else if (first && (!remote || (state.updatedAt || 0) > (remote.updatedAt || 0))) {
         // Primera vez en la nube, o este dispositivo tiene cambios más recientes: súbelos.
