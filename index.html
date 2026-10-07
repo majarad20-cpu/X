@@ -16,6 +16,9 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="today" role="tab">Hoy</button>
       <button class="tab" data-view="tasks" role="tab">Tareas</button>
+      <button class="tab" data-view="projects" role="tab">Proyectos</button>
+      <button class="tab" data-view="journal" role="tab">Diario</button>
+      <button class="tab" data-view="ideas" role="tab">Ideas</button>
       <button class="tab" data-view="timer" role="tab">Pomodoro</button>
       <button class="tab" data-view="habits" role="tab">Hábitos</button>
       <button class="tab" data-view="progress" role="tab">Progreso</button>
@@ -42,6 +45,11 @@
       </form>
       <ul id="today-list" class="list"></ul>
       <p id="today-empty" class="empty">Nada pendiente para hoy. 🎉</p>
+
+      <button id="today-journal" class="journal-nudge" hidden>
+        <span class="jn-icon" aria-hidden="true">✍️</span>
+        <span><strong>Aún no has escrito hoy.</strong> Un vaciado mental de 5 minutos despeja la cabeza.</span>
+      </button>
 
       <h2 class="section-title">Hábitos de hoy <span id="today-habits-count" class="muted"></span></h2>
       <div id="today-habits" class="habit-chips"></div>
@@ -110,6 +118,161 @@
         <div id="week-strip" class="week-strip"></div>
         <div id="week-days" class="week-days"></div>
         <button id="week-undated" class="link"></button>
+      </div>
+    </section>
+
+    <!-- Proyectos -->
+    <section id="view-projects" class="view">
+      <div id="projects-list-pane">
+        <form id="project-form" class="card row">
+          <input id="project-name" type="text" placeholder="Nuevo proyecto (p. ej. Rediseño de la web)" required maxlength="80">
+          <input id="project-deadline" type="date" aria-label="Fecha límite" title="Fecha límite (opcional)">
+          <button type="submit" class="primary">Crear</button>
+        </form>
+        <div class="filters project-filters" role="group" aria-label="Estado">
+          <button class="chip active" data-pfilter="active">Activos</button>
+          <button class="chip" data-pfilter="paused">En pausa</button>
+          <button class="chip" data-pfilter="done">Completados</button>
+          <button class="chip" data-pfilter="all">Todos</button>
+        </div>
+        <div id="project-list" class="project-grid"></div>
+        <p id="project-empty" class="empty">No hay proyectos aquí. Crea uno arriba y añádele tareas para seguir su avance.</p>
+      </div>
+
+      <div id="project-detail" hidden>
+        <button id="project-back" class="link back-link">← Todos los proyectos</button>
+        <div class="card pd-card">
+          <div class="pd-fields">
+            <input id="pd-name" class="pd-name" type="text" maxlength="80" aria-label="Nombre del proyecto">
+            <textarea id="pd-desc" class="notes" rows="2" placeholder="Objetivo, contexto, enlaces…" aria-label="Descripción del proyecto"></textarea>
+            <div class="row pd-meta">
+              <label>Estado
+                <select id="pd-status">
+                  <option value="active">Activo</option>
+                  <option value="paused">En pausa</option>
+                  <option value="done">Completado</option>
+                </select>
+              </label>
+              <label>Fecha límite <input id="pd-deadline" type="date"></label>
+              <div class="pd-colors" id="pd-colors" role="radiogroup" aria-label="Color del proyecto"></div>
+            </div>
+          </div>
+          <div class="pd-progress">
+            <div class="pd-progress-head">
+              <span id="pd-percent" class="pd-percent">0 %</span>
+              <span id="pd-status-text" class="muted"></span>
+            </div>
+            <div class="progress-track big"><div id="pd-bar" class="progress-fill"></div></div>
+            <div class="row pd-mode">
+              <label class="switch"><input id="pd-manual" type="checkbox"> Ajustar el avance a mano</label>
+              <input id="pd-slider" type="range" min="0" max="100" step="5" aria-label="Avance manual" hidden>
+            </div>
+            <p id="pd-risk" class="pd-risk" hidden></p>
+          </div>
+        </div>
+
+        <h2 class="section-title">Tareas del proyecto <span id="pd-count" class="muted"></span></h2>
+        <form id="pd-task-form" class="row quick-add">
+          <input id="pd-task-title" type="text" placeholder="Nueva tarea del proyecto (p. ej. Revisar diseño el viernes)" required maxlength="200">
+          <button type="submit" class="primary">Añadir</button>
+          <div id="pd-task-preview" class="parse-preview" aria-live="polite" hidden></div>
+        </form>
+        <ul id="pd-tasks" class="list"></ul>
+        <p id="pd-tasks-empty" class="empty">Aún no hay tareas. Divide el proyecto en pasos y el avance se calculará solo.</p>
+        <button id="pd-delete" class="link danger-link">Eliminar proyecto</button>
+      </div>
+    </section>
+
+    <!-- Diario -->
+    <section id="view-journal" class="view">
+      <div class="journal-top">
+        <div id="journal-week" class="journal-week" aria-label="Ánimo de los últimos 7 días"></div>
+        <p id="journal-stats" class="muted"></p>
+      </div>
+
+      <form id="journal-form" class="card journal-composer">
+        <div class="filters" role="group" aria-label="Tipo de entrada">
+          <button type="button" class="chip active" data-jkind="dump">Vaciado mental</button>
+          <button type="button" class="chip" data-jkind="free">Libre</button>
+          <button type="button" class="chip" data-jkind="gratitude">Gratitud</button>
+          <button type="button" class="chip" data-jkind="reflection">Reflexión</button>
+        </div>
+        <p id="journal-hint" class="muted journal-hint"></p>
+        <div id="journal-fields"></div>
+        <div class="mood-row">
+          <span class="muted">¿Cómo te sientes?</span>
+          <div id="mood-picker" class="mood-picker" role="radiogroup" aria-label="Ánimo"></div>
+        </div>
+        <div class="row">
+          <button type="submit" class="primary">Guardar entrada</button>
+          <span id="journal-draft" class="muted"></span>
+        </div>
+      </form>
+
+      <div id="dump-convert" class="card dump-convert" hidden></div>
+
+      <div class="row journal-search">
+        <input id="journal-search" type="search" placeholder="Buscar en el diario" aria-label="Buscar en el diario">
+      </div>
+      <div id="journal-list"></div>
+      <p id="journal-empty" class="empty">Tu diario está vacío. Escribe la primera entrada arriba.</p>
+    </section>
+
+    <!-- Ideas -->
+    <section id="view-ideas" class="view">
+      <div class="view-switch" role="group" aria-label="Vista de ideas">
+        <button class="seg active" data-ideaview="notes" aria-pressed="true">Ideas</button>
+        <button class="seg" data-ideaview="maps" aria-pressed="false">Mapas mentales</button>
+      </div>
+
+      <div id="ideas-notes-pane">
+        <form id="idea-form" class="card idea-composer">
+          <textarea id="idea-text" class="notes" rows="2" placeholder="Apunta una idea antes de que se escape… (usa #etiquetas)" required maxlength="2000" aria-label="Nueva idea"></textarea>
+          <div class="row"><button type="submit" class="primary">Guardar idea</button><span class="muted">Ctrl + Enter para guardar</span></div>
+        </form>
+        <div class="row idea-tools">
+          <input id="idea-search" type="search" placeholder="Buscar ideas" aria-label="Buscar ideas">
+        </div>
+        <div id="idea-tags" class="tag-filter" hidden></div>
+        <div id="idea-list" class="idea-grid"></div>
+        <p id="idea-empty" class="empty">Sin ideas todavía. Las buenas ideas llegan en cualquier momento: apúntalas aquí.</p>
+      </div>
+
+      <div id="ideas-maps-pane" hidden>
+        <div id="maps-list-pane">
+          <form id="map-form" class="card row">
+            <input id="map-title" type="text" placeholder="Tema central del nuevo mapa (p. ej. Vacaciones de verano)" required maxlength="80">
+            <button type="submit" class="primary">Crear mapa</button>
+          </form>
+          <div id="map-list" class="map-grid"></div>
+          <p id="map-empty" class="empty">Crea tu primer mapa mental: escribe un tema central y ve sacando ramas.</p>
+        </div>
+
+        <div id="map-editor" hidden>
+          <div class="map-toolbar">
+            <button id="map-back" class="link back-link">← Mapas</button>
+            <input id="map-name" class="map-name" type="text" maxlength="80" aria-label="Título del mapa">
+          </div>
+          <div class="map-actions" role="toolbar" aria-label="Acciones del mapa">
+            <button id="mm-child" title="Añadir rama (Tab)">+ Rama</button>
+            <button id="mm-sibling" title="Añadir hermano (Enter)">+ Hermano</button>
+            <button id="mm-edit" title="Editar texto (F2 o doble clic)">Editar</button>
+            <button id="mm-task" title="Crear una tarea con este nodo">→ Tarea</button>
+            <button id="mm-delete" title="Borrar nodo (Supr)">Borrar</button>
+            <span class="spacer"></span>
+            <button id="mm-zoom-out" aria-label="Alejar">−</button>
+            <button id="mm-fit" title="Ajustar a la pantalla">Ajustar</button>
+            <button id="mm-zoom-in" aria-label="Acercar">+</button>
+            <button id="mm-export" title="Descargar como imagen PNG">Imagen</button>
+          </div>
+          <div id="map-canvas" class="map-canvas" tabindex="0" aria-label="Mapa mental. Flechas para moverte, Tab añade rama, Enter añade hermano, F2 edita, Supr borra.">
+            <div id="map-stage" class="map-stage">
+              <svg id="map-edges" class="map-edges" aria-hidden="true"></svg>
+              <div id="map-nodes"></div>
+            </div>
+          </div>
+          <p class="muted hint">Toca un nodo para seleccionarlo. Doble toque para editar. Arrastra el fondo para moverte por el mapa.</p>
+        </div>
       </div>
     </section>
 
@@ -225,7 +388,7 @@
     <button id="shortcuts-toggle" class="link">Atajos de teclado (?)</button>
     <div id="shortcuts" class="card shortcuts" hidden>
       <dl>
-        <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Cambiar de pestaña</dd>
+        <dt><kbd>1</kbd>–<kbd>8</kbd></dt><dd>Cambiar de pestaña</dd>
         <dt><kbd>N</kbd></dt><dd>Nueva tarea</dd>
         <dt><kbd>Espacio</kbd></dt><dd>Iniciar o pausar el Pomodoro</dd>
         <dt><kbd>Esc</kbd></dt><dd>Cancelar la edición</dd>

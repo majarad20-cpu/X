@@ -10,10 +10,17 @@ const defaults = () => ({
   pomodoros: {}, // { 'YYYY-MM-DD': n }
   focusMinutes: {}, // { 'YYYY-MM-DD': minutos de enfoque completados }
   completions: {}, // { 'YYYY-MM-DD': tareas completadas ese día }
-  updatedAt: 0, // última modificación, para decidir qué copia gana al sincronizar
+  projects: [],
+  journal: [], // entradas del diario
+  ideas: [], // notas de ideas
+  maps: [], // mapas mentales
+  updatedAt: 0, // última modificación local
+  syncMeta: { sent: {}, times: {} }, // estado de la sincronización por bloques (solo de este dispositivo)
 });
 
-const SYNCED_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'updatedAt'];
+// Datos del usuario (lo que se sincroniza, se exporta y se puede deshacer).
+const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'projects'];
+const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps'];
 
 function load() {
   try {
@@ -31,7 +38,7 @@ function load() {
       }
     }
     const fresh = defaults();
-    return { ...fresh, ...data, settings: { ...fresh.settings, ...data.settings } };
+    return { ...fresh, ...data, settings: { ...fresh.settings, ...data.settings }, syncMeta: { ...fresh.syncMeta, ...data.syncMeta } };
   } catch {
     return defaults();
   }
@@ -89,6 +96,9 @@ function renderAll() {
   renderTimer();
   renderHabits();
   renderProgress();
+  renderProjects();
+  renderJournal();
+  renderIdeas();
   checkReminders();
 }
 
@@ -97,7 +107,7 @@ let toastTimeout = null;
 
 // Aplica un cambio destructivo y ofrece deshacerlo durante unos segundos.
 function withUndo(message, change) {
-  const snapshot = JSON.stringify(Object.fromEntries(SYNCED_KEYS.filter((k) => k !== 'updatedAt').map((k) => [k, state[k]])));
+  const snapshot = JSON.stringify(Object.fromEntries(DATA_KEYS.map((k) => [k, state[k]])));
   change();
   save();
   renderAll();
@@ -122,8 +132,13 @@ function hideToast() {
 
 // ---------- Pestañas ----------
 function showView(name) {
-  $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === name));
+  $$('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.view === name);
+    if (t.dataset.view === name) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
+  // El mapa mental necesita estar visible para medir sus nodos.
+  if (name === 'ideas' && openMapId) renderIdeas();
 }
 
 $$('.tab').forEach((tab) => tab.addEventListener('click', () => showView(tab.dataset.view)));
@@ -185,8 +200,9 @@ function nextDue(t) {
   return dateKey(d);
 }
 
-function addTask(text, { priority = 2, due = null, repeat = null, time = null } = {}) {
+function addTask(text, { priority = 2, due = null, repeat = null, time = null, projectId = null } = {}) {
   const parsed = parseInput(text);
+  projectId = parsed.projectId ?? projectId;
   priority = parsed.priority ?? priority;
   due = parsed.due ?? due;
   repeat = parsed.repeat ?? repeat;
@@ -203,6 +219,7 @@ function addTask(text, { priority = 2, due = null, repeat = null, time = null } 
     repeat: repeat || null,
     time: time || null,
     notes: '',
+    projectId: projectId || null,
     order: Date.now(),
     subtasks: [],
     done: false,
@@ -345,7 +362,17 @@ function taskItem(t, { draggable = false } = {}) {
 
   const body = el('div', { className: 'body' }, [title, meta]);
   if (t.notes && !isOpen) body.append(el('div', { className: 'note-preview' }, t.notes.split('\n')[0]));
-  if (t.tags?.length) body.append(el('div', { className: 'tags' }, t.tags.map(tagChip)));
+  const project = t.projectId && projectById(t.projectId);
+  if (t.tags?.length || project) {
+    const chips = el('div', { className: 'tags' }, (t.tags || []).map(tagChip));
+    if (project && openProjectId !== project.id) {
+      const pc = el('button', { className: 'tag project-tag', title: `Abrir proyecto ${project.name}` }, `📁 ${project.name}`);
+      pc.dataset.pcolor = project.color;
+      pc.addEventListener('click', () => openProject(project.id));
+      chips.prepend(pc);
+    }
+    if (chips.children.length) body.append(chips);
+  }
 
   const toggle = el(
     'button',
@@ -466,12 +493,16 @@ function taskEditor(t) {
   const due = el('input', { type: 'date', value: t.due || '', ariaLabel: 'Fecha límite' });
   const time = el('input', { type: 'time', value: t.time || '', ariaLabel: 'Hora del recordatorio' });
   const repeat = repeatSelect(t.repeat);
+  const project = el('select', { ariaLabel: 'Proyecto' }, [
+    el('option', { value: '' }, 'Sin proyecto'),
+    ...state.projects.filter((p) => p.status !== 'done' || p.id === t.projectId).map((p) => el('option', { value: p.id, selected: p.id === t.projectId }, `📁 ${p.name}`)),
+  ]);
   const cancel = el('button', { type: 'button' }, 'Cancelar');
   cancel.addEventListener('click', stopEditing);
 
   const form = el('form', { className: 'task-edit' }, [
     title,
-    el('div', { className: 'row' }, [priority, due, time, repeat]),
+    el('div', { className: 'row' }, [priority, due, time, repeat, ...(state.projects.length ? [project] : [])]),
     el('div', { className: 'row' }, [el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
   ]);
   form.addEventListener('submit', (e) => {
@@ -484,6 +515,7 @@ function taskEditor(t) {
     t.priority = parsed.priority ?? Number(priority.value);
     t.repeat = parsed.repeat ?? (repeat.value || null);
     t.time = parsed.time ?? (time.value || null);
+    t.projectId = parsed.projectId ?? (project.value || null);
     t.due = parsed.due ?? (due.value || (t.repeat ? dateKey() : null));
     if (t.time && !t.due) t.due = t.time > nowHM() ? dateKey() : dateKey(addDays(new Date(), 1));
     if (t.time) askNotificationPermission();
@@ -683,6 +715,14 @@ function parseInput(text) {
     if (!out.repeat && take(pattern, () => true)) out.repeat = repeat;
   }
   take('!(alta|media|baja)', (m) => (out.priority = PRIORITY_WORDS[m[1].toLowerCase()]));
+  // "+web" asigna la tarea al proyecto cuyo nombre empieza por "web" (sin importar espacios ni tildes).
+  take('\\+([\\p{L}\\p{N}_-]+)', (m) => {
+    const norm = (x) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '').toLowerCase();
+    const p = state.projects.find((pr) => norm(pr.name).startsWith(norm(m[1])));
+    if (!p) return null;
+    out.projectId = p.id;
+    return true;
+  });
   for (const [pattern, fn] of TIME_RULES) {
     const hm = take(pattern, fn);
     if (hm) {
@@ -713,6 +753,7 @@ function attachPreview(input, preview) {
     if (p.time) chips.push(`⏰ ${p.time}`);
     if (p.repeat) chips.push(`↻ ${REPEAT_LABEL[p.repeat]}`);
     if (p.priority) chips.push(`Prioridad ${PRIORITY_LABEL[p.priority].toLowerCase()}`);
+    if (p.projectId) chips.push(`📁 ${projectById(p.projectId)?.name}`);
     (p.tags || []).forEach((tag) => chips.push(`#${tag}`));
     preview.replaceChildren(...chips.map((c) => el('span', { className: 'tag' }, c)));
     preview.hidden = !chips.length;
@@ -880,6 +921,7 @@ function renderToday() {
   $('#today-list').replaceChildren(...dueToday.map((t) => taskItem(t)));
   $('#today-empty').hidden = dueToday.length > 0;
 
+  $('#today-journal').hidden = state.journal.some((e) => e.date === today);
   $('#today-habits-count').textContent = state.habits.length ? `${habitsDone}/${state.habits.length}` : '';
   $('#today-habits').replaceChildren(
     ...state.habits.map((h) => {
@@ -1406,7 +1448,7 @@ function setBackupMessage(text, isError = false) {
 }
 
 async function exportBackup() {
-  const data = Object.fromEntries(SYNCED_KEYS.map((k) => [k, state[k]]));
+  const data = Object.fromEntries(DATA_KEYS.map((k) => [k, state[k]]));
   const json = JSON.stringify({ app: 'enfoque', version: 1, exportedAt: new Date().toISOString(), data }, null, 2);
   const filename = `enfoque-copia-${dateKey()}.json`;
 
@@ -1434,7 +1476,7 @@ async function exportBackup() {
 }
 
 async function copyBackup() {
-  const json = JSON.stringify({ app: 'enfoque', version: 1, data: Object.fromEntries(SYNCED_KEYS.map((k) => [k, state[k]])) });
+  const json = JSON.stringify({ app: 'enfoque', version: 1, data: Object.fromEntries(DATA_KEYS.map((k) => [k, state[k]])) });
   try {
     await navigator.clipboard.writeText(json);
     setBackupMessage('Copia en el portapapeles. Pégala en una nota para guardarla.');
@@ -1461,7 +1503,7 @@ function restoreBackup(text) {
   }
   withUndo('Copia restaurada', () => {
     const fresh = defaults();
-    for (const k of SYNCED_KEYS) if (k !== 'updatedAt') state[k] = data[k] ?? fresh[k];
+    for (const k of DATA_KEYS) state[k] = data[k] ?? fresh[k];
     state.settings = { ...fresh.settings, ...state.settings };
   });
   applySettings();
@@ -1493,6 +1535,1336 @@ $('#backup-paste').addEventListener('click', () => {
     $('#backup-paste').textContent = 'Pegar copia';
   }
 });
+
+// ---------- Proyectos ----------
+let projectFilter = 'active';
+let openProjectId = null;
+const PROJECT_COLORS = ['indigo', 'blue', 'teal', 'fuchsia', 'orange', 'slate'];
+const PROJECT_STATUS = { active: 'Activo', paused: 'En pausa', done: 'Completado' };
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const projectTasks = (p) => state.tasks.filter((t) => t.projectId === p.id);
+
+// Avance: a mano si se fijó; si no, tareas completadas sobre el total (las que se repiten no cuentan,
+// porque nunca terminan). Un proyecto completado está al 100 %.
+function projectProgress(p) {
+  if (p.status === 'done') return 100;
+  if (p.manual !== null && p.manual !== undefined) return p.manual;
+  const tasks = projectTasks(p).filter((t) => !t.repeat);
+  if (!tasks.length) return 0;
+  return Math.round((tasks.filter((t) => t.done).length / tasks.length) * 100);
+}
+
+function daysLeft(p) {
+  if (!p.deadline) return null;
+  return Math.round((parseKey(p.deadline) - parseKey(dateKey())) / DAY_MS);
+}
+
+function deadlineText(p) {
+  const d = daysLeft(p);
+  if (d === null) return '';
+  if (p.status === 'done') return `Fecha límite: ${formatDue(p.deadline)}`;
+  if (d < 0) return `Venció hace ${-d} ${d === -1 ? 'día' : 'días'}`;
+  if (d === 0) return 'Vence hoy';
+  if (d === 1) return 'Vence mañana';
+  return `Vence en ${d} días`;
+}
+
+// "Va con retraso" cuando el tiempo consumido supera al avance en más de 20 puntos.
+function projectRisk(p) {
+  if (p.status !== 'active' || !p.deadline) return null;
+  const pct = projectProgress(p);
+  const start = parseKey(dateKey(new Date(p.createdAt)));
+  const end = parseKey(p.deadline);
+  const today = parseKey(dateKey());
+  if (today > end && pct < 100) return { level: 'late', text: `La fecha límite ya pasó y el avance es del ${pct} %.` };
+  const total = end - start;
+  if (total <= 0) return null;
+  const timePct = Math.round(((today - start) / total) * 100);
+  if (timePct - pct > 20) return { level: 'behind', text: `Ha pasado el ${timePct} % del plazo y el avance es del ${pct} %.` };
+  return null;
+}
+
+function projectById(id) {
+  return state.projects.find((p) => p.id === id);
+}
+
+function openProject(id) {
+  openProjectId = id;
+  showView('projects');
+  renderProjects();
+  window.scrollTo({ top: 0 });
+}
+
+$('#project-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('#project-name').value.trim();
+  if (!name) return;
+  const used = state.projects.map((p) => p.color);
+  state.projects.push({
+    id: uid(),
+    name,
+    desc: '',
+    status: 'active',
+    deadline: $('#project-deadline').value || null,
+    color: PROJECT_COLORS.find((c) => !used.includes(c)) || PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length],
+    manual: null,
+    createdAt: Date.now(),
+  });
+  save();
+  e.target.reset();
+  renderAll();
+});
+
+$$('[data-pfilter]').forEach((btn) =>
+  btn.addEventListener('click', () => {
+    projectFilter = btn.dataset.pfilter;
+    $$('[data-pfilter]').forEach((b) => b.classList.toggle('active', b === btn));
+    renderProjects();
+  })
+);
+
+$('#project-back').addEventListener('click', () => {
+  openProjectId = null;
+  renderProjects();
+});
+
+function progressBar(pct, big = false) {
+  return el('div', { className: `progress-track${big ? ' big' : ''}`, role: 'progressbar', ariaValueNow: String(pct), ariaValueMin: '0', ariaValueMax: '100' },
+    el('div', { className: 'progress-fill', style: `width: ${pct}%` }));
+}
+
+function projectCard(p) {
+  const tasks = projectTasks(p).filter((t) => !t.repeat);
+  const pct = projectProgress(p);
+  const risk = projectRisk(p);
+  const card = el('button', { className: 'project-card' }, [
+    el('div', { className: 'pc-head' }, [
+      el('span', { className: 'pc-dot', ariaHidden: 'true' }),
+      el('span', { className: 'pc-name' }, p.name),
+      el('span', { className: `pill status-${p.status}` }, PROJECT_STATUS[p.status]),
+    ]),
+    el('div', { className: 'pc-progress' }, [progressBar(pct), el('span', { className: 'pc-pct' }, `${pct} %`)]),
+    el('div', { className: 'pc-meta' }, [
+      p.manual !== null && p.manual !== undefined && p.status !== 'done' ? 'Avance manual' : `${tasks.filter((t) => t.done).length}/${tasks.length} tareas`,
+      p.deadline ? ` · ${deadlineText(p)}` : '',
+    ]),
+  ]);
+  if (risk) card.append(el('div', { className: `pc-risk ${risk.level}` }, risk.level === 'late' ? '⚠ Fuera de plazo' : '⚠ Va con retraso'));
+  card.dataset.pcolor = p.color;
+  card.addEventListener('click', () => openProject(p.id));
+  return card;
+}
+
+function renderProjects() {
+  const detailOpen = !!projectById(openProjectId);
+  if (!detailOpen) openProjectId = null;
+  $('#projects-list-pane').hidden = detailOpen;
+  $('#project-detail').hidden = !detailOpen;
+  if (detailOpen) return renderProjectDetail(projectById(openProjectId));
+
+  const order = { active: 0, paused: 1, done: 2 };
+  const list = state.projects
+    .filter((p) => projectFilter === 'all' || p.status === projectFilter)
+    .sort((a, b) => order[a.status] - order[b.status] || (a.deadline || '9999').localeCompare(b.deadline || '9999') || a.createdAt - b.createdAt);
+  $('#project-list').replaceChildren(...list.map(projectCard));
+  $('#project-empty').hidden = list.length > 0;
+}
+
+function renderProjectDetail(p) {
+  const focused = document.activeElement;
+  const detail = $('#project-detail');
+  detail.dataset.pcolor = p.color;
+  // No se tocan los campos mientras se escribe en ellos.
+  if (focused !== $('#pd-name')) $('#pd-name').value = p.name;
+  if (focused !== $('#pd-desc')) $('#pd-desc').value = p.desc || '';
+  $('#pd-status').value = p.status;
+  $('#pd-deadline').value = p.deadline || '';
+
+  $('#pd-colors').replaceChildren(
+    ...PROJECT_COLORS.map((c) => {
+      const b = el('button', { className: `pd-color${p.color === c ? ' on' : ''}`, role: 'radio', ariaChecked: String(p.color === c), ariaLabel: ACCENTS[c] });
+      b.dataset.pcolor = c;
+      b.addEventListener('click', () => {
+        p.color = c;
+        save();
+        renderProjects();
+      });
+      return b;
+    })
+  );
+
+  const pct = projectProgress(p);
+  const manual = p.manual !== null && p.manual !== undefined;
+  $('#pd-percent').textContent = `${pct} %`;
+  $('#pd-bar').style.width = `${pct}%`;
+  const tasks = projectTasks(p);
+  const counted = tasks.filter((t) => !t.repeat);
+  $('#pd-status-text').textContent = [
+    p.status === 'done' ? 'Proyecto completado' : manual ? 'Avance fijado a mano' : `${counted.filter((t) => t.done).length} de ${counted.length} tareas completadas`,
+    deadlineText(p),
+  ].filter(Boolean).join(' · ');
+  $('#pd-manual').checked = manual;
+  $('#pd-manual').disabled = p.status === 'done';
+  $('#pd-slider').hidden = !manual || p.status === 'done';
+  if (focused !== $('#pd-slider')) $('#pd-slider').value = manual ? p.manual : pct;
+  const risk = projectRisk(p);
+  $('#pd-risk').hidden = !risk;
+  $('#pd-risk').textContent = risk ? `⚠ ${risk.text}` : '';
+
+  const sorted = tasks.slice().sort(byImportance);
+  $('#pd-tasks').replaceChildren(...sorted.map((t) => taskItem(t)));
+  $('#pd-tasks-empty').hidden = tasks.length > 0;
+  $('#pd-count').textContent = tasks.length ? `${tasks.filter((t) => t.done).length}/${tasks.length}` : '';
+}
+
+function currentProject() {
+  return projectById(openProjectId);
+}
+
+let pdTimer = null;
+['#pd-name', '#pd-desc'].forEach((sel) =>
+  $(sel).addEventListener('input', () => {
+    clearTimeout(pdTimer);
+    pdTimer = setTimeout(() => {
+      const p = currentProject();
+      if (!p) return;
+      p.name = $('#pd-name').value.trim() || p.name;
+      p.desc = $('#pd-desc').value;
+      save();
+    }, 400);
+  })
+);
+$('#pd-name').addEventListener('blur', () => {
+  const p = currentProject();
+  if (p && !$('#pd-name').value.trim()) $('#pd-name').value = p.name;
+  renderAll();
+});
+$('#pd-status').addEventListener('change', (e) => {
+  const p = currentProject();
+  p.status = e.target.value;
+  save();
+  renderAll();
+});
+$('#pd-deadline').addEventListener('change', (e) => {
+  const p = currentProject();
+  p.deadline = e.target.value || null;
+  save();
+  renderAll();
+});
+$('#pd-manual').addEventListener('change', (e) => {
+  const p = currentProject();
+  p.manual = e.target.checked ? projectProgress(p) : null;
+  save();
+  renderAll();
+});
+$('#pd-slider').addEventListener('input', (e) => {
+  const p = currentProject();
+  p.manual = Number(e.target.value);
+  $('#pd-percent').textContent = `${p.manual} %`;
+  $('#pd-bar').style.width = `${p.manual}%`;
+});
+$('#pd-slider').addEventListener('change', () => {
+  save();
+  renderAll();
+});
+$('#pd-task-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = $('#pd-task-title').value.trim();
+  if (!text) return;
+  addTask(text, { projectId: openProjectId });
+  e.target.reset();
+  $('#pd-task-title').focus();
+});
+$('#pd-delete').addEventListener('click', () => {
+  const p = currentProject();
+  if (!p) return;
+  withUndo(`Proyecto "${p.name}" eliminado (sus tareas se conservan)`, () => {
+    state.projects = state.projects.filter((x) => x.id !== p.id);
+    state.tasks.forEach((t) => {
+      if (t.projectId === p.id) t.projectId = null;
+    });
+    openProjectId = null;
+  });
+});
+
+// ---------- Diario ----------
+const JOURNAL_KINDS = {
+  dump: {
+    label: 'Vaciado mental',
+    hint: 'Saca de la cabeza todo lo que te ronda: pendientes, preocupaciones, ideas. Sin filtro ni orden, una cosa por línea. Al guardar podrás convertir líneas en tareas.',
+    placeholder: 'Llamar al banco\nMe preocupa la entrega del viernes\nComprar regalo para Laura\nIdea: ordenar el trastero un sábado…',
+  },
+  free: { label: 'Libre', hint: 'Escribe lo que quieras sobre tu día, sin reglas.', placeholder: 'Hoy…' },
+  gratitude: { label: 'Gratitud', hint: 'Tres cosas por las que dar las gracias hoy, grandes o pequeñas.', prompts: ['Hoy agradezco…', 'También agradezco…', 'Y además…'] },
+  reflection: { label: 'Reflexión', hint: 'Unos minutos para cerrar el día con perspectiva.', prompts: ['¿Qué salió bien hoy?', '¿Qué me costó o qué aprendí?', '¿Qué haré mejor mañana?'] },
+};
+const MOODS = [
+  { v: 1, e: '😞', l: 'Mal' },
+  { v: 2, e: '😕', l: 'Regular' },
+  { v: 3, e: '😐', l: 'Normal' },
+  { v: 4, e: '🙂', l: 'Bien' },
+  { v: 5, e: '😄', l: 'Genial' },
+];
+const DRAFT_KEY = 'enfoque:journal-draft';
+let journalKind = 'dump';
+let journalMood = null;
+let journalSearch = '';
+let journalLimit = 20;
+let editingEntryId = null;
+const expandedEntries = new Set();
+
+function readDraft() {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFT_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDraft(draft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Sin almacenamiento: el borrador solo vive mientras la página está abierta.
+  }
+}
+
+function moodPicker(current, onPick) {
+  return MOODS.map((m) => {
+    const b = el('button', { type: 'button', className: `mood${current === m.v ? ' on' : ''}`, role: 'radio', ariaChecked: String(current === m.v), title: m.l }, [
+      el('span', { className: 'mood-e', ariaHidden: 'true' }, m.e),
+      el('span', { className: 'mood-l' }, m.l),
+    ]);
+    b.addEventListener('click', () => onPick(current === m.v ? null : m.v));
+    return b;
+  });
+}
+
+// Campos del formulario según el tipo: un texto libre o varias preguntas.
+function journalFields(kind, values = {}) {
+  const k = JOURNAL_KINDS[kind];
+  if (!k.prompts) {
+    return [el('textarea', { className: 'notes journal-text', rows: kind === 'dump' ? 8 : 6, placeholder: k.placeholder, value: values.text || '', ariaLabel: k.label })];
+  }
+  return k.prompts.map((q, i) =>
+    el('label', { className: 'prompt' }, [
+      el('span', {}, q),
+      el('textarea', { className: 'notes', rows: 2, value: values.sections?.[i]?.a || '', ariaLabel: q }),
+    ])
+  );
+}
+
+function readFields(container, kind) {
+  const k = JOURNAL_KINDS[kind];
+  if (!k.prompts) return { text: container.querySelector('textarea').value.trim(), sections: null };
+  const answers = [...container.querySelectorAll('textarea')].map((t) => t.value.trim());
+  return { text: '', sections: k.prompts.map((q, i) => ({ q, a: answers[i] })) };
+}
+
+const entryIsEmpty = (e) => !e.text && !(e.sections || []).some((s) => s.a);
+
+function renderComposer() {
+  $$('[data-jkind]').forEach((b) => b.classList.toggle('active', b.dataset.jkind === journalKind));
+  $('#journal-hint').textContent = JOURNAL_KINDS[journalKind].hint;
+  const draft = readDraft();
+  const values = draft.kind === journalKind ? draft : {};
+  $('#journal-fields').replaceChildren(...journalFields(journalKind, values));
+  if (draft.mood !== undefined && journalMood === null) journalMood = draft.mood;
+  $('#mood-picker').replaceChildren(...moodPicker(journalMood, (v) => {
+    journalMood = v;
+    saveDraftNow();
+    renderComposerMood();
+  }));
+  $('#journal-draft').textContent = values.text || values.sections?.some((s) => s.a) ? 'Borrador recuperado' : '';
+}
+
+function renderComposerMood() {
+  $('#mood-picker').replaceChildren(...moodPicker(journalMood, (v) => {
+    journalMood = v;
+    saveDraftNow();
+    renderComposerMood();
+  }));
+}
+
+function saveDraftNow() {
+  writeDraft({ kind: journalKind, mood: journalMood, ...readFields($('#journal-fields'), journalKind) });
+}
+
+let draftTimer = null;
+$('#journal-fields').addEventListener('input', () => {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    saveDraftNow();
+    $('#journal-draft').textContent = 'Borrador guardado en este dispositivo';
+  }, 500);
+});
+
+$$('[data-jkind]').forEach((b) =>
+  b.addEventListener('click', () => {
+    saveDraftNow();
+    journalKind = b.dataset.jkind;
+    renderComposer();
+    $('#journal-fields textarea')?.focus();
+  })
+);
+
+$('#journal-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const fields = readFields($('#journal-fields'), journalKind);
+  const entry = { id: uid(), date: dateKey(), createdAt: Date.now(), updatedAt: Date.now(), kind: journalKind, mood: journalMood, ...fields };
+  if (entryIsEmpty(entry)) {
+    $('#journal-draft').textContent = 'Escribe algo antes de guardar.';
+    return;
+  }
+  state.journal.push(entry);
+  save();
+  writeDraft({});
+  journalMood = null;
+  renderComposer();
+  renderAll();
+  if (entry.kind === 'dump') showDumpConvert(entry);
+  $('#journal-draft').textContent = 'Entrada guardada';
+});
+
+// Líneas de un texto que pueden convertirse en tareas.
+function entryLines(entry) {
+  const text = entry.text || (entry.sections || []).map((s) => s.a).join('\n');
+  return text
+    .split('\n')
+    .map((l) => l.replace(/^\s*(?:[-*•·]|\d+[.)]|\[ ?\])\s*/, '').trim())
+    .filter((l) => l.length > 1);
+}
+
+function showDumpConvert(entry) {
+  const lines = entryLines(entry);
+  const box = $('#dump-convert');
+  if (!lines.length) {
+    box.hidden = true;
+    return;
+  }
+  const checks = lines.map((line) => {
+    const p = parseInput(line);
+    const extra = [p.due && `📅 ${formatDue(p.due)}`, p.time && `⏰ ${p.time}`, p.priority && `!${PRIORITY_LABEL[p.priority].toLowerCase()}`].filter(Boolean).join(' · ');
+    const input = el('input', { type: 'checkbox' });
+    return { line, input, row: el('label', { className: 'dc-line' }, [input, el('span', {}, line), extra ? el('span', { className: 'muted' }, extra) : '']) };
+  });
+  const create = el('button', { className: 'primary', type: 'button' }, 'Crear tareas');
+  const skip = el('button', { type: 'button' }, 'Ahora no');
+  const update = () => {
+    const n = checks.filter((c) => c.input.checked).length;
+    create.textContent = n ? `Crear ${n} ${n === 1 ? 'tarea' : 'tareas'}` : 'Marca las líneas que son tareas';
+    create.disabled = !n;
+  };
+  checks.forEach((c) => c.input.addEventListener('change', update));
+  create.addEventListener('click', () => {
+    const chosen = checks.filter((c) => c.input.checked);
+    chosen.forEach((c) => addTask(c.line));
+    box.hidden = true;
+    showToastMessage(`${chosen.length} ${chosen.length === 1 ? 'tarea creada' : 'tareas creadas'} en Tareas`);
+  });
+  skip.addEventListener('click', () => (box.hidden = true));
+  box.replaceChildren(
+    el('h3', {}, '¿Alguna de estas líneas es una tarea?'),
+    el('p', { className: 'muted' }, 'Marca las que quieras pasar a Tareas. Se entienden fechas y horas como «mañana» o «a las 5».'),
+    el('div', { className: 'dc-lines' }, checks.map((c) => c.row)),
+    el('div', { className: 'row' }, [create, skip])
+  );
+  update();
+  box.hidden = false;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function showToastMessage(message) {
+  $('#toast').replaceChildren(el('span', {}, message));
+  $('#toast').hidden = false;
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(hideToast, 4000);
+}
+
+$('#journal-search').addEventListener('input', (e) => {
+  journalSearch = e.target.value.trim().toLowerCase();
+  journalLimit = 20;
+  renderJournal();
+});
+
+function journalStreak() {
+  const days = new Set(state.journal.map((e) => e.date));
+  let d = new Date();
+  if (!days.has(dateKey(d))) d = addDays(d, -1);
+  let n = 0;
+  while (days.has(dateKey(d))) {
+    n++;
+    d = addDays(d, -1);
+  }
+  return n;
+}
+
+function dayLabel(key) {
+  const today = dateKey();
+  if (key === today) return 'Hoy';
+  if (key === dateKey(addDays(new Date(), -1))) return 'Ayer';
+  const s = parseKey(key).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: key.slice(0, 4) === today.slice(0, 4) ? undefined : 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function entryEditor(entry) {
+  const fields = el('div', {}, journalFields(entry.kind, entry));
+  let mood = entry.mood ?? null;
+  const picker = el('div', { className: 'mood-picker' });
+  const paint = () => picker.replaceChildren(...moodPicker(mood, (v) => {
+    mood = v;
+    paint();
+  }));
+  paint();
+  const saveBtn = el('button', { className: 'primary' }, 'Guardar');
+  const cancel = el('button', {}, 'Cancelar');
+  saveBtn.addEventListener('click', () => {
+    Object.assign(entry, readFields(fields, entry.kind), { mood, updatedAt: Date.now() });
+    editingEntryId = null;
+    save();
+    renderJournal();
+  });
+  cancel.addEventListener('click', () => {
+    editingEntryId = null;
+    renderJournal();
+  });
+  setTimeout(() => fields.querySelector('textarea')?.focus());
+  return el('article', { className: 'card entry editing' }, [fields, picker, el('div', { className: 'row' }, [saveBtn, cancel])]);
+}
+
+function entryCard(entry) {
+  if (entry.id === editingEntryId) return entryEditor(entry);
+  const mood = MOODS.find((m) => m.v === entry.mood);
+  const time = new Date(entry.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  const open = expandedEntries.has(entry.id);
+
+  const body = el('div', { className: `entry-body${open ? ' open' : ''}` });
+  if (entry.text) body.append(el('p', { className: 'entry-text' }, entry.text));
+  (entry.sections || []).filter((s) => s.a).forEach((s) => body.append(el('p', { className: 'entry-q' }, s.q), el('p', { className: 'entry-text' }, s.a)));
+
+  const long = (entry.text || '').split('\n').length > 6 || (entry.text || '').length > 420 || (entry.sections || []).filter((s) => s.a).length > 2;
+  const more = el('button', { className: 'link' }, open ? 'Ver menos' : 'Ver más');
+  more.addEventListener('click', () => {
+    if (open) expandedEntries.delete(entry.id);
+    else expandedEntries.add(entry.id);
+    renderJournal();
+  });
+
+  const edit = el('button', { className: 'link' }, 'Editar');
+  edit.addEventListener('click', () => {
+    editingEntryId = entry.id;
+    renderJournal();
+  });
+  const toTasks = el('button', { className: 'link' }, '→ Tareas');
+  toTasks.addEventListener('click', () => showDumpConvert(entry));
+  const del = el('button', { className: 'link danger-link' }, 'Borrar');
+  del.addEventListener('click', () =>
+    withUndo('Entrada borrada', () => {
+      state.journal = state.journal.filter((x) => x.id !== entry.id);
+    })
+  );
+
+  return el('article', { className: 'card entry' }, [
+    el('header', { className: 'entry-head' }, [
+      el('span', { className: `entry-kind kind-${entry.kind}` }, JOURNAL_KINDS[entry.kind].label),
+      el('span', { className: 'muted' }, time),
+      mood ? el('span', { className: 'entry-mood', title: mood.l }, mood.e) : '',
+    ]),
+    body,
+    el('footer', { className: 'entry-actions' }, [long ? more : '', edit, toTasks, del]),
+  ]);
+}
+
+function renderJournal() {
+  // Semana de ánimo: el ánimo de la última entrada de cada día.
+  const today = new Date();
+  $('#journal-week').replaceChildren(
+    ...Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map((d) => {
+      const key = dateKey(d);
+      const entries = state.journal.filter((e) => e.date === key).sort((a, b) => a.createdAt - b.createdAt);
+      const withMood = entries.filter((e) => e.mood).pop();
+      const mood = withMood && MOODS.find((m) => m.v === withMood.mood);
+      return el('div', { className: `jw-day${key === dateKey() ? ' today' : ''}`, title: mood ? mood.l : entries.length ? 'Escribiste' : 'Sin entrada' }, [
+        el('span', { className: 'jw-name' }, d.toLocaleDateString('es', { weekday: 'narrow' })),
+        el('span', { className: `jw-mark${entries.length ? ' wrote' : ''}` }, mood ? mood.e : entries.length ? '✓' : ''),
+      ]);
+    })
+  );
+  const streak = journalStreak();
+  const month = dateKey().slice(0, 7);
+  const words = state.journal
+    .filter((e) => monthOf(e.date) === month)
+    .reduce((n, e) => n + `${e.text || ''} ${(e.sections || []).map((s) => s.a).join(' ')}`.split(/\s+/).filter(Boolean).length, 0);
+  $('#journal-stats').textContent = state.journal.length
+    ? `${state.journal.length} ${state.journal.length === 1 ? 'entrada' : 'entradas'} · ${streak ? `racha de ${streak} ${streak === 1 ? 'día' : 'días'}` : 'sin racha activa'} · ${words} palabras este mes`
+    : 'Escribir unos minutos al día ayuda a ordenar la cabeza.';
+
+  const q = journalSearch;
+  const list = state.journal
+    .filter((e) => !q || `${e.text || ''} ${(e.sections || []).map((s) => `${s.q} ${s.a}`).join(' ')}`.toLowerCase().includes(q))
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const shown = list.slice(0, journalLimit);
+  const groups = [];
+  shown.forEach((e) => {
+    const g = groups[groups.length - 1];
+    if (g && g.date === e.date) g.items.push(e);
+    else groups.push({ date: e.date, items: [e] });
+  });
+  const nodes = groups.map((g) => el('section', { className: 'entry-day' }, [el('h3', { className: 'section-title' }, dayLabel(g.date)), ...g.items.map(entryCard)]));
+  if (list.length > shown.length) {
+    const more = el('button', { className: 'link' }, `Ver ${Math.min(20, list.length - shown.length)} entradas más`);
+    more.addEventListener('click', () => {
+      journalLimit += 20;
+      renderJournal();
+    });
+    nodes.push(more);
+  }
+  $('#journal-list').replaceChildren(...nodes);
+  $('#journal-empty').hidden = list.length > 0;
+  $('#journal-empty').textContent = state.journal.length ? 'Ninguna entrada coincide con la búsqueda.' : 'Tu diario está vacío. Escribe la primera entrada arriba.';
+}
+
+$('#today-journal').addEventListener('click', () => {
+  showView('journal');
+  journalKind = 'dump';
+  renderComposer();
+  $('#journal-fields textarea')?.focus();
+});
+
+// ---------- Ideas ----------
+let ideaView = 'notes';
+let ideaSearch = '';
+let ideaTag = null;
+let editingIdeaId = null;
+
+// Saca las #etiquetas de un texto conservando los saltos de línea.
+function extractTags(text) {
+  const tags = [];
+  const clean = text
+    .replace(/(^|[ \t])#([\p{L}\p{N}_-]+)/gu, (_, sp, tag) => {
+      tag = tag.toLowerCase();
+      if (!tags.includes(tag)) tags.push(tag);
+      return sp;
+    })
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .trim();
+  return { text: clean || text.trim(), tags };
+}
+
+$$('[data-ideaview]').forEach((btn) =>
+  btn.addEventListener('click', () => {
+    ideaView = btn.dataset.ideaview;
+    $$('[data-ideaview]').forEach((b) => {
+      b.classList.toggle('active', b === btn);
+      b.ariaPressed = String(b === btn);
+    });
+    renderIdeas();
+  })
+);
+
+$('#idea-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const raw = $('#idea-text').value.trim();
+  if (!raw) return;
+  state.ideas.push({ id: uid(), ...extractTags(raw), pinned: false, createdAt: Date.now(), updatedAt: Date.now() });
+  save();
+  e.target.reset();
+  renderIdeas();
+  $('#idea-text').focus();
+});
+$('#idea-text').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    $('#idea-form').requestSubmit();
+  }
+});
+$('#idea-search').addEventListener('input', (e) => {
+  ideaSearch = e.target.value.trim().toLowerCase();
+  renderIdeas();
+});
+
+function ideaCard(idea) {
+  if (idea.id === editingIdeaId) {
+    const area = el('textarea', { className: 'notes', rows: 4, value: [idea.text, ...idea.tags.map((t) => `#${t}`)].join(' ').replace(/ (#)/, '\n$1'), ariaLabel: 'Editar idea' });
+    const ok = el('button', { className: 'primary' }, 'Guardar');
+    const cancel = el('button', {}, 'Cancelar');
+    ok.addEventListener('click', () => {
+      if (!area.value.trim()) return;
+      Object.assign(idea, extractTags(area.value), { updatedAt: Date.now() });
+      editingIdeaId = null;
+      save();
+      renderIdeas();
+    });
+    cancel.addEventListener('click', () => {
+      editingIdeaId = null;
+      renderIdeas();
+    });
+    setTimeout(() => area.focus());
+    return el('article', { className: 'card idea editing' }, [area, el('div', { className: 'row' }, [ok, cancel])]);
+  }
+
+  const pin = el('button', { className: `icon-link${idea.pinned ? ' on' : ''}`, title: idea.pinned ? 'Desfijar' : 'Fijar arriba', ariaPressed: String(!!idea.pinned) }, '📌');
+  pin.addEventListener('click', () => {
+    idea.pinned = !idea.pinned;
+    save();
+    renderIdeas();
+  });
+  const edit = el('button', { className: 'link' }, 'Editar');
+  edit.addEventListener('click', () => {
+    editingIdeaId = idea.id;
+    renderIdeas();
+  });
+  const toTask = el('button', { className: 'link' }, '→ Tarea');
+  toTask.addEventListener('click', () => {
+    addTask(idea.text.split('\n')[0]);
+    showToastMessage('Tarea creada en Tareas');
+  });
+  const toMap = el('button', { className: 'link' }, '→ Mapa');
+  toMap.addEventListener('click', () => {
+    // La primera línea es el tema central; las demás, sus ramas.
+    const [first, ...rest] = idea.text.split('\n').map((l) => l.replace(/^\s*(?:[-*•·]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+    const map = newMap(first.slice(0, 80));
+    rest.forEach((line) => map.nodes.push({ id: uid(), parent: 'root', text: line.slice(0, 120) }));
+    save();
+    openMap(map.id);
+  });
+  const del = el('button', { className: 'link danger-link' }, 'Borrar');
+  del.addEventListener('click', () =>
+    withUndo('Idea borrada', () => {
+      state.ideas = state.ideas.filter((x) => x.id !== idea.id);
+    })
+  );
+  const date = new Date(idea.createdAt).toLocaleDateString('es', { day: 'numeric', month: 'short' });
+  const card = el('article', { className: `card idea${idea.pinned ? ' pinned' : ''}` }, [
+    el('header', { className: 'idea-head' }, [el('span', { className: 'muted' }, date), pin]),
+    el('p', { className: 'idea-text' }, idea.text),
+  ]);
+  if (idea.tags.length) {
+    card.append(el('div', { className: 'tags' }, idea.tags.map((t) => {
+      const chip = el('button', { className: `tag${t === ideaTag ? ' active' : ''}` }, `#${t}`);
+      chip.addEventListener('click', () => {
+        ideaTag = ideaTag === t ? null : t;
+        renderIdeas();
+      });
+      return chip;
+    })));
+  }
+  card.append(el('footer', { className: 'entry-actions' }, [edit, toTask, toMap, del]));
+  return card;
+}
+
+function renderIdeas() {
+  $('#ideas-notes-pane').hidden = ideaView !== 'notes';
+  $('#ideas-maps-pane').hidden = ideaView !== 'maps';
+  if (ideaView === 'maps') return renderMaps();
+
+  const tags = [...new Set(state.ideas.flatMap((i) => i.tags))].sort((a, b) => a.localeCompare(b, 'es'));
+  if (ideaTag && !tags.includes(ideaTag)) ideaTag = null;
+  const all = el('button', { className: `tag${ideaTag ? '' : ' active'}` }, 'Todas');
+  all.addEventListener('click', () => {
+    ideaTag = null;
+    renderIdeas();
+  });
+  $('#idea-tags').replaceChildren(...(tags.length ? [all, ...tags.map((t) => {
+    const b = el('button', { className: `tag${t === ideaTag ? ' active' : ''}` }, `#${t}`);
+    b.addEventListener('click', () => {
+      ideaTag = ideaTag === t ? null : t;
+      renderIdeas();
+    });
+    return b;
+  })] : []));
+  $('#idea-tags').hidden = !tags.length;
+
+  const list = state.ideas
+    .filter((i) => !ideaTag || i.tags.includes(ideaTag))
+    .filter((i) => !ideaSearch || `${i.text} ${i.tags.join(' ')}`.toLowerCase().includes(ideaSearch))
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.createdAt - a.createdAt);
+  $('#idea-list').replaceChildren(...list.map(ideaCard));
+  $('#idea-empty').hidden = list.length > 0;
+  $('#idea-empty').textContent = state.ideas.length ? 'Ninguna idea coincide.' : 'Sin ideas todavía. Las buenas ideas llegan en cualquier momento: apúntalas aquí.';
+}
+
+// ---------- Mapas mentales ----------
+let openMapId = null;
+let selectedNode = 'root';
+let editingNode = null;
+let mapZoom = 1;
+let mapLayout = null; // última disposición calculada (para navegar con flechas y exportar)
+const BRANCH_COUNT = 6;
+
+function newMap(title) {
+  const map = { id: uid(), title, createdAt: Date.now(), updatedAt: Date.now(), nodes: [{ id: 'root', parent: null, text: title }] };
+  state.maps.push(map);
+  return map;
+}
+
+const currentMap = () => state.maps.find((m) => m.id === openMapId);
+
+function openMap(id) {
+  openMapId = id;
+  selectedNode = 'root';
+  editingNode = null;
+  mapZoom = 1;
+  ideaView = 'maps';
+  $$('[data-ideaview]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.ideaview === 'maps');
+    b.ariaPressed = String(b.dataset.ideaview === 'maps');
+  });
+  showView('ideas');
+  renderIdeas();
+  fitMap();
+  $('#map-canvas').focus({ preventScroll: true });
+}
+
+function touchMap(map) {
+  map.title = map.nodes.find((n) => !n.parent).text;
+  map.updatedAt = Date.now();
+  save();
+}
+
+$('#map-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const title = $('#map-title').value.trim();
+  if (!title) return;
+  const map = newMap(title);
+  save();
+  e.target.reset();
+  openMap(map.id);
+});
+$('#map-back').addEventListener('click', () => {
+  openMapId = null;
+  renderIdeas();
+});
+$('#map-name').addEventListener('input', (e) => {
+  const map = currentMap();
+  if (!map || !e.target.value.trim()) return;
+  map.nodes.find((n) => !n.parent).text = e.target.value.trim();
+  touchMap(map);
+  renderMap();
+});
+
+function renderMaps() {
+  const open = !!currentMap();
+  if (!open) openMapId = null;
+  $('#maps-list-pane').hidden = open;
+  $('#map-editor').hidden = !open;
+  if (open) {
+    if (!editingNode) renderMap();
+    return;
+  }
+  const list = state.maps.slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  $('#map-list').replaceChildren(
+    ...list.map((m) => {
+      const card = el('div', { className: 'card map-card' });
+      const openBtn = el('button', { className: 'map-open' }, [
+        el('span', { className: 'map-card-title' }, m.title),
+        el('span', { className: 'muted' }, `${m.nodes.length - 1} ${m.nodes.length === 2 ? 'idea' : 'ideas'} · ${new Date(m.updatedAt).toLocaleDateString('es', { day: 'numeric', month: 'short' })}`),
+        miniMap(m),
+      ]);
+      openBtn.addEventListener('click', () => openMap(m.id));
+      const del = el('button', { className: 'del', title: 'Borrar mapa', ariaLabel: `Borrar mapa ${m.title}` }, '✕');
+      del.addEventListener('click', () =>
+        withUndo(`Mapa "${m.title}" borrado`, () => {
+          state.maps = state.maps.filter((x) => x.id !== m.id);
+        })
+      );
+      card.append(openBtn, del);
+      return card;
+    })
+  );
+  $('#map-empty').hidden = list.length > 0;
+}
+
+// Miniatura: el tema central y sus primeras ramas.
+function miniMap(m) {
+  const kids = m.nodes.filter((n) => n.parent === 'root').slice(0, 6);
+  return el('span', { className: 'mini-branches' }, kids.map((k, i) => el('span', { className: `mini b${i % BRANCH_COUNT}` }, k.text)));
+}
+
+const childrenOf = (map, id) => map.nodes.filter((n) => n.parent === id);
+
+function branchIndex(map, node) {
+  if (!node.parent) return -1;
+  let n = node;
+  while (n.parent && n.parent !== 'root') n = map.nodes.find((x) => x.id === n.parent);
+  return childrenOf(map, 'root').indexOf(n) % BRANCH_COUNT;
+}
+
+function depthOf(map, node) {
+  let d = 0;
+  let n = node;
+  while (n.parent) {
+    n = map.nodes.find((x) => x.id === n.parent);
+    d++;
+  }
+  return d;
+}
+
+// Disposición en árbol horizontal: el tema en el centro y las ramas repartidas a derecha e izquierda.
+function computeLayout(map, sizes) {
+  const GAP_X = 48;
+  const GAP_Y = 12;
+  const kidsOf = (n) => (n.collapsed ? [] : childrenOf(map, n.id));
+  const subH = {};
+  const measure = (n) => {
+    const kids = kidsOf(n);
+    const own = sizes[n.id].h;
+    if (!kids.length) return (subH[n.id] = own);
+    const sum = kids.reduce((a, k) => a + measure(k), 0) + GAP_Y * (kids.length - 1);
+    return (subH[n.id] = Math.max(own, sum));
+  };
+  const root = map.nodes.find((n) => !n.parent);
+  const top = kidsOf(root);
+  top.forEach(measure);
+  const total = top.reduce((a, k) => a + subH[k.id], 0);
+  const right = [];
+  const left = [];
+  let acc = 0;
+  top.forEach((k) => {
+    if (acc < total / 2 || !right.length) {
+      right.push(k);
+      acc += subH[k.id];
+    } else left.push(k);
+  });
+
+  const pos = {};
+  const side = {};
+  const place = (n, edge, cy, dir) => {
+    const { w, h } = sizes[n.id];
+    pos[n.id] = { x: dir > 0 ? edge : edge - w, y: cy - h / 2, w, h };
+    side[n.id] = dir;
+    const kids = kidsOf(n);
+    const sum = kids.reduce((a, k) => a + subH[k.id], 0) + GAP_Y * Math.max(0, kids.length - 1);
+    let y = cy - sum / 2;
+    kids.forEach((k) => {
+      place(k, dir > 0 ? edge + w + GAP_X : edge - w - GAP_X, y + subH[k.id] / 2, dir);
+      y += subH[k.id] + GAP_Y;
+    });
+  };
+  const rs = sizes[root.id];
+  pos[root.id] = { x: -rs.w / 2, y: -rs.h / 2, w: rs.w, h: rs.h };
+  side[root.id] = 0;
+  const column = (list, dir) => {
+    const sum = list.reduce((a, k) => a + subH[k.id], 0) + GAP_Y * Math.max(0, list.length - 1);
+    let y = -sum / 2;
+    list.forEach((k) => {
+      place(k, dir > 0 ? rs.w / 2 + GAP_X : -rs.w / 2 - GAP_X, y + subH[k.id] / 2, dir);
+      y += subH[k.id] + GAP_Y;
+    });
+  };
+  column(right, 1);
+  column(left, -1);
+
+  const PAD = 40;
+  const xs = Object.values(pos);
+  const minX = Math.min(...xs.map((p) => p.x)) - PAD;
+  const minY = Math.min(...xs.map((p) => p.y)) - PAD;
+  const maxX = Math.max(...xs.map((p) => p.x + p.w)) + PAD;
+  const maxY = Math.max(...xs.map((p) => p.y + p.h)) + PAD;
+  Object.values(pos).forEach((p) => {
+    p.x -= minX;
+    p.y -= minY;
+  });
+  return { pos, side, width: maxX - minX, height: maxY - minY };
+}
+
+function edgePath(a, b, dir) {
+  const x1 = dir > 0 ? a.x + a.w : a.x;
+  const y1 = a.y + a.h / 2;
+  const x2 = dir > 0 ? b.x : b.x + b.w;
+  const y2 = b.y + b.h / 2;
+  const mx = (x1 + x2) / 2;
+  return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+}
+
+function renderMap() {
+  const map = currentMap();
+  if (!map || !$('#map-editor').offsetParent) return;
+  if (!map.nodes.some((n) => n.id === selectedNode)) selectedNode = 'root';
+  const root = map.nodes.find((n) => !n.parent);
+  if (document.activeElement !== $('#map-name')) $('#map-name').value = root.text;
+
+  // Nodos ocultos por una rama plegada.
+  const hidden = new Set();
+  const hide = (id) => childrenOf(map, id).forEach((c) => {
+    hidden.add(c.id);
+    hide(c.id);
+  });
+  map.nodes.filter((n) => n.collapsed).forEach((n) => hide(n.id));
+  const visible = map.nodes.filter((n) => !hidden.has(n.id));
+
+  const nodesEl = $('#map-nodes');
+  const els = {};
+  nodesEl.replaceChildren(
+    ...visible.map((n) => {
+      const depth = depthOf(map, n);
+      const b = branchIndex(map, n);
+      const kids = childrenOf(map, n.id).length;
+      const node = el('div', {
+        className: `mm-node depth-${Math.min(depth, 2)}${b >= 0 ? ` b${b}` : ''}${n.id === selectedNode ? ' selected' : ''}`,
+        role: 'treeitem',
+        ariaSelected: String(n.id === selectedNode),
+        ariaLabel: n.text,
+      });
+      node.dataset.id = n.id;
+      if (n.id === editingNode) {
+        const input = el('textarea', { className: 'mm-input', value: n.text, rows: 1, maxLength: 120, ariaLabel: 'Texto del nodo' });
+        const commit = (keep) => {
+          if (editingNode !== n.id) return;
+          editingNode = null;
+          const v = input.value.trim();
+          if (keep && v) n.text = v;
+          touchMap(map);
+          renderMap();
+          $('#map-canvas').focus({ preventScroll: true });
+        };
+        input.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            commit(true);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            commit(false);
+          } else if (e.key === 'Tab') {
+            e.preventDefault();
+            commit(true);
+            addNode('child');
+          }
+        });
+        input.addEventListener('input', () => {
+          input.style.height = 'auto';
+          input.style.height = `${input.scrollHeight}px`;
+        });
+        input.addEventListener('blur', () => commit(true));
+        node.append(input);
+      } else {
+        node.append(el('span', { className: 'mm-text' }, n.text));
+      }
+      if (kids && n.parent) {
+        const fold = el('button', { className: 'mm-fold', title: n.collapsed ? 'Desplegar' : 'Plegar', ariaLabel: n.collapsed ? `Desplegar ${kids} ramas` : 'Plegar rama' }, n.collapsed ? `+${kids}` : '−');
+        fold.addEventListener('click', (e) => {
+          e.stopPropagation();
+          n.collapsed = !n.collapsed;
+          touchMap(map);
+          renderMap();
+        });
+        node.append(fold);
+      }
+      node.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (editingNode === n.id) return;
+        selectedNode = n.id;
+        renderMap();
+        $('#map-canvas').focus({ preventScroll: true });
+      });
+      node.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        selectedNode = n.id;
+        startNodeEdit();
+      });
+      els[n.id] = node;
+      return node;
+    })
+  );
+
+  // Medir, colocar y dibujar las conexiones.
+  const sizes = {};
+  visible.forEach((n) => (sizes[n.id] = { w: els[n.id].offsetWidth, h: els[n.id].offsetHeight }));
+  const layout = computeLayout({ ...map, nodes: visible.map((n) => (hidden.has(n.id) ? null : n)).filter(Boolean) }, sizes);
+  mapLayout = layout;
+  visible.forEach((n) => {
+    const p = layout.pos[n.id];
+    els[n.id].style.transform = `translate(${p.x}px, ${p.y}px)`;
+    els[n.id].classList.toggle('left', layout.side[n.id] < 0);
+  });
+  const svg = $('#map-edges');
+  svg.setAttribute('width', layout.width);
+  svg.setAttribute('height', layout.height);
+  svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
+  const NS = 'http://www.w3.org/2000/svg';
+  svg.replaceChildren(
+    ...visible.filter((n) => n.parent).map((n) => {
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('d', edgePath(layout.pos[n.parent], layout.pos[n.id], layout.side[n.id]));
+      path.setAttribute('class', `mm-edge b${branchIndex(map, n)}`);
+      return path;
+    })
+  );
+  const stage = $('#map-stage');
+  stage.style.width = `${layout.width}px`;
+  stage.style.height = `${layout.height}px`;
+  stage.style.transform = `scale(${mapZoom})`;
+  $('#map-sizer')?.remove();
+  stage.after(el('div', { id: 'map-sizer', style: `width:${layout.width * mapZoom}px;height:${layout.height * mapZoom}px` }));
+
+  const hasSel = selectedNode !== 'root';
+  $('#mm-sibling').disabled = !hasSel;
+  $('#mm-delete').disabled = !hasSel;
+
+  if (editingNode) {
+    const input = nodesEl.querySelector('.mm-input');
+    input.style.height = `${input.scrollHeight}px`;
+    input.focus({ preventScroll: true });
+    input.select();
+  }
+  revealNode(selectedNode);
+}
+
+// Desplaza el lienzo para que el nodo quede a la vista.
+function revealNode(id) {
+  const p = mapLayout?.pos[id];
+  if (!p) return;
+  const c = $('#map-canvas');
+  const x = p.x * mapZoom;
+  const y = p.y * mapZoom;
+  const w = p.w * mapZoom;
+  const h = p.h * mapZoom;
+  if (x < c.scrollLeft + 16) c.scrollLeft = x - 16;
+  else if (x + w > c.scrollLeft + c.clientWidth - 16) c.scrollLeft = x + w - c.clientWidth + 16;
+  if (y < c.scrollTop + 16) c.scrollTop = y - 16;
+  else if (y + h > c.scrollTop + c.clientHeight - 16) c.scrollTop = y + h - c.clientHeight + 16;
+}
+
+// Ajusta el zoom para ver el mapa entero, sin bajar de un tamaño legible (en pantallas
+// estrechas el resto se recorre deslizando), y centra el tema principal.
+function fitMap() {
+  if (!mapLayout) return;
+  const c = $('#map-canvas');
+  mapZoom = Math.max(0.6, Math.min(1.1, (c.clientWidth - 8) / mapLayout.width, (c.clientHeight - 8) / mapLayout.height));
+  renderMap();
+  const root = mapLayout.pos.root;
+  c.scrollLeft = (root.x + root.w / 2) * mapZoom - c.clientWidth / 2;
+  c.scrollTop = (root.y + root.h / 2) * mapZoom - c.clientHeight / 2;
+}
+
+function zoomBy(f) {
+  const c = $('#map-canvas');
+  const cx = (c.scrollLeft + c.clientWidth / 2) / mapZoom;
+  const cy = (c.scrollTop + c.clientHeight / 2) / mapZoom;
+  mapZoom = Math.max(0.3, Math.min(2, mapZoom * f));
+  renderMap();
+  c.scrollLeft = cx * mapZoom - c.clientWidth / 2;
+  c.scrollTop = cy * mapZoom - c.clientHeight / 2;
+}
+
+function startNodeEdit() {
+  editingNode = selectedNode;
+  renderMap();
+}
+
+function addNode(kind) {
+  const map = currentMap();
+  const sel = map.nodes.find((n) => n.id === selectedNode);
+  const parentId = kind === 'child' || !sel.parent ? sel.id : sel.parent;
+  const parent = map.nodes.find((n) => n.id === parentId);
+  parent.collapsed = false;
+  const node = { id: uid(), parent: parentId, text: 'Nueva idea' };
+  // Un hermano se inserta justo después del nodo seleccionado.
+  const at = kind === 'sibling' && sel.parent ? map.nodes.indexOf(sel) + 1 : map.nodes.length;
+  map.nodes.splice(at, 0, node);
+  selectedNode = node.id;
+  editingNode = node.id;
+  touchMap(map);
+  renderMap();
+}
+
+function deleteNode() {
+  const map = currentMap();
+  const sel = map.nodes.find((n) => n.id === selectedNode);
+  if (!sel?.parent) return;
+  const gone = new Set([sel.id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    map.nodes.forEach((n) => {
+      if (n.parent && gone.has(n.parent) && !gone.has(n.id)) {
+        gone.add(n.id);
+        grew = true;
+      }
+    });
+  }
+  withUndo(gone.size > 1 ? `Rama borrada (${gone.size} nodos)` : 'Nodo borrado', () => {
+    map.nodes = map.nodes.filter((n) => !gone.has(n.id));
+    map.updatedAt = Date.now();
+    selectedNode = sel.parent;
+  });
+}
+
+// Moverse con las flechas al nodo más cercano en esa dirección.
+function moveSelection(key) {
+  const from = mapLayout?.pos[selectedNode];
+  if (!from) return;
+  const fx = from.x + from.w / 2;
+  const fy = from.y + from.h / 2;
+  let best = null;
+  let bestScore = Infinity;
+  Object.entries(mapLayout.pos).forEach(([id, p]) => {
+    if (id === selectedNode) return;
+    const dx = p.x + p.w / 2 - fx;
+    const dy = p.y + p.h / 2 - fy;
+    const ok = { ArrowRight: dx > 4, ArrowLeft: dx < -4, ArrowDown: dy > 4, ArrowUp: dy < -4 }[key];
+    if (!ok) return;
+    const along = key === 'ArrowRight' || key === 'ArrowLeft' ? Math.abs(dx) : Math.abs(dy);
+    const across = key === 'ArrowRight' || key === 'ArrowLeft' ? Math.abs(dy) : Math.abs(dx);
+    const score = along + across * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = id;
+    }
+  });
+  if (best) {
+    selectedNode = best;
+    renderMap();
+  }
+}
+
+$('#map-canvas').addEventListener('keydown', (e) => {
+  if (editingNode || e.target !== $('#map-canvas')) return;
+  const keys = {
+    Tab: () => addNode('child'),
+    Enter: () => addNode(selectedNode === 'root' ? 'child' : 'sibling'),
+    F2: startNodeEdit,
+    ' ': startNodeEdit,
+    Delete: deleteNode,
+    Backspace: deleteNode,
+    ArrowUp: () => moveSelection('ArrowUp'),
+    ArrowDown: () => moveSelection('ArrowDown'),
+    ArrowLeft: () => moveSelection('ArrowLeft'),
+    ArrowRight: () => moveSelection('ArrowRight'),
+    '+': () => zoomBy(1.2),
+    '-': () => zoomBy(1 / 1.2),
+  };
+  if (keys[e.key]) {
+    e.preventDefault();
+    e.stopPropagation();
+    keys[e.key]();
+  }
+});
+
+// Arrastrar el fondo con el ratón mueve el mapa (en táctil se desplaza de forma nativa).
+$('#map-canvas').addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'mouse' || e.target.closest('.mm-node')) return;
+  const c = $('#map-canvas');
+  const start = { x: e.clientX, y: e.clientY, l: c.scrollLeft, t: c.scrollTop };
+  c.classList.add('panning');
+  const move = (ev) => {
+    c.scrollLeft = start.l - (ev.clientX - start.x);
+    c.scrollTop = start.t - (ev.clientY - start.y);
+  };
+  const up = () => {
+    c.classList.remove('panning');
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+});
+$('#map-canvas').addEventListener('click', (e) => {
+  if (!e.target.closest('.mm-node')) $('#map-canvas').focus({ preventScroll: true });
+});
+
+$('#mm-child').addEventListener('click', () => addNode('child'));
+$('#mm-sibling').addEventListener('click', () => addNode('sibling'));
+$('#mm-edit').addEventListener('click', startNodeEdit);
+$('#mm-delete').addEventListener('click', deleteNode);
+$('#mm-zoom-in').addEventListener('click', () => zoomBy(1.2));
+$('#mm-zoom-out').addEventListener('click', () => zoomBy(1 / 1.2));
+$('#mm-fit').addEventListener('click', fitMap);
+$('#mm-task').addEventListener('click', () => {
+  const node = currentMap()?.nodes.find((n) => n.id === selectedNode);
+  if (!node) return;
+  addTask(node.text);
+  showToastMessage(`Tarea creada: ${node.text}`);
+});
+
+// Exportar como imagen PNG: se dibuja el mapa en un lienzo con los colores del tema actual.
+function wrapText(ctx, text, maxW) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  words.forEach((w) => {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line);
+      line = w;
+    } else line = test;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function exportMap() {
+  const map = currentMap();
+  if (!map || !mapLayout) return;
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(name).trim();
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = mapLayout.width * scale;
+  canvas.height = mapLayout.height * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = v('--bg');
+  ctx.fillRect(0, 0, mapLayout.width, mapLayout.height);
+
+  const nodes = map.nodes.filter((n) => mapLayout.pos[n.id]);
+  nodes.filter((n) => n.parent && mapLayout.pos[n.parent]).forEach((n) => {
+    ctx.strokeStyle = v(`--b${branchIndex(map, n)}`);
+    ctx.lineWidth = 2;
+    ctx.stroke(new Path2D(edgePath(mapLayout.pos[n.parent], mapLayout.pos[n.id], mapLayout.side[n.id])));
+  });
+  nodes.forEach((n) => {
+    const p = mapLayout.pos[n.id];
+    const depth = depthOf(map, n);
+    const color = depth === 0 ? v('--accent') : v(`--b${branchIndex(map, n)}`);
+    ctx.beginPath();
+    ctx.roundRect(p.x, p.y, p.w, p.h, 10);
+    ctx.fillStyle = depth === 0 ? color : v('--surface');
+    ctx.fill();
+    ctx.lineWidth = depth === 1 ? 2 : 1;
+    ctx.strokeStyle = depth === 0 ? color : depth === 1 ? color : v('--border');
+    ctx.stroke();
+    if (depth >= 2) {
+      ctx.fillStyle = color;
+      ctx.fillRect(mapLayout.side[n.id] < 0 ? p.x + p.w - 3 : p.x, p.y + 6, 3, p.h - 12);
+    }
+    // Mismos tamaños que en pantalla (1.05rem y .9rem).
+    const size = depth === 0 ? 16.8 : 14.4;
+    ctx.font = `${depth < 2 ? 600 : 400} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = depth === 0 ? v('--on-accent') : v('--text');
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    const lines = wrapText(ctx, n.text, p.w - (depth === 0 ? 30 : 20));
+    const lh = size * 1.3;
+    lines.forEach((l, i) => ctx.fillText(l, p.x + p.w / 2, p.y + p.h / 2 + (i - (lines.length - 1) / 2) * lh));
+  });
+
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+  const filename = `${map.title.replace(/[\\/:*?"<>|]+/g, '').slice(0, 60) || 'mapa'}.png`;
+  if (window.claude?.use) {
+    const downloads = await window.claude.use('downloads');
+    if (downloads) {
+      try {
+        await downloads.save({ filename, data: blob });
+        showToastMessage('Imagen guardada');
+      } catch (e) {
+        if (e?.code !== 'declined') showToastMessage('No se pudo guardar la imagen aquí.');
+      }
+      return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+$('#mm-export').addEventListener('click', exportMap);
 
 // ---------- Recordatorios ----------
 // Avisan dentro de la app a la hora indicada (y al abrirla, si la hora ya pasó hoy).
@@ -1574,7 +2946,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- Atajos de teclado ----------
-const VIEW_KEYS = { 1: 'today', 2: 'tasks', 3: 'timer', 4: 'habits', 5: 'progress' };
+const VIEW_KEYS = { 1: 'today', 2: 'tasks', 3: 'projects', 4: 'journal', 5: 'ideas', 6: 'timer', 7: 'habits', 8: 'progress' };
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -1583,6 +2955,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest?.('#map-canvas')) return;
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
@@ -1607,7 +2980,14 @@ $('#shortcuts-toggle').addEventListener('click', () => {
 // ---------- Sincronización entre dispositivos ----------
 // Dentro de Claude, los datos se guardan también en un almacén privado del usuario, así
 // el móvil y el ordenador ven lo mismo. Fuera de Claude la app usa solo este navegador.
-const sync = { doc: null, writing: false, dirty: false, timeout: null };
+//
+// Los datos se reparten en bloques (cada documento admite hasta 256 KB):
+//   state            tareas, hábitos, proyectos, ajustes y estadísticas
+//   ideas            notas de ideas
+//   journal-AAAA-MM  entradas del diario de ese mes
+//   map-<id>         cada mapa mental
+// Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
+const sync = { col: null, writing: false, dirty: false, timeout: null };
 
 const SYNC_LABEL = {
   local: 'Guardado en este dispositivo',
@@ -1622,24 +3002,82 @@ function setSyncStatus(status) {
   node.dataset.state = status;
 }
 
+const monthOf = (date) => date.slice(0, 7);
+
+function localBuckets() {
+  const out = new Map();
+  out.set('state', Object.fromEntries(CORE_KEYS.map((k) => [k, state[k]])));
+  out.set('ideas', { items: state.ideas });
+  const months = new Set(state.journal.map((e) => monthOf(e.date)));
+  // Un mes que se quedó sin entradas se sube vacío para que los demás dispositivos lo vacíen también.
+  Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('journal-')).forEach((n) => months.add(n.slice(8)));
+  months.forEach((m) => out.set(`journal-${m}`, { items: state.journal.filter((e) => monthOf(e.date) === m) }));
+  state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
+  return out;
+}
+
+function bucketIsEmpty(name, data) {
+  if (name === 'state') return !data.tasks?.length && !data.habits?.length && !data.projects?.length;
+  if (name.startsWith('map-')) return !data.map;
+  return !data.items?.length;
+}
+
+function applyBucket(name, data) {
+  if (name === 'state') {
+    const fresh = defaults();
+    for (const k of CORE_KEYS) state[k] = data[k] ?? fresh[k];
+    state.settings = { ...fresh.settings, ...state.settings };
+  } else if (name === 'ideas') {
+    state.ideas = data.items || [];
+  } else if (name.startsWith('journal-')) {
+    const m = name.slice(8);
+    state.journal = state.journal.filter((e) => monthOf(e.date) !== m).concat(data.items || []);
+  } else if (name.startsWith('map-') && data.map) {
+    const i = state.maps.findIndex((x) => x.id === data.map.id);
+    if (i >= 0) state.maps[i] = data.map;
+    else state.maps.push(data.map);
+  }
+}
+
+function removeBucket(name) {
+  if (name.startsWith('map-')) state.maps = state.maps.filter((m) => `map-${m.id}` !== name);
+}
+
 function scheduleSync() {
-  if (!sync.doc) return;
+  if (!sync.col) return;
   setSyncStatus('saving');
   clearTimeout(sync.timeout);
   sync.timeout = setTimeout(pushState, 800);
 }
 
-// Una sola escritura a la vez; si hubo cambios mientras se escribía, se envían al terminar.
+// Sube los bloques que cambiaron, de uno en uno; si hubo cambios mientras tanto, repite al terminar.
 async function pushState() {
+  if (!sync.col) return;
   if (sync.writing) {
     sync.dirty = true;
     return;
   }
   sync.writing = true;
+  const meta = state.syncMeta;
   try {
-    const body = {};
-    for (const k of SYNCED_KEYS) body[k] = state[k];
-    await sync.doc.set(JSON.parse(JSON.stringify(body)));
+    const buckets = localBuckets();
+    for (const [name, data] of buckets) {
+      const json = JSON.stringify(data);
+      if (meta.sent[name] === json) continue;
+      const now = Date.now();
+      await sync.col.doc(name).set({ ...JSON.parse(json), updatedAt: now });
+      meta.sent[name] = json;
+      meta.times[name] = now;
+    }
+    // Mapas borrados en este dispositivo.
+    for (const name of Object.keys(meta.sent)) {
+      if (name.startsWith('map-') && !buckets.has(name)) {
+        await sync.col.doc(name).delete();
+        delete meta.sent[name];
+        delete meta.times[name];
+      }
+    }
+    saveLocal();
     setSyncStatus('synced');
   } catch {
     setSyncStatus('error');
@@ -1652,15 +3090,53 @@ async function pushState() {
   }
 }
 
-function applyRemote(data) {
-  const fresh = defaults();
-  for (const k of SYNCED_KEYS) state[k] = data[k] ?? fresh[k];
-  saveLocal();
-  state.settings = { ...defaults().settings, ...state.settings };
-  applySettings();
-  if (!timer.endsAt) setMode(timer.mode);
-  renderAll();
-  setSyncStatus('synced');
+function receiveSnapshot(snap, first) {
+  const meta = state.syncMeta;
+  const local = localBuckets();
+  const remoteNames = new Set();
+  let changed = false;
+
+  for (const doc of snap.docs) {
+    const name = doc.id;
+    remoteNames.add(name);
+    const body = JSON.parse(JSON.stringify(doc.data()));
+    const remoteAt = body.updatedAt || 0;
+    delete body.updatedAt;
+    if (remoteAt <= (meta.times[name] || 0)) continue; // ya lo tenemos (o lo subimos nosotros)
+
+    const localData = local.get(name);
+    const localJson = localData && JSON.stringify(localData);
+    const localDirty = localData !== undefined && localJson !== meta.sent[name];
+    // Nunca se pisa con una copia vacía lo que este dispositivo tiene sin subir.
+    if (localDirty && meta.sent[name] === undefined && bucketIsEmpty(name, body) && !bucketIsEmpty(name, localData)) continue;
+    // Si este bloque cambió aquí después que en la nube, gana el de aquí.
+    if (localDirty && (state.updatedAt || 0) > remoteAt) continue;
+
+    applyBucket(name, body);
+    meta.sent[name] = JSON.stringify(localBuckets().get(name) ?? body);
+    meta.times[name] = remoteAt;
+    changed = true;
+  }
+
+  // Mapas que ya no están en la nube: otro dispositivo los borró (si aquí no cambiaron).
+  for (const name of Object.keys(meta.sent)) {
+    if (remoteNames.has(name) || !name.startsWith('map-')) continue;
+    const localData = local.get(name);
+    if (localData && JSON.stringify(localData) !== meta.sent[name]) continue;
+    removeBucket(name);
+    delete meta.sent[name];
+    delete meta.times[name];
+    changed = true;
+  }
+
+  if (changed) {
+    saveLocal();
+    applySettings();
+    if (!timer.endsAt) setMode(timer.mode);
+    renderAll();
+  }
+  if (first || changed) pushState();
+  else setSyncStatus('synced');
 }
 
 async function startSync() {
@@ -1669,28 +3145,12 @@ async function startSync() {
   const id = user && (await user.id());
   if (!db || !id) return;
 
-  sync.doc = db.doc(`data/users/${id}/state`);
+  sync.col = db.collection(`data/users/${id}`);
   let first = true;
-  sync.doc.onSnapshot(
+  sync.col.onSnapshot(
     (snap) => {
       if (snap.metadata.hasPendingWrites) return;
-      const remote = snap.exists ? JSON.parse(JSON.stringify(snap.data())) : null;
-      const remoteEmpty = !remote || (!remote.tasks?.length && !remote.habits?.length);
-      const localHasData = state.tasks.length > 0 || state.habits.length > 0;
-      const remoteNewer = remote && (remote.updatedAt || 0) > (state.updatedAt || 0);
-      if (first && remoteEmpty && localHasData) {
-        // La nube está vacía y este dispositivo tiene datos (p. ej. de antes de sincronizar): nunca se pisan.
-        state.updatedAt = Date.now();
-        saveLocal();
-        pushState();
-      } else if (remoteNewer) {
-        applyRemote(remote);
-      } else if (first && (!remote || (state.updatedAt || 0) > (remote.updatedAt || 0))) {
-        // Primera vez en la nube, o este dispositivo tiene cambios más recientes: súbelos.
-        pushState();
-      } else if (first) {
-        setSyncStatus('synced');
-      }
+      receiveSnapshot(snap, first);
       first = false;
     },
     () => setSyncStatus('error')
@@ -1701,6 +3161,8 @@ async function startSync() {
 applySettings();
 attachPreview($('#task-title'), $('#task-preview'));
 attachPreview($('#today-title'), $('#today-preview'));
+attachPreview($('#pd-task-title'), $('#pd-task-preview'));
+renderComposer();
 setSyncStatus('local');
 renderAll();
 startSync();
