@@ -24,6 +24,10 @@
     --accent: #818cf8;
     --accent-soft: #262a45;
     --on-accent: #111317;
+  --low: #4ade80;
+  --high: #f87171;
+    --low: #4ade80;
+    --high: #f87171;
     color-scheme: dark;
   }
 }
@@ -230,3 +234,47 @@ summary { cursor: pointer; font-weight: 600; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 kbd { font: inherit; font-size: .8rem; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; background: var(--bg); }
 @media (hover: none) { .footer { display: none; } }
+
+/* Cabecera y estado de sincronización */
+.brand { display: flex; flex-direction: column; }
+.sync { font-size: .75rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+.sync[data-state="synced"]::before { background: var(--low); }
+.sync[data-state="saving"]::before { background: var(--mid); }
+.sync[data-state="error"]::before { background: var(--high); }
+.tabs { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+.tab { white-space: nowrap; }
+@media (max-width: 520px) {
+  .tabs { width: 100%; }
+  .tab { flex: 1; padding: 6px 8px; font-size: .9rem; }
+}
+
+/* Progreso */
+.section-title.first { margin-top: 4px; }
+.stat .delta { font-size: .72rem; margin-top: 2px; color: var(--muted); }
+.stat .delta.up { color: var(--low); }
+.stat .delta.down { color: var(--high); }
+.chart-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chart-title { margin: 0; font-size: 1rem; }
+.chart { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; height: 180px; }
+.bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; border-radius: 6px; outline-offset: 2px; }
+.bar-track { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--border); }
+.bar { width: min(28px, 70%); background: var(--accent); border-radius: 4px 4px 0 0; opacity: .55; transition: height .3s ease; }
+.bar.zero { height: 2px !important; background: var(--border); opacity: 1; }
+.bar-col.today .bar { opacity: 1; }
+.bar-val { font-size: .8rem; font-weight: 600; font-variant-numeric: tabular-nums; visibility: hidden; }
+.bar-val.shown, .bar-col:hover .bar-val, .bar-col:focus-visible .bar-val { visibility: visible; }
+.bar-col:hover .bar { opacity: 1; }
+.bar-label { font-size: .75rem; color: var(--muted); }
+.bar-col.today .bar-label { color: var(--accent); font-weight: 700; }
+.chart-empty { text-align: center; margin: 12px 0 0; }
+.habit-progress { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.habit-progress:last-child { border-bottom: 0; }
+.hp-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.hp-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.hp-num { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hp-track { height: 8px; background: var(--accent-soft); border-radius: 999px; overflow: hidden; }
+.hp-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+.hp-meta { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .bar, .ring-fg { transition: none; } }
+#habit-progress { padding-block: 4px; padding-inline: 16px; }
