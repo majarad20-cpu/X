@@ -78,7 +78,10 @@
     <main>
     <!-- Hoy -->
     <section id="view-today" class="view active">
-      <p id="today-date" class="today-date"></p>
+      <div class="today-head">
+        <p id="today-date" class="today-date"></p>
+        <button id="today-daily" class="chip">📓 Nota diaria</button>
+      </div>
       <div class="stats">
         <div class="stat"><span id="stat-pending" class="num">0</span><span class="label">Para hoy</span></div>
         <div class="stat"><span id="stat-overdue" class="num">0</span><span class="label">Vencidas</span></div>
@@ -168,7 +171,7 @@
 
       <ul id="task-list" class="list"></ul>
       <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
-      <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas · con «Orden: el mío» arrastra ⠿ para reordenar.</p>
+      <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas · con «Orden: el mío» arrastra ⠿ para reordenar · las tareas 📝 vienen de tus notas (escribe <code>- [ ] tarea 📅 mañana</code> en cualquier nota).</p>
       <button id="clear-done" class="link">Borrar tareas completadas</button>
       </div>
 
@@ -209,6 +212,7 @@
           <div class="pd-fields">
             <input id="pd-name" class="pd-name" type="text" maxlength="80" aria-label="Nombre del proyecto">
             <textarea id="pd-desc" class="notes" rows="2" placeholder="Objetivo, contexto, enlaces…" aria-label="Descripción del proyecto"></textarea>
+            <button id="pd-note" class="link pd-note-link"></button>
             <div class="row pd-meta">
               <label>Estado
                 <select id="pd-status">
@@ -434,6 +438,13 @@
       <div class="card storage">
         <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas hace más de 7 días se archivan solas y siguen apareciendo en «Hechas».</p>
         <div id="storage-meter"></div>
+      </div>
+
+      <h2 class="section-title">Pasar a notas</h2>
+      <div class="card">
+        <p>Copia tu diario (cada entrada en la nota diaria de su día), tus ideas (una nota por idea en «Ideas») y tus mapas mentales (como esquema en «Mapas»). Los originales se quedan donde están. Si lo vuelves a usar, solo copia lo nuevo.</p>
+        <div class="row"><button id="import-notes" class="primary">Copiar a notas</button></div>
+        <p id="import-message" class="muted" role="status"></p>
       </div>
 
       <h2 class="section-title">Copia de seguridad</h2>

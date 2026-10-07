@@ -911,3 +911,11 @@ body { overflow: hidden; }
   .status-note { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ribbon, .side { transition: none !important; } }
+
+/* Tareas que vienen de notas */
+.task.from-note { border-left-style: solid; background: color-mix(in srgb, var(--accent) 3%, var(--surface)); }
+.note-tag { color: var(--accent); }
+.pd-note-link { align-self: flex-start; font-size: .9rem; color: var(--accent); }
+.today-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.today-head .today-date { margin: 4px 0 12px; }
+.hint code { font-size: .85em; background: var(--side); border-radius: 4px; padding: 0 4px; }

@@ -10,6 +10,9 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Wikilinks**: `[[Nota]]`, `[[Nota|texto]]`, `[[Nota#Sección]]` y notas incrustadas `![[Nota]]`. Al escribir `[[` aparecen sugerencias; un enlace a una nota que no existe la crea; renombrar o mover una nota actualiza los enlaces.
 - **Enlaces entrantes** y **menciones sin enlazar** (con botón «Enlazar»), **esquema** de títulos, **etiquetas** y **búsqueda** en todas las notas.
 - **Ctrl+O** abre o crea una nota, **Ctrl+P** abre la paleta de comandos, **Ctrl+N** crea una nota y **Alt+D** abre la nota diaria (`Diario/AAAA-MM-DD`).
+- **Tareas en las notas**: cualquier `- [ ] texto` de una nota aparece en Tareas, Hoy y Semana con un distintivo 📝 que lleva a su nota. Admite `📅 2026-10-08` o `📅 mañana`, `⏰ 17:30`, `!alta`, `#etiqueta` y `+proyecto`; en una nota diaria, las tareas sin fecha son de ese día. Al completarlas se añade `✅ fecha` a la línea y cuentan en estadísticas y bitácora.
+- **Nota de proyecto**: cada proyecto puede tener su nota (`Proyectos/Nombre`); sus casillas cuentan para el avance.
+- **Pasar a notas** (Ajustes): copia el diario (en la nota diaria de cada día), las ideas (`Ideas/`) y los mapas mentales (como esquema en `Mapas/`). Los originales se conservan y al repetir solo se copia lo nuevo.
 - Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso) se abren como pestañas desde la barra de iconos.
 
 ## Funciones
