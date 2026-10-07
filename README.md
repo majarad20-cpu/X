@@ -2,6 +2,16 @@
 
 App de productividad ligera, sin dependencias ni paso de compilación. Todo se guarda en el navegador (`localStorage`).
 
+## Interfaz
+
+Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a la izquierda, pestañas en el centro y enlaces entrantes y esquema a la derecha. En pantallas estrechas los paneles se abren como cajones.
+
+- **Notas en Markdown**: carpetas, pestañas, modo edición y modo lectura (Ctrl+E), guardado automático, títulos, listas, casillas, citas, avisos (`> [!tip]`), tablas, código, resaltado (`==texto==`) y propiedades.
+- **Wikilinks**: `[[Nota]]`, `[[Nota|texto]]`, `[[Nota#Sección]]` y notas incrustadas `![[Nota]]`. Al escribir `[[` aparecen sugerencias; un enlace a una nota que no existe la crea; renombrar o mover una nota actualiza los enlaces.
+- **Enlaces entrantes** y **menciones sin enlazar** (con botón «Enlazar»), **esquema** de títulos, **etiquetas** y **búsqueda** en todas las notas.
+- **Ctrl+O** abre o crea una nota, **Ctrl+P** abre la paleta de comandos, **Ctrl+N** crea una nota y **Alt+D** abre la nota diaria (`Diario/AAAA-MM-DD`).
+- Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso) se abren como pestañas desde la barra de iconos.
+
 ## Funciones
 
 - **Hoy**: resumen del día (pendientes, vencidas, hechas y pomodoros), añadir tareas para hoy al instante y marcar los hábitos del día.
@@ -26,7 +36,7 @@ App de productividad ligera, sin dependencias ni paso de compilación. Todo se g
 - **Archivo de tareas**: las tareas completadas hace más de 7 días se archivan solas (un bloque por mes). Siguen apareciendo en «Hechas», cuentan para proyectos y estadísticas, y al desmarcarlas vuelven a la lista.
 - **Ajustes** (⚙): color de la app, medidor de espacio por apartado (avisa al pasar del 80 % y marca el botón ⚙) y copia de seguridad (descargar, copiar, restaurar desde archivo o texto pegado).
 
-**Atajos de teclado:** `1`–`8` cambian de pestaña, `N` nueva tarea, `Espacio` inicia o pausa el Pomodoro, `Esc` cancela la edición, `?` muestra la ayuda.
+**Atajos de teclado:** `Ctrl+O` abrir nota, `Ctrl+P` comandos, `Ctrl+N` nueva nota, `Ctrl+E` editar/leer, `Alt+D` nota diaria, `1`–`8` secciones, `N` nueva tarea, `Espacio` inicia o pausa el Pomodoro, `Esc` cancela la edición, `?` muestra la ayuda.
 
 ## Uso
 

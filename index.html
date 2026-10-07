@@ -7,26 +7,75 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <h1>Enfoque</h1>
-      <span id="sync-status" class="sync" data-state="local"></span>
-    </div>
-    <button id="open-settings" class="icon-btn" title="Ajustes" aria-label="Ajustes">⚙</button>
-    <nav class="tabs" role="tablist">
-      <button class="tab active" data-view="today" role="tab">Hoy</button>
-      <button class="tab" data-view="tasks" role="tab">Tareas</button>
-      <button class="tab" data-view="projects" role="tab">Proyectos</button>
-      <button class="tab" data-view="journal" role="tab">Diario</button>
-      <button class="tab" data-view="ideas" role="tab">Ideas</button>
-      <button class="tab" data-view="timer" role="tab">Pomodoro</button>
-      <button class="tab" data-view="habits" role="tab">Hábitos</button>
-      <button class="tab" data-view="progress" role="tab">Progreso</button>
+  <div class="app" id="app">
+    <nav class="ribbon" aria-label="Navegación">
+      <button class="rib" id="rib-files" title="Explorador de notas" aria-label="Explorador de notas"><span class="ico" data-icon="files"></span><span class="rib-label">Notas</span></button>
+      <button class="rib" id="rib-daily" title="Nota diaria (Alt+D)" aria-label="Nota diaria"><span class="ico" data-icon="calendar"></span><span class="rib-label">Nota diaria</span></button>
+      <button class="rib" id="rib-switcher" title="Abrir nota (Ctrl+O)" aria-label="Abrir nota"><span class="ico" data-icon="search"></span><span class="rib-label">Abrir nota</span></button>
+      <button class="rib" id="rib-palette" title="Paleta de comandos (Ctrl+P)" aria-label="Paleta de comandos"><span class="ico" data-icon="command"></span><span class="rib-label">Comandos</span></button>
+      <span class="rib-sep" aria-hidden="true"></span>
+      <button class="rib" data-view="today" title="Hoy" aria-label="Hoy"><span class="ico" data-icon="sun"></span><span class="rib-label">Hoy</span></button>
+      <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
+      <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
+      <button class="rib" data-view="journal" title="Diario" aria-label="Diario"><span class="ico" data-icon="book"></span><span class="rib-label">Diario</span></button>
+      <button class="rib" data-view="ideas" title="Ideas y mapas" aria-label="Ideas y mapas"><span class="ico" data-icon="bulb"></span><span class="rib-label">Ideas y mapas</span></button>
+      <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
+      <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
+      <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
+      <span class="rib-spacer"></span>
+      <button class="rib" id="open-settings" title="Ajustes" aria-label="Ajustes"><span class="ico" data-icon="gear"></span><span class="rib-label">Ajustes</span></button>
     </nav>
-  </header>
 
-  <main>
-    <div id="reminders" class="reminders" aria-live="assertive"></div>
+    <aside id="left-panel" class="side left" aria-label="Panel izquierdo">
+      <div class="side-head">
+        <span class="vault-name">Enfoque</span>
+        <button id="new-note" class="side-btn" title="Nueva nota (Ctrl+N)" aria-label="Nueva nota"><span class="ico" data-icon="file-plus"></span></button>
+        <button id="new-folder" class="side-btn" title="Nueva carpeta" aria-label="Nueva carpeta"><span class="ico" data-icon="folder-plus"></span></button>
+        <button id="close-left" class="side-btn mobile-only" aria-label="Cerrar panel"><span class="ico" data-icon="x"></span></button>
+      </div>
+      <div class="side-tabs" role="tablist">
+        <button class="stab active" data-lpane="files" role="tab">Archivos</button>
+        <button class="stab" data-lpane="search" role="tab">Buscar</button>
+        <button class="stab" data-lpane="tags" role="tab">Etiquetas</button>
+      </div>
+      <div id="lp-files" class="lpane"><div id="file-tree" class="file-tree" role="tree"></div></div>
+      <div id="lp-search" class="lpane" hidden>
+        <input id="note-search" type="search" placeholder="Buscar en las notas (usa #etiqueta)" aria-label="Buscar en las notas">
+        <div id="search-results" class="search-results"></div>
+      </div>
+      <div id="lp-tags" class="lpane" hidden><div id="tag-pane" class="tag-pane"></div></div>
+    </aside>
+
+    <div class="workspace">
+      <div class="mobile-bar">
+        <button id="toggle-left" class="side-btn" aria-label="Abrir panel izquierdo"><span class="ico" data-icon="panel-left"></span></button>
+        <span id="mobile-title" class="mobile-title"></span>
+        <button id="toggle-right" class="side-btn" aria-label="Abrir panel derecho"><span class="ico" data-icon="panel-right"></span></button>
+      </div>
+      <div class="ws-tabbar">
+        <div id="ws-tabs" class="ws-tabs" role="tablist" aria-label="Pestañas abiertas"></div>
+        <button id="ws-new-tab" class="side-btn" title="Nueva nota" aria-label="Nueva nota"><span class="ico" data-icon="plus"></span></button>
+        <button id="toggle-right-desk" class="side-btn desk-only" title="Panel derecho" aria-label="Mostrar u ocultar panel derecho"><span class="ico" data-icon="panel-right"></span></button>
+      </div>
+      <div id="reminders" class="reminders" aria-live="assertive"></div>
+
+      <div id="note-pane" class="note-pane" hidden>
+        <div class="note-toolbar">
+          <span id="note-crumbs" class="note-crumbs"></span>
+          <button id="note-mode" class="side-btn" title="Alternar edición / lectura (Ctrl+E)"><span class="ico" data-icon="pencil"></span></button>
+          <button id="note-more" class="side-btn" title="Más opciones" aria-label="Más opciones" aria-haspopup="menu"><span class="ico" data-icon="more"></span></button>
+        </div>
+        <div id="note-scroll" class="note-scroll">
+          <div class="note-inner">
+            <input id="note-title" class="note-title" type="text" maxlength="120" aria-label="Título de la nota" spellcheck="false">
+            <textarea id="note-editor" class="note-editor" spellcheck="true" aria-label="Contenido de la nota" hidden></textarea>
+            <div id="note-reading" class="note-reading md" hidden></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="views-pane" class="views-pane">
+    <main>
     <!-- Hoy -->
     <section id="view-today" class="view active">
       <p id="today-date" class="today-date"></p>
@@ -401,22 +450,57 @@
         <p id="backup-message" class="muted" role="status"></p>
       </div>
     </section>
-  </main>
+    </main>
+      <footer class="footer">
+        <button id="shortcuts-toggle" class="link">Atajos de teclado (?)</button>
+        <div id="shortcuts" class="card shortcuts" hidden>
+          <dl>
+            <dt><kbd>Ctrl</kbd>+<kbd>O</kbd></dt><dd>Abrir o crear una nota</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>P</kbd></dt><dd>Paleta de comandos</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>N</kbd></dt><dd>Nueva nota</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>E</kbd></dt><dd>Alternar edición y lectura</dd>
+            <dt><kbd>Alt</kbd>+<kbd>D</kbd></dt><dd>Nota diaria</dd>
+            <dt><kbd>[[</kbd></dt><dd>Enlazar otra nota (con sugerencias)</dd>
+            <dt><kbd>1</kbd>–<kbd>8</kbd></dt><dd>Ir a Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso</dd>
+            <dt><kbd>N</kbd></dt><dd>Nueva tarea</dd>
+            <dt><kbd>Espacio</kbd></dt><dd>Iniciar o pausar el Pomodoro</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Cancelar la edición</dd>
+            <dt><kbd>?</kbd></dt><dd>Mostrar u ocultar esta ayuda</dd>
+          </dl>
+        </div>
+      </footer>
+      </div>
 
-  <div id="toast" class="toast" role="status" hidden></div>
-
-  <footer class="footer">
-    <button id="shortcuts-toggle" class="link">Atajos de teclado (?)</button>
-    <div id="shortcuts" class="card shortcuts" hidden>
-      <dl>
-        <dt><kbd>1</kbd>–<kbd>8</kbd></dt><dd>Cambiar de pestaña</dd>
-        <dt><kbd>N</kbd></dt><dd>Nueva tarea</dd>
-        <dt><kbd>Espacio</kbd></dt><dd>Iniciar o pausar el Pomodoro</dd>
-        <dt><kbd>Esc</kbd></dt><dd>Cancelar la edición</dd>
-        <dt><kbd>?</kbd></dt><dd>Mostrar u ocultar esta ayuda</dd>
-      </dl>
+      <div class="statusbar">
+        <span id="sync-status" class="sync" data-state="local"></span>
+        <span id="status-note" class="status-note"></span>
+      </div>
     </div>
-  </footer>
+
+    <aside id="right-panel" class="side right" aria-label="Panel derecho">
+      <div class="side-head">
+        <div class="side-tabs" role="tablist">
+          <button class="stab active" data-rpane="backlinks" role="tab">Enlaces</button>
+          <button class="stab" data-rpane="outline" role="tab">Esquema</button>
+        </div>
+        <button id="close-right" class="side-btn mobile-only" aria-label="Cerrar panel"><span class="ico" data-icon="x"></span></button>
+      </div>
+      <div id="rp-backlinks" class="rpane"></div>
+      <div id="rp-outline" class="rpane" hidden></div>
+    </aside>
+  </div>
+
+  <div id="scrim" class="scrim" hidden></div>
+  <div id="picker" class="picker-wrap" hidden>
+    <div class="picker" role="dialog" aria-modal="true" aria-labelledby="picker-input">
+      <input id="picker-input" type="text" autocomplete="off" spellcheck="false">
+      <ul id="picker-list" class="picker-list" role="listbox"></ul>
+      <div id="picker-hint" class="picker-hint"></div>
+    </div>
+  </div>
+  <div id="note-menu" class="menu" role="menu" hidden></div>
+  <ul id="link-suggest" class="suggest" role="listbox" hidden></ul>
+  <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="app.js"></script>
 </body>
