@@ -14,13 +14,14 @@ const defaults = () => ({
   journal: [], // entradas del diario
   ideas: [], // notas de ideas
   maps: [], // mapas mentales
+  archive: [], // tareas completadas hace más de una semana
   updatedAt: 0, // última modificación local
   syncMeta: { sent: {}, times: {} }, // estado de la sincronización por bloques (solo de este dispositivo)
 });
 
 // Datos del usuario (lo que se sincroniza, se exporta y se puede deshacer).
 const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'projects'];
-const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps'];
+const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive'];
 
 function load() {
   try {
@@ -253,10 +254,11 @@ $$('[data-filter]').forEach((btn) =>
 );
 
 $('#clear-done').addEventListener('click', () => {
-  const n = state.tasks.filter((t) => t.done).length;
+  const n = allTasks().filter((t) => t.done).length;
   if (!n) return;
-  withUndo(`${n} tarea(s) borrada(s)`, () => {
+  withUndo(`${n} tarea(s) completada(s) borrada(s)`, () => {
     state.tasks = state.tasks.filter((t) => !t.done);
+    state.archive = [];
   });
 });
 
@@ -271,6 +273,21 @@ const byManualOrder = (a, b) => a.done - b.done || (a.order ?? a.createdAt) - (b
 
 const isDueToday = (t) => !t.done && t.due && t.due <= dateKey();
 
+// Tareas activas más las archivadas (para «Hechas», proyectos y el calendario).
+const allTasks = () => state.tasks.concat(state.archive);
+
+// Las tareas completadas hace más de 7 días pasan al archivo, que se guarda por meses.
+const ARCHIVE_AFTER_DAYS = 7;
+function archiveOldTasks() {
+  const cutoff = Date.now() - ARCHIVE_AFTER_DAYS * 24 * 60 * 60 * 1000;
+  const old = state.tasks.filter((t) => t.done && !t.repeat && (t.completedAt || t.createdAt) < cutoff);
+  if (!old.length) return;
+  old.forEach((t) => (t.completedAt = t.completedAt || t.createdAt));
+  state.tasks = state.tasks.filter((t) => !old.includes(t));
+  state.archive.push(...old);
+  save();
+}
+
 const manualSort = () => state.settings.sort === 'manual';
 
 $('#task-sort').addEventListener('change', (e) => {
@@ -280,7 +297,7 @@ $('#task-sort').addEventListener('change', (e) => {
 });
 
 function allTags() {
-  return [...new Set(state.tasks.flatMap((t) => t.tags || []))].sort((a, b) => a.localeCompare(b, 'es'));
+  return [...new Set((taskFilter === 'done' ? allTasks() : state.tasks).flatMap((t) => t.tags || []))].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
 function visibleTasks() {
@@ -290,7 +307,7 @@ function visibleTasks() {
     pending: (t) => !t.done,
     done: (t) => t.done,
   };
-  return state.tasks
+  return (taskFilter === 'done' ? allTasks() : state.tasks)
     .filter(filters[taskFilter])
     .filter((t) => !tagFilter || (t.tags || []).includes(tagFilter))
     .sort(manualSort() ? byManualOrder : byImportance);
@@ -314,6 +331,11 @@ function toggleDone(t, done) {
       (t.subtasks || []).forEach((s) => (s.done = false));
     });
     return;
+  }
+  // Desmarcar una tarea archivada la devuelve a la lista.
+  if (!done && state.archive.includes(t)) {
+    state.archive = state.archive.filter((x) => x !== t);
+    state.tasks.push(t);
   }
   t.done = done;
   if (done) {
@@ -390,6 +412,7 @@ function taskItem(t, { draggable = false } = {}) {
   del.addEventListener('click', () =>
     withUndo('Tarea borrada', () => {
       state.tasks = state.tasks.filter((x) => x.id !== t.id);
+      state.archive = state.archive.filter((x) => x.id !== t.id);
     })
   );
 
@@ -829,7 +852,7 @@ function renderWeek() {
   const fromKey = dateKey(days[0]);
   const toKey = dateKey(days[6]);
   const today = dateKey();
-  const tasks = state.tasks.filter((t) => !tagFilter || (t.tags || []).includes(tagFilter));
+  const tasks = allTasks().filter((t) => !tagFilter || (t.tags || []).includes(tagFilter));
 
   const ghosts = {};
   tasks.forEach((t) => occurrencesBetween(t, fromKey, toKey).forEach((k) => (ghosts[k] = [...(ghosts[k] || []), t])));
@@ -1514,6 +1537,7 @@ function restoreBackup(text) {
 $('#open-settings').addEventListener('click', () => {
   showView('settings');
   renderAccents();
+  renderStorage();
 });
 $('#backup-export').addEventListener('click', exportBackup);
 $('#backup-copy').addEventListener('click', copyBackup);
@@ -1543,7 +1567,7 @@ const PROJECT_COLORS = ['indigo', 'blue', 'teal', 'fuchsia', 'orange', 'slate'];
 const PROJECT_STATUS = { active: 'Activo', paused: 'En pausa', done: 'Completado' };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const projectTasks = (p) => state.tasks.filter((t) => t.projectId === p.id);
+const projectTasks = (p) => allTasks().filter((t) => t.projectId === p.id);
 
 // Avance: a mano si se fijó; si no, tareas completadas sobre el total (las que se repiten no cuentan,
 // porque nunca terminan). Un proyecto completado está al 100 %.
@@ -1781,7 +1805,7 @@ $('#pd-delete').addEventListener('click', () => {
   if (!p) return;
   withUndo(`Proyecto "${p.name}" eliminado (sus tareas se conservan)`, () => {
     state.projects = state.projects.filter((x) => x.id !== p.id);
-    state.tasks.forEach((t) => {
+    allTasks().forEach((t) => {
       if (t.projectId === p.id) t.projectId = null;
     });
     openProjectId = null;
@@ -1905,6 +1929,7 @@ $$('[data-jkind]').forEach((b) =>
     saveDraftNow();
     journalKind = b.dataset.jkind;
     renderComposer();
+updateStorageWarning();
     $('#journal-fields textarea')?.focus();
   })
 );
@@ -2945,6 +2970,92 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') checkReminders();
 });
 
+// ---------- Espacio ----------
+// Cada bloque de la nube admite 256 KB; la copia local del navegador, unos 5 MB.
+const BLOCK_LIMIT = 256 * 1024;
+const LOCAL_LIMIT = 5 * 1024 * 1024;
+const bytes = (data) => new Blob([JSON.stringify(data)]).size;
+
+function formatBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+const monthName = (m) => {
+  const s = parseKey(`${m}-01`).toLocaleDateString('es', { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+// Un renglón por apartado; en los que tienen varios bloques se muestra el más lleno.
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+function storageReport() {
+  const buckets = localBuckets();
+  const size = (name) => bytes({ ...buckets.get(name), updatedAt: 0 });
+  const worst = (prefix) => [...buckets.keys()].filter((n) => n.startsWith(prefix)).map((n) => ({ n, b: size(n) })).sort((a, b) => b.b - a.b)[0];
+  const rows = [{ key: 'state', label: 'Tareas, hábitos y proyectos', detail: `${plural(state.tasks.length, 'tarea activa', 'tareas activas')} · ${plural(state.habits.length, 'hábito', 'hábitos')} · ${plural(state.projects.length, 'proyecto', 'proyectos')}`, b: size('state') }];
+  rows.push({ key: 'ideas', label: 'Ideas', detail: plural(state.ideas.length, 'idea', 'ideas'), b: size('ideas') });
+  const j = worst('journal-');
+  rows.push({ key: 'journal', label: 'Diario', detail: j ? `Mes más lleno: ${monthName(j.n.slice(8))} · ${plural(state.journal.length, 'entrada', 'entradas')} en total` : 'Sin entradas', b: j ? j.b : 0 });
+  const a = worst('archive-');
+  rows.push({ key: 'archive', label: 'Archivo de tareas', detail: a ? `Mes más lleno: ${monthName(a.n.slice(8))} · ${plural(state.archive.length, 'tarea archivada', 'tareas archivadas')}` : 'Vacío: aquí pasan las tareas completadas hace más de 7 días', b: a ? a.b : 0 });
+  const m = worst('map-');
+  const mapTitle = m && state.maps.find((x) => `map-${x.id}` === m.n)?.title;
+  rows.push({ key: 'maps', label: 'Mapas mentales', detail: m ? `Mapa más grande: ${mapTitle} · ${plural(state.maps.length, 'mapa', 'mapas')}` : 'Sin mapas', b: m ? m.b : 0 });
+  rows.forEach((r) => {
+    r.limit = BLOCK_LIMIT;
+    r.ratio = r.b / BLOCK_LIMIT;
+  });
+  const local = bytes(state);
+  rows.push({ key: 'local', label: 'Copia en este dispositivo', detail: 'Todo junto, guardado en el navegador', b: local, limit: LOCAL_LIMIT, ratio: local / LOCAL_LIMIT });
+  return rows;
+}
+
+function storageLevel(ratio) {
+  if (ratio >= 1) return { cls: 'critical', text: 'Lleno: este apartado ya no se sincroniza' };
+  if (ratio >= 0.95) return { cls: 'critical', text: 'Casi lleno' };
+  if (ratio >= 0.8) return { cls: 'warning', text: 'Acercándose al límite' };
+  return { cls: 'ok', text: '' };
+}
+
+const STORAGE_TIPS = {
+  state: 'Borra tareas completadas o proyectos terminados que ya no necesites.',
+  ideas: 'Borra ideas antiguas o pásalas a un mapa mental.',
+  journal: 'Ese mes tiene mucho texto; los meses siguientes empiezan con su propio espacio.',
+  archive: 'Usa «Borrar tareas completadas» en Tareas para vaciar el archivo.',
+  maps: 'Divide ese mapa en varios más pequeños.',
+  local: 'Descarga una copia de seguridad y borra lo que ya no uses.',
+};
+
+function renderStorage() {
+  const rows = storageReport();
+  $('#storage-meter').replaceChildren(
+    ...rows.map((r) => {
+      const pct = Math.min(100, Math.round(r.ratio * 100));
+      const level = storageLevel(r.ratio);
+      const row = el('div', { className: `storage-row ${level.cls}` }, [
+        el('div', { className: 'sr-head' }, [
+          el('span', { className: 'sr-label' }, r.label),
+          el('span', { className: 'sr-num' }, `${formatBytes(r.b)} de ${formatBytes(r.limit)} · ${pct < 1 && r.b ? '<1' : pct} %`),
+        ]),
+        el('div', { className: 'sr-track', role: 'progressbar', ariaValueNow: String(pct), ariaValueMin: '0', ariaValueMax: '100', ariaLabel: r.label },
+          el('div', { className: 'sr-fill', style: `width: ${Math.max(pct, r.b ? 1 : 0)}%` })),
+        el('div', { className: 'sr-detail' }, r.detail),
+      ]);
+      if (level.text) row.append(el('div', { className: 'sr-alert' }, `⚠ ${level.text}. ${STORAGE_TIPS[r.key]}`));
+      return row;
+    })
+  );
+}
+
+// Punto de aviso en el botón de Ajustes cuando algún apartado pasa del 80 %.
+function updateStorageWarning() {
+  const full = storageReport().some((r) => r.ratio >= 0.8);
+  $('#open-settings').classList.toggle('warn', full);
+  $('#open-settings').title = full ? 'Ajustes · el espacio se está llenando' : 'Ajustes';
+}
+
 // ---------- Atajos de teclado ----------
 const VIEW_KEYS = { 1: 'today', 2: 'tasks', 3: 'projects', 4: 'journal', 5: 'ideas', 6: 'timer', 7: 'habits', 8: 'progress' };
 
@@ -2985,6 +3096,7 @@ $('#shortcuts-toggle').addEventListener('click', () => {
 //   state            tareas, hábitos, proyectos, ajustes y estadísticas
 //   ideas            notas de ideas
 //   journal-AAAA-MM  entradas del diario de ese mes
+//   archive-AAAA-MM  tareas completadas archivadas ese mes
 //   map-<id>         cada mapa mental
 // Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
 const sync = { col: null, writing: false, dirty: false, timeout: null };
@@ -2994,6 +3106,7 @@ const SYNC_LABEL = {
   saving: 'Guardando…',
   synced: 'Sincronizado',
   error: 'Sin sincronizar: guardado en este dispositivo',
+  full: 'Sin sincronizar: espacio lleno (ver Ajustes)',
 };
 
 function setSyncStatus(status) {
@@ -3003,6 +3116,7 @@ function setSyncStatus(status) {
 }
 
 const monthOf = (date) => date.slice(0, 7);
+const archiveMonth = (t) => dateKey(new Date(t.completedAt || t.createdAt)).slice(0, 7);
 
 function localBuckets() {
   const out = new Map();
@@ -3012,6 +3126,9 @@ function localBuckets() {
   // Un mes que se quedó sin entradas se sube vacío para que los demás dispositivos lo vacíen también.
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('journal-')).forEach((n) => months.add(n.slice(8)));
   months.forEach((m) => out.set(`journal-${m}`, { items: state.journal.filter((e) => monthOf(e.date) === m) }));
+  const archMonths = new Set(state.archive.map((t) => archiveMonth(t)));
+  Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
+  archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
   state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
   return out;
 }
@@ -3032,6 +3149,13 @@ function applyBucket(name, data) {
   } else if (name.startsWith('journal-')) {
     const m = name.slice(8);
     state.journal = state.journal.filter((e) => monthOf(e.date) !== m).concat(data.items || []);
+  } else if (name.startsWith('archive-')) {
+    const m = name.slice(8);
+    const incoming = data.items || [];
+    const ids = new Set(incoming.map((t) => t.id));
+    state.archive = state.archive.filter((t) => archiveMonth(t) !== m).concat(incoming);
+    // Si otro dispositivo archivó una tarea, aquí deja de estar en la lista activa.
+    state.tasks = state.tasks.filter((t) => !ids.has(t.id));
   } else if (name.startsWith('map-') && data.map) {
     const i = state.maps.findIndex((x) => x.id === data.map.id);
     if (i >= 0) state.maps[i] = data.map;
@@ -3059,13 +3183,21 @@ async function pushState() {
   }
   sync.writing = true;
   const meta = state.syncMeta;
+  let tooBig = false;
   try {
     const buckets = localBuckets();
     for (const [name, data] of buckets) {
       const json = JSON.stringify(data);
       if (meta.sent[name] === json) continue;
       const now = Date.now();
-      await sync.col.doc(name).set({ ...JSON.parse(json), updatedAt: now });
+      try {
+        await sync.col.doc(name).set({ ...JSON.parse(json), updatedAt: now });
+      } catch (e) {
+        // Un bloque por encima del límite se rechaza; los demás se siguen subiendo.
+        if (e?.code !== 'invalid_argument') throw e;
+        tooBig = true;
+        continue;
+      }
       meta.sent[name] = json;
       meta.times[name] = now;
     }
@@ -3078,10 +3210,11 @@ async function pushState() {
       }
     }
     saveLocal();
-    setSyncStatus('synced');
+    setSyncStatus(tooBig ? 'full' : 'synced');
   } catch {
     setSyncStatus('error');
   } finally {
+    updateStorageWarning();
     sync.writing = false;
     if (sync.dirty) {
       sync.dirty = false;
@@ -3158,6 +3291,7 @@ async function startSync() {
 }
 
 // ---------- Inicio ----------
+archiveOldTasks();
 applySettings();
 attachPreview($('#task-title'), $('#task-preview'));
 attachPreview($('#today-title'), $('#today-preview'));

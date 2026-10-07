@@ -612,3 +612,20 @@ textarea.notes:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   background: var(--surface); border: 1.5px solid var(--bc); color: var(--text);
 }
 .mm-node.left .mm-fold { right: auto; left: -11px; }
+
+/* ---------- Espacio ---------- */
+.storage > p { margin: 0 0 12px; max-width: 70ch; font-size: .85rem; }
+#storage-meter { display: flex; flex-direction: column; gap: 14px; }
+.sr-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.sr-label { font-weight: 600; }
+.sr-num { font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sr-track { height: 8px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; }
+.sr-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+.storage-row.warning .sr-fill { background: var(--mid); }
+.storage-row.critical .sr-fill { background: var(--high); }
+.sr-detail { font-size: .78rem; color: var(--muted); margin-top: 3px; }
+.sr-alert { font-size: .82rem; font-weight: 600; margin-top: 4px; color: var(--mid); }
+.storage-row.critical .sr-alert { color: var(--high); }
+.icon-btn { position: relative; }
+.icon-btn.warn::after { content: ""; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--mid); border: 2px solid var(--surface); }
+.sync[data-state="full"]::before { background: var(--high); }

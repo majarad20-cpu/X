@@ -22,7 +22,8 @@ App de productividad ligera, sin dependencias ni paso de compilación. Todo se g
 - **Hábitos**: marca los últimos 7 días y sigue tu racha 🔥. Cada hábito puede ser diario o tener un objetivo semanal (por ejemplo, 3 veces por semana); entonces la racha cuenta semanas cumplidas.
 - **Progreso**: pomodoros, tareas completadas y tiempo enfocado de los últimos 7 días (comparado con la semana anterior), gráfico por día y constancia de cada hábito en 30 días.
 - **Sincronización**: abierta desde Claude, la app guarda tus datos en un almacén privado y los sincroniza entre dispositivos, repartidos en bloques (núcleo, ideas, diario por meses y cada mapa) para no llegar al límite de tamaño. Fuera de Claude se guarda solo en el navegador.
-- **Ajustes** (⚙): color de la app y copia de seguridad (descargar, copiar, restaurar desde archivo o texto pegado).
+- **Archivo de tareas**: las tareas completadas hace más de 7 días se archivan solas (un bloque por mes). Siguen apareciendo en «Hechas», cuentan para proyectos y estadísticas, y al desmarcarlas vuelven a la lista.
+- **Ajustes** (⚙): color de la app, medidor de espacio por apartado (avisa al pasar del 80 % y marca el botón ⚙) y copia de seguridad (descargar, copiar, restaurar desde archivo o texto pegado).
 
 **Atajos de teclado:** `1`–`8` cambian de pestaña, `N` nueva tarea, `Espacio` inicia o pausa el Pomodoro, `Esc` cancela la edición, `?` muestra la ayuda.
 
