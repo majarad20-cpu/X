@@ -10,15 +10,39 @@
   <header class="topbar">
     <h1>Enfoque</h1>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-view="tasks" role="tab">Tareas</button>
+      <button class="tab active" data-view="today" role="tab">Hoy</button>
+      <button class="tab" data-view="tasks" role="tab">Tareas</button>
       <button class="tab" data-view="timer" role="tab">Pomodoro</button>
       <button class="tab" data-view="habits" role="tab">Hábitos</button>
     </nav>
   </header>
 
   <main>
+    <!-- Hoy -->
+    <section id="view-today" class="view active">
+      <p id="today-date" class="today-date"></p>
+      <div class="stats">
+        <div class="stat"><span id="stat-pending" class="num">0</span><span class="label">Para hoy</span></div>
+        <div class="stat"><span id="stat-overdue" class="num">0</span><span class="label">Vencidas</span></div>
+        <div class="stat"><span id="stat-done" class="num">0</span><span class="label">Hechas hoy</span></div>
+        <div class="stat"><span id="stat-pomos" class="num">0</span><span class="label">Pomodoros</span></div>
+      </div>
+
+      <h2 class="section-title">Para hoy</h2>
+      <form id="today-form" class="row quick-add">
+        <input id="today-title" type="text" placeholder="Añadir tarea para hoy" required maxlength="140">
+        <button type="submit" class="primary">Añadir</button>
+      </form>
+      <ul id="today-list" class="list"></ul>
+      <p id="today-empty" class="empty">Nada pendiente para hoy. 🎉</p>
+
+      <h2 class="section-title">Hábitos de hoy <span id="today-habits-count" class="muted"></span></h2>
+      <div id="today-habits" class="habit-chips"></div>
+      <p id="today-habits-empty" class="empty">Crea hábitos en la pestaña Hábitos.</p>
+    </section>
+
     <!-- Tareas -->
-    <section id="view-tasks" class="view active">
+    <section id="view-tasks" class="view">
       <form id="task-form" class="card row">
         <input id="task-title" type="text" placeholder="¿Qué hay que hacer?" required maxlength="140">
         <select id="task-priority" aria-label="Prioridad">
@@ -42,6 +66,7 @@
 
       <ul id="task-list" class="list"></ul>
       <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
+      <p class="muted hint">Toca el texto de una tarea para editarla.</p>
       <button id="clear-done" class="link">Borrar tareas completadas</button>
     </section>
 
@@ -97,6 +122,21 @@
       </div>
     </section>
   </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <footer class="footer">
+    <button id="shortcuts-toggle" class="link">Atajos de teclado (?)</button>
+    <div id="shortcuts" class="card shortcuts" hidden>
+      <dl>
+        <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Cambiar de pestaña</dd>
+        <dt><kbd>N</kbd></dt><dd>Nueva tarea</dd>
+        <dt><kbd>Espacio</kbd></dt><dd>Iniciar o pausar el Pomodoro</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Cancelar la edición</dd>
+        <dt><kbd>?</kbd></dt><dd>Mostrar u ocultar esta ayuda</dd>
+      </dl>
+    </div>
+  </footer>
 
   <script src="app.js"></script>
 </body>
