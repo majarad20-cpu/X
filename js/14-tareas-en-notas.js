@@ -1,0 +1,241 @@
+'use strict';
+
+// ---------- Tareas dentro de las notas ----------
+// Cualquier línea "- [ ] texto" de una nota es una tarea. Admite:
+//   📅 2026-10-08  o  📅 mañana   fecha     ⏰ 17:30  hora      !alta  prioridad
+//   #etiqueta                     etiquetas +proyecto proyecto  ✅ 2026-10-07  completada ese día
+// En una nota diaria (Diario/AAAA-MM-DD), las tareas sin fecha son de ese día.
+const NOTE_TASK_RE = /^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)$/;
+let noteTaskCache = { stamp: '', list: [] };
+
+function projectFromToken(text) {
+  const m = text.match(/(?:^|\s)\+([\p{L}\p{N}_-]+)/u);
+  if (!m) return null;
+  const norm = (x) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '').toLowerCase();
+  return state.projects.find((p) => norm(p.name).startsWith(norm(m[1]))) || null;
+}
+
+function parseNoteTask(note, idx, raw) {
+  const m = raw.match(NOTE_TASK_RE);
+  if (!m || !m[3].trim()) return null;
+  let text = m[3];
+  let due = null;
+  const dm = text.match(/📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u);
+  if (dm) {
+    const v = dm[1].trim();
+    due = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : parseInput(v).due || null;
+  }
+  const time = text.match(/⏰\s*(\d{1,2}:\d{2})/u)?.[1] || null;
+  const pr = text.match(/(?:^|\s)!(alta|media|baja)\b/i);
+  const doneOn = text.match(/✅\s*(\d{4}-\d{2}-\d{2})/u)?.[1] || null;
+  const tags = [...text.matchAll(/(?:^|\s)#([\p{L}_][\p{L}\p{N}_/-]*)/gu)].map((x) => x[1].toLowerCase());
+  const project = projectFromToken(text) || state.projects.find((p) => p.noteId === note.id) || null;
+  const daily = note.path.match(/^Diario\/(\d{4}-\d{2}-\d{2})$/);
+  const title = text
+    .replace(/📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u, ' ')
+    .replace(/⏰\s*\d{1,2}:\d{2}/u, ' ')
+    .replace(/✅\s*\d{4}-\d{2}-\d{2}/u, ' ')
+    .replace(/(?:^|\s)!(alta|media|baja)\b/gi, ' ')
+    .replace(/(?:^|\s)#[\p{L}_][\p{L}\p{N}_/-]*/gu, ' ')
+    .replace(/(?:^|\s)\+[\p{L}\p{N}_-]+/u, ' ')
+    .replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, '$2')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return {
+    id: `n:${note.id}:${idx}`,
+    virtual: true,
+    noteId: note.id,
+    line: idx,
+    title: title || text.trim(),
+    done: m[2].toLowerCase() === 'x',
+    doneOn,
+    due: due || (daily ? daily[1] : null),
+    time,
+    priority: pr ? PRIORITY_WORDS[pr[1].toLowerCase()] : 2,
+    tags,
+    projectId: project?.id || null,
+    createdAt: note.createdAt,
+  };
+}
+
+function noteTasks() {
+  const stamp = `${dataRev}:${state.notes.length}:${state.projects.length}`;
+  if (noteTaskCache.stamp === stamp) return noteTaskCache.list;
+  const list = [];
+  state.notes.forEach((note) => {
+    let inCode = false;
+    note.body.split('\n').forEach((line, idx) => {
+      if (/^\s*```/.test(line)) inCode = !inCode;
+      if (inCode) return;
+      const t = parseNoteTask(note, idx, line);
+      if (t) list.push(t);
+    });
+  });
+  noteTaskCache = { stamp, list };
+  return list;
+}
+
+// Marca o desmarca la casilla en el texto de la nota y la cuenta en estadísticas y bitácora.
+function toggleNoteTask(noteId, line, done) {
+  const note = noteById(noteId);
+  if (!note) return;
+  const lines = note.body.split('\n');
+  const t = parseNoteTask(note, line, lines[line]);
+  if (!t || t.done === done) return;
+  const today = dateKey();
+  if (done) {
+    lines[line] = `${lines[line].replace(/\[ \]/, '[x]').replace(/\s*✅\s*\d{4}-\d{2}-\d{2}/u, '')} ✅ ${today}`;
+    bump(state.completions, today, 1);
+    logEvent('task', t.title, { ref: `${noteId}:${t.title}`, detail: `📝 ${baseName(note.path)}` });
+  } else {
+    lines[line] = lines[line].replace(/\[[xX]\]/, '[ ]').replace(/\s*✅\s*\d{4}-\d{2}-\d{2}/u, '');
+    if (t.doneOn) {
+      bump(state.completions, t.doneOn, -1);
+      unlogEvent('task', `${noteId}:${t.title}`, t.doneOn);
+    }
+  }
+  note.body = lines.join('\n');
+  note.updatedAt = Date.now();
+  save();
+  renderAll();
+}
+
+// Abre la nota en modo edición con el cursor en esa línea.
+function openNoteAtLine(noteId, line, { newTab = false } = {}) {
+  const note = noteById(noteId);
+  if (!note) return;
+  noteMode.set(note.id, 'edit');
+  openNote(note, { newTab });
+  const ta = $('#note-editor');
+  const pos = note.body.split('\n').slice(0, line).join('\n').length + (line ? 1 : 0);
+  const end = pos + (note.body.split('\n')[line] || '').length;
+  ta.focus({ preventScroll: true });
+  ta.setSelectionRange(end, end);
+  $('#note-scroll').scrollTop = Math.max(0, ta.offsetTop + (line / Math.max(1, note.body.split('\n').length)) * ta.scrollHeight - 120);
+}
+
+// Tarjeta de una tarea que vive en una nota: se marca aquí, se edita en su nota.
+function noteTaskItem(t) {
+  const note = noteById(t.noteId);
+  const check = el('input', { type: 'checkbox', checked: t.done, ariaLabel: 'Completar' });
+  check.addEventListener('change', () => toggleNoteTask(t.noteId, t.line, check.checked));
+  const meta = el('div', { className: 'meta' }, PRIORITY_LABEL[t.priority]);
+  if (t.due) {
+    const overdue = !t.done && t.due < dateKey();
+    meta.append(' · ', el('span', { className: overdue ? 'overdue' : '' }, (overdue ? 'Vencida: ' : '') + formatDue(t.due)));
+  }
+  if (t.time) meta.append(' · ', el('span', { className: 'at-time' }, `⏰ ${t.time}`));
+  const title = el('button', { className: 'title', title: 'Editar en su nota' }, t.title);
+  title.addEventListener('click', (e) => openNoteAtLine(t.noteId, t.line, { newTab: e.ctrlKey || e.metaKey }));
+  const chips = el('div', { className: 'tags' }, (t.tags || []).map(tagChip));
+  const src = el('button', { className: 'tag note-tag', title: `Abrir ${note.path}` }, `📝 ${baseName(note.path)}`);
+  src.addEventListener('click', (e) => openNoteAtLine(t.noteId, t.line, { newTab: e.ctrlKey || e.metaKey }));
+  chips.prepend(src);
+  const project = t.projectId && projectById(t.projectId);
+  if (project && openProjectId !== project.id) {
+    const pc = el('button', { className: 'tag project-tag', title: `Abrir proyecto ${project.name}` }, `📁 ${project.name}`);
+    pc.dataset.pcolor = project.color;
+    pc.addEventListener('click', () => openProject(project.id));
+    chips.prepend(pc);
+  }
+  const li = el('li', { className: `task from-note p${t.priority}${t.done ? ' done' : ''}` }, el('div', { className: 'task-row' }, [check, el('div', { className: 'body' }, [title, meta, chips])]));
+  li.dataset.id = t.id;
+  return li;
+}
+
+// ---------- Nota de cada proyecto ----------
+function openProjectNote(p) {
+  const existing = p.noteId && noteById(p.noteId);
+  if (existing) return openNote(existing);
+  if (!state.folders.includes('Proyectos')) state.folders.push('Proyectos');
+  const note = createNote({
+    folder: 'Proyectos',
+    title: p.name,
+    body: `${p.desc ? `**Objetivo:** ${p.desc}\n\n` : ''}## Tareas\n- [ ] \n\n## Notas\n\n## Enlaces\n`,
+    open: false,
+  });
+  p.noteId = note.id;
+  save();
+  noteMode.set(note.id, 'edit');
+  openNoteAtLine(note.id, note.body.split('\n').findIndex((l) => l.startsWith('- [ ]')));
+}
+
+// ---------- Pasar diario, ideas y mapas a notas ----------
+function dailyBody(key) {
+  const long = parseKey(key).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const prev = dateKey(addDays(parseKey(key), -1));
+  const next = dateKey(addDays(parseKey(key), 1));
+  return `# ${long.charAt(0).toUpperCase() + long.slice(1)}\n\n← [[${prev}]] · [[${next}]] →\n\n## 🧠 Vaciado mental\n- \n\n## ✅ Tareas\n- [ ] \n\n## 📝 Notas\n\n`;
+}
+
+function dailyNoteFor(key) {
+  const existing = findNoteByName(`Diario/${key}`);
+  if (existing) return existing;
+  if (!state.folders.includes('Diario')) state.folders.push('Diario');
+  return createNote({ folder: 'Diario', title: key, body: dailyBody(key), open: false, log: false });
+}
+
+function mapToOutline(map) {
+  const lines = [];
+  const walk = (id, depth) =>
+    map.nodes.filter((n) => n.parent === id).forEach((n) => {
+      lines.push(`${'  '.repeat(depth)}- ${n.text}`);
+      walk(n.id, depth + 1);
+    });
+  walk('root', 0);
+  return lines.join('\n');
+}
+
+function importToNotes() {
+  const since = state.settings.importedAt || 0;
+  const now = Date.now();
+  let entries = 0;
+  let ideas = 0;
+  let maps = 0;
+  ['Diario', 'Ideas', 'Mapas'].forEach((f) => {
+    if (!state.folders.includes(f)) state.folders.push(f);
+  });
+
+  // Diario: cada entrada se añade a la nota diaria de su día, bajo «Diario».
+  const byDay = new Map();
+  state.journal.filter((e) => e.createdAt > since).sort((a, b) => a.createdAt - b.createdAt).forEach((e) => byDay.set(e.date, [...(byDay.get(e.date) || []), e]));
+  byDay.forEach((list, key) => {
+    const note = dailyNoteFor(key);
+    const blocks = list.map((e) => {
+      const time = new Date(e.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+      const mood = MOODS.find((m) => m.v === e.mood);
+      const head = `### ${JOURNAL_KINDS[e.kind]?.label || 'Entrada'} · ${time}${mood ? ` · ${mood.e}` : ''}`;
+      const body = e.text || (e.sections || []).filter((s) => s.a).map((s) => `**${s.q}** ${s.a}`).join('\n\n');
+      entries++;
+      return `${head}\n${body}`;
+    });
+    note.body = `${note.body.replace(/\s*$/, '')}\n\n## ✍️ Diario\n${blocks.join('\n\n')}\n`;
+    note.updatedAt = now;
+  });
+
+  // Ideas: una nota por idea, con su primera línea como título.
+  state.ideas.filter((i) => i.createdAt > since).forEach((i) => {
+    const [first, ...rest] = i.text.split('\n');
+    createNote({
+      folder: 'Ideas',
+      title: first.slice(0, 60) || 'Idea',
+      body: `${rest.join('\n').trim()}${i.tags.length ? `\n\n${i.tags.map((t) => `#${t}`).join(' ')}` : ''}\n`.replace(/^\n+/, ''),
+      open: false,
+      log: false,
+    });
+    ideas++;
+  });
+
+  // Mapas mentales: como esquema de viñetas.
+  state.maps.filter((m) => m.createdAt > since).forEach((m) => {
+    createNote({ folder: 'Mapas', title: m.title, body: `${mapToOutline(m)}\n`, open: false, log: false });
+    maps++;
+  });
+
+  state.settings.importedAt = now;
+  save();
+  renderAll();
+  const parts = [entries && plural(entries, 'entrada del diario', 'entradas del diario'), ideas && plural(ideas, 'idea', 'ideas'), maps && plural(maps, 'mapa', 'mapas')].filter(Boolean);
+  $('#import-message').textContent = parts.length ? `Copiado a notas: ${parts.join(', ')}. Los originales siguen en sus secciones.` : 'No hay nada nuevo que copiar desde la última vez.';
+  if (parts.length) showLeftPane('files');
+}

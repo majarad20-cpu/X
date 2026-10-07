@@ -1,6 +1,6 @@
 # Enfoque
 
-App de productividad ligera, sin dependencias ni paso de compilación. Todo se guarda en el navegador (`localStorage`).
+App de productividad ligera, sin dependencias. Funciona abriendo `index.html` en el navegador (los datos se guardan en `localStorage`) o publicada como página en Claude, donde además sincroniza entre dispositivos, usa a Claude y se conecta con Google Calendar.
 
 ## Interfaz
 
@@ -16,7 +16,16 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Vista de grafo** (Ctrl+G): cada nota es un punto y cada enlace una línea, con colores por carpeta. Se puede mover, ampliar (rueda o pellizco), arrastrar puntos y abrir una nota al tocarla (una nota «sin crear» se crea al tocarla). Filtros: buscar, etiquetas, notas sin crear y notas sin enlaces.
 - **Grafo local** (panel derecho › Grafo): las conexiones de la nota abierta, a 1, 2 o 3 saltos.
 - **Mapa mental desde una nota** (menú ⋯ o paleta): los títulos y listas de la nota se convierten en ramas; el mapa se puede actualizar cuando cambie la nota y lleva a su nota de origen.
+- **Plantillas**: las notas de la carpeta `Plantillas` son plantillas (se crean 4 de ejemplo la primera vez). «Nueva nota desde plantilla» e «Insertar plantilla» (Ctrl+P o menú ⋯). Variables `{{fecha}}`, `{{fecha_larga}}`, `{{hora}}`, `{{título}}` y `{{semana}}`. Si existe `Plantillas/Nota diaria`, se usa para las notas diarias.
+- **Consultas**: un bloque de código ```` ```tareas ```` (filtros `#etiqueta`, `+proyecto`, `pendientes`/`hechas`/`todas`, `hoy`/`vencidas`/`semana`/`sin fecha`, `carpeta: X`, `límite: N`) o ```` ```notas ```` (`#etiqueta`, `carpeta: X`, `enlaza: Nota`) muestra una lista que se actualiza sola; las tareas se pueden marcar ahí mismo.
 - Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso) se abren como pestañas desde la barra de iconos.
+
+## Dentro de Claude
+
+- **Claude ordena tu vaciado mental**: al guardar un vaciado mental, «✨ Ordenar con Claude» propone tareas con fecha, hora, prioridad, proyecto y etiquetas; se pueden editar y desmarcar antes de crearlas.
+- **Resumen semanal** (Progreso): Claude lee la bitácora, el diario, los hábitos, los proyectos y las tareas de la semana y escribe logros, en qué se fue el tiempo, ánimo, pendientes y 3 sugerencias. Se puede guardar como nota en `Revisiones/`.
+- **Google Calendar** (activar en Ajustes): tus eventos aparecen en Hoy y en Tareas › Semana, con enlace a Meet y a Calendar; una tarea con fecha y hora se puede añadir al calendario desde su panel ☰.
+- Cada uso de Claude o del calendario pide permiso la primera vez. Fuera de Claude estas funciones no aparecen.
 
 ## Funciones
 
@@ -52,3 +61,10 @@ Abre `index.html` en el navegador, o sírvelo localmente:
 python3 -m http.server 8000
 # luego visita http://localhost:8000
 ```
+
+## Desarrollo
+
+- `index.html` y `styles.css`: estructura y estilos.
+- `js/`: el código, en módulos que se cargan en orden (`01-nucleo.js` … `20-inicio.js`). Son scripts normales que comparten el ámbito global, así que no hace falta compilar nada.
+- `python3 tools/build.py`: junta todo en `dist/enfoque.html`, el archivo único que se publica en Claude.
+- `node tests/run.js [filtro]`: lanza las pruebas de `tests/` (Playwright + Chromium) contra `index.html` y resume el resultado. Las capturas quedan en `tests/out/`. Las pruebas simulan Claude, Google Calendar y la sincronización.

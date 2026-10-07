@@ -1,0 +1,226 @@
+'use strict';
+
+// ---------- Sincronización entre dispositivos ----------
+// Dentro de Claude, los datos se guardan también en un almacén privado del usuario, así
+// el móvil y el ordenador ven lo mismo. Fuera de Claude la app usa solo este navegador.
+//
+// Los datos se reparten en bloques (cada documento admite hasta 256 KB):
+//   state            tareas, hábitos, proyectos, ajustes y estadísticas
+//   ideas            notas de ideas
+//   journal-AAAA-MM  entradas del diario de ese mes
+//   archive-AAAA-MM  tareas completadas archivadas ese mes
+//   log-AAAA-MM      bitácora de hitos de ese mes (se fusiona, no se pisa)
+//   map-<id>         cada mapa mental
+//   note-<id>        cada nota
+// Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
+const sync = { col: null, writing: false, dirty: false, timeout: null };
+
+const SYNC_LABEL = {
+  local: 'Guardado en este dispositivo',
+  saving: 'Guardando…',
+  synced: 'Sincronizado',
+  error: 'Sin sincronizar: guardado en este dispositivo',
+  full: 'Sin sincronizar: espacio lleno (ver Ajustes)',
+};
+
+function setSyncStatus(status) {
+  const node = $('#sync-status');
+  node.textContent = SYNC_LABEL[status];
+  node.dataset.state = status;
+}
+
+const monthOf = (date) => date.slice(0, 7);
+const archiveMonth = (t) => dateKey(new Date(t.completedAt || t.createdAt)).slice(0, 7);
+
+function localBuckets() {
+  const out = new Map();
+  out.set('state', Object.fromEntries(CORE_KEYS.map((k) => [k, state[k]])));
+  out.set('ideas', { items: state.ideas });
+  const months = new Set(state.journal.map((e) => monthOf(e.date)));
+  // Un mes que se quedó sin entradas se sube vacío para que los demás dispositivos lo vacíen también.
+  Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('journal-')).forEach((n) => months.add(n.slice(8)));
+  months.forEach((m) => out.set(`journal-${m}`, { items: state.journal.filter((e) => monthOf(e.date) === m) }));
+  const logMonths = new Set(state.log.map((e) => monthOf(e.date)));
+  Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('log-')).forEach((n) => logMonths.add(n.slice(4)));
+  logMonths.forEach((m) => out.set(`log-${m}`, { items: state.log.filter((e) => monthOf(e.date) === m) }));
+  const archMonths = new Set(state.archive.map((t) => archiveMonth(t)));
+  Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
+  archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
+  state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
+  state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
+  return out;
+}
+
+function bucketIsEmpty(name, data) {
+  if (name === 'state') return !data.tasks?.length && !data.habits?.length && !data.projects?.length;
+  if (name.startsWith('map-')) return !data.map;
+  if (name.startsWith('note-')) return !data.note;
+  return !data.items?.length;
+}
+
+function applyBucket(name, data) {
+  dataRev++;
+  if (name === 'state') {
+    const fresh = defaults();
+    for (const k of CORE_KEYS) state[k] = data[k] ?? fresh[k];
+    state.settings = { ...fresh.settings, ...state.settings };
+  } else if (name === 'ideas') {
+    state.ideas = data.items || [];
+  } else if (name.startsWith('journal-')) {
+    const m = name.slice(8);
+    state.journal = state.journal.filter((e) => monthOf(e.date) !== m).concat(data.items || []);
+  } else if (name.startsWith('log-')) {
+    // La bitácora se fusiona: se juntan las anotaciones de ambos lados y una retirada gana.
+    const byId = new Map(state.log.filter((e) => monthOf(e.date) === name.slice(4)).map((e) => [e.id, e]));
+    (data.items || []).forEach((e) => {
+      const mine = byId.get(e.id);
+      byId.set(e.id, mine ? { ...mine, removed: mine.removed || e.removed } : e);
+    });
+    state.log = state.log.filter((e) => monthOf(e.date) !== name.slice(4)).concat([...byId.values()].sort((a, b) => a.at - b.at));
+  } else if (name.startsWith('archive-')) {
+    const m = name.slice(8);
+    const incoming = data.items || [];
+    const ids = new Set(incoming.map((t) => t.id));
+    state.archive = state.archive.filter((t) => archiveMonth(t) !== m).concat(incoming);
+    // Si otro dispositivo archivó una tarea, aquí deja de estar en la lista activa.
+    state.tasks = state.tasks.filter((t) => !ids.has(t.id));
+  } else if (name.startsWith('note-') && data.note) {
+    const i = state.notes.findIndex((x) => x.id === data.note.id);
+    if (i >= 0) state.notes[i] = data.note;
+    else state.notes.push(data.note);
+  } else if (name.startsWith('map-') && data.map) {
+    const i = state.maps.findIndex((x) => x.id === data.map.id);
+    if (i >= 0) state.maps[i] = data.map;
+    else state.maps.push(data.map);
+  }
+}
+
+function removeBucket(name) {
+  if (name.startsWith('map-')) state.maps = state.maps.filter((m) => `map-${m.id}` !== name);
+  if (name.startsWith('note-')) state.notes = state.notes.filter((n) => `note-${n.id}` !== name);
+}
+
+function scheduleSync() {
+  if (!sync.col) return;
+  setSyncStatus('saving');
+  clearTimeout(sync.timeout);
+  sync.timeout = setTimeout(pushState, 800);
+}
+
+// Sube los bloques que cambiaron, de uno en uno; si hubo cambios mientras tanto, repite al terminar.
+async function pushState() {
+  if (!sync.col) return;
+  if (sync.writing) {
+    sync.dirty = true;
+    return;
+  }
+  sync.writing = true;
+  const meta = state.syncMeta;
+  let tooBig = false;
+  try {
+    const buckets = localBuckets();
+    for (const [name, data] of buckets) {
+      const json = JSON.stringify(data);
+      if (meta.sent[name] === json) continue;
+      const now = Date.now();
+      try {
+        await sync.col.doc(name).set({ ...JSON.parse(json), updatedAt: now });
+      } catch (e) {
+        // Un bloque por encima del límite se rechaza; los demás se siguen subiendo.
+        if (e?.code !== 'invalid_argument') throw e;
+        tooBig = true;
+        continue;
+      }
+      meta.sent[name] = json;
+      meta.times[name] = now;
+    }
+    // Mapas borrados en este dispositivo.
+    for (const name of Object.keys(meta.sent)) {
+      if ((name.startsWith('map-') || name.startsWith('note-')) && !buckets.has(name)) {
+        await sync.col.doc(name).delete();
+        delete meta.sent[name];
+        delete meta.times[name];
+      }
+    }
+    saveLocal();
+    setSyncStatus(tooBig ? 'full' : 'synced');
+  } catch {
+    setSyncStatus('error');
+  } finally {
+    updateStorageWarning();
+    sync.writing = false;
+    if (sync.dirty) {
+      sync.dirty = false;
+      pushState();
+    }
+  }
+}
+
+function receiveSnapshot(snap, first) {
+  const meta = state.syncMeta;
+  const local = localBuckets();
+  const remoteNames = new Set();
+  let changed = false;
+
+  for (const doc of snap.docs) {
+    const name = doc.id;
+    remoteNames.add(name);
+    const body = JSON.parse(JSON.stringify(doc.data()));
+    const remoteAt = body.updatedAt || 0;
+    delete body.updatedAt;
+    if (remoteAt <= (meta.times[name] || 0)) continue; // ya lo tenemos (o lo subimos nosotros)
+
+    const localData = local.get(name);
+    const localJson = localData && JSON.stringify(localData);
+    const localDirty = localData !== undefined && localJson !== meta.sent[name];
+    // Nunca se pisa con una copia vacía lo que este dispositivo tiene sin subir.
+    if (localDirty && meta.sent[name] === undefined && bucketIsEmpty(name, body) && !bucketIsEmpty(name, localData)) continue;
+    // Si este bloque cambió aquí después que en la nube, gana el de aquí (la bitácora siempre se fusiona).
+    const isLog = name.startsWith('log-');
+    if (!isLog && localDirty && (state.updatedAt || 0) > remoteAt) continue;
+
+    applyBucket(name, body);
+    // Tras fusionar la bitácora, lo que quede distinto de la nube se vuelve a subir.
+    meta.sent[name] = isLog ? JSON.stringify(body) : JSON.stringify(localBuckets().get(name) ?? body);
+    meta.times[name] = remoteAt;
+    changed = true;
+  }
+
+  // Mapas que ya no están en la nube: otro dispositivo los borró (si aquí no cambiaron).
+  for (const name of Object.keys(meta.sent)) {
+    if (remoteNames.has(name) || !(name.startsWith('map-') || name.startsWith('note-'))) continue;
+    const localData = local.get(name);
+    if (localData && JSON.stringify(localData) !== meta.sent[name]) continue;
+    removeBucket(name);
+    delete meta.sent[name];
+    delete meta.times[name];
+    changed = true;
+  }
+
+  if (changed) {
+    saveLocal();
+    applySettings();
+    if (!timer.endsAt) setMode(timer.mode);
+    renderAll();
+  }
+  if (first || changed) pushState();
+  else setSyncStatus('synced');
+}
+
+async function startSync() {
+  if (!window.claude?.use) return;
+  const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+  const id = user && (await user.id());
+  if (!db || !id) return;
+
+  sync.col = db.collection(`data/users/${id}`);
+  let first = true;
+  sync.col.onSnapshot(
+    (snap) => {
+      if (snap.metadata.hasPendingWrites) return;
+      receiveSnapshot(snap, first);
+      first = false;
+    },
+    () => setSyncStatus('error')
+  );
+}

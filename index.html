@@ -111,6 +111,8 @@
         <div class="stat"><span id="stat-pomos" class="num">0</span><span class="label">Pomodoros</span></div>
       </div>
 
+      <div id="today-calendar" class="today-calendar" hidden></div>
+
       <h2 class="section-title">Para hoy</h2>
       <form id="today-form" class="row quick-add">
         <input id="today-title" type="text" placeholder="Añadir tarea para hoy" required maxlength="200">
@@ -432,6 +434,18 @@
 
     <!-- Progreso -->
     <section id="view-progress" class="view">
+      <div class="card summary-card">
+        <h3 class="summary-title">✨ Resumen semanal</h3>
+        <p class="muted ai-off-note">Al abrir la app desde Claude, Claude puede leer tu semana (bitácora, diario, hábitos, proyectos y tareas) y escribirte un resumen con logros, tiempo, ánimo y sugerencias.</p>
+        <div class="row ai-only" hidden>
+          <button id="summary-go" class="primary">Generar resumen de la semana</button>
+          <button id="summary-stop" hidden>Detener</button>
+          <button id="summary-save" hidden>Guardar como nota</button>
+        </div>
+        <p id="summary-status" class="muted" role="status"></p>
+        <div id="summary-out" class="md summary-out"></div>
+      </div>
+
       <h2 class="section-title first">Últimos 7 días</h2>
       <div id="progress-stats" class="stats"></div>
 
@@ -462,6 +476,12 @@
       <div class="card storage">
         <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas hace más de 7 días se archivan solas y siguen apareciendo en «Hechas».</p>
         <div id="storage-meter"></div>
+      </div>
+
+      <h2 class="section-title">Google Calendar</h2>
+      <div class="card">
+        <label class="switch"><input id="cal-enabled" type="checkbox"> Mostrar mis eventos en Hoy y en la vista Semana</label>
+        <p id="cal-note" class="muted cal-note"></p>
       </div>
 
       <h2 class="section-title">Pasar a notas</h2>
@@ -551,6 +571,25 @@
   <ul id="link-suggest" class="suggest" role="listbox" hidden></ul>
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="app.js"></script>
+  <script src="js/01-nucleo.js"></script>
+  <script src="js/02-tareas.js"></script>
+  <script src="js/03-pomodoro.js"></script>
+  <script src="js/04-habitos.js"></script>
+  <script src="js/05-progreso.js"></script>
+  <script src="js/06-ajustes.js"></script>
+  <script src="js/07-proyectos.js"></script>
+  <script src="js/08-diario.js"></script>
+  <script src="js/09-ideas-mapas.js"></script>
+  <script src="js/10-bitacora.js"></script>
+  <script src="js/11-markdown.js"></script>
+  <script src="js/12-notas.js"></script>
+  <script src="js/13-grafo.js"></script>
+  <script src="js/14-tareas-en-notas.js"></script>
+  <script src="js/15-claude.js"></script>
+  <script src="js/16-calendario.js"></script>
+  <script src="js/17-plantillas-consultas.js"></script>
+  <script src="js/18-recordatorios-espacio-atajos.js"></script>
+  <script src="js/19-sincronizacion.js"></script>
+  <script src="js/20-inicio.js"></script>
 </body>
 </html>
