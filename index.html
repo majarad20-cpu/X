@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enfoque</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <nav class="ribbon" aria-label="Navegación">
+      <button class="rib" id="rib-files" title="Explorador de notas" aria-label="Explorador de notas"><span class="ico" data-icon="files"></span><span class="rib-label">Notas</span></button>
+      <button class="rib" id="rib-daily" title="Nota diaria (Alt+D)" aria-label="Nota diaria"><span class="ico" data-icon="calendar"></span><span class="rib-label">Nota diaria</span></button>
+      <button class="rib" id="rib-switcher" title="Abrir nota (Ctrl+O)" aria-label="Abrir nota"><span class="ico" data-icon="search"></span><span class="rib-label">Abrir nota</span></button>
+      <button class="rib" id="rib-graph" title="Vista de grafo (Ctrl+G)" aria-label="Vista de grafo"><span class="ico" data-icon="graph"></span><span class="rib-label">Grafo</span></button>
+      <button class="rib" id="rib-palette" title="Paleta de comandos (Ctrl+P)" aria-label="Paleta de comandos"><span class="ico" data-icon="command"></span><span class="rib-label">Comandos</span></button>
+      <span class="rib-sep" aria-hidden="true"></span>
+      <button class="rib" data-view="today" title="Hoy" aria-label="Hoy"><span class="ico" data-icon="sun"></span><span class="rib-label">Hoy</span></button>
+      <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
+      <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
+      <button class="rib" data-view="journal" title="Diario" aria-label="Diario"><span class="ico" data-icon="book"></span><span class="rib-label">Diario</span></button>
+      <button class="rib" data-view="ideas" title="Ideas y mapas" aria-label="Ideas y mapas"><span class="ico" data-icon="bulb"></span><span class="rib-label">Ideas y mapas</span></button>
+      <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
+      <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
+      <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
+      <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
+      <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar a tus notas</span></button>
+      <span class="rib-spacer"></span>
+      <button class="rib" id="open-settings" title="Ajustes" aria-label="Ajustes"><span class="ico" data-icon="gear"></span><span class="rib-label">Ajustes</span></button>
+    </nav>
+
+    <aside id="left-panel" class="side left" aria-label="Panel izquierdo">
+      <div class="side-head">
+        <span class="vault-name">Enfoque</span>
+        <button id="new-note" class="side-btn" title="Nueva nota (Ctrl+N)" aria-label="Nueva nota"><span class="ico" data-icon="file-plus"></span></button>
+        <button id="new-folder" class="side-btn" title="Nueva carpeta" aria-label="Nueva carpeta"><span class="ico" data-icon="folder-plus"></span></button>
+        <button id="close-left" class="side-btn mobile-only" aria-label="Cerrar panel"><span class="ico" data-icon="x"></span></button>
+      </div>
+      <div class="side-tabs" role="tablist">
+        <button class="stab active" data-lpane="files" role="tab">Archivos</button>
+        <button class="stab" data-lpane="search" role="tab">Buscar</button>
+        <button class="stab" data-lpane="tags" role="tab">Etiquetas</button>
+      </div>
+      <div id="lp-files" class="lpane"><div id="file-tree" class="file-tree" role="tree"></div></div>
+      <div id="lp-search" class="lpane" hidden>
+        <input id="note-search" type="search" placeholder="Buscar en las notas (usa #etiqueta)" aria-label="Buscar en las notas">
+        <div id="search-results" class="search-results"></div>
+      </div>
+      <div id="lp-tags" class="lpane" hidden><div id="tag-pane" class="tag-pane"></div></div>
+    </aside>
+
+    <div class="workspace">
+      <div class="mobile-bar">
+        <button id="toggle-left" class="side-btn" aria-label="Abrir panel izquierdo"><span class="ico" data-icon="panel-left"></span></button>
+        <span id="mobile-title" class="mobile-title"></span>
+        <button id="toggle-right" class="side-btn" aria-label="Abrir panel derecho"><span class="ico" data-icon="panel-right"></span></button>
+      </div>
+      <div class="ws-tabbar">
+        <div id="ws-tabs" class="ws-tabs" role="tablist" aria-label="Pestañas abiertas"></div>
+        <button id="ws-new-tab" class="side-btn" title="Nueva nota" aria-label="Nueva nota"><span class="ico" data-icon="plus"></span></button>
+        <button id="toggle-right-desk" class="side-btn desk-only" title="Panel derecho" aria-label="Mostrar u ocultar panel derecho"><span class="ico" data-icon="panel-right"></span></button>
+      </div>
+      <div id="reminders" class="reminders" aria-live="assertive"></div>
+
+      <div id="note-pane" class="note-pane" hidden>
+        <div class="note-toolbar">
+          <span id="note-crumbs" class="note-crumbs"></span>
+          <button id="note-mode" class="side-btn" title="Alternar edición / lectura (Ctrl+E)"><span class="ico" data-icon="pencil"></span></button>
+          <button id="note-more" class="side-btn" title="Más opciones" aria-label="Más opciones" aria-haspopup="menu"><span class="ico" data-icon="more"></span></button>
+        </div>
+        <div id="note-scroll" class="note-scroll">
+          <div class="note-inner">
+            <input id="note-title" class="note-title" type="text" maxlength="120" aria-label="Título de la nota" spellcheck="false">
+            <textarea id="note-editor" class="note-editor" spellcheck="true" aria-label="Contenido de la nota" hidden></textarea>
+            <div id="note-reading" class="note-reading md" hidden></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="graph-pane" class="graph-pane" hidden>
+        <div class="graph-tools">
+          <input id="graph-filter" type="search" placeholder="Filtrar notas" aria-label="Filtrar notas del grafo">
+          <button class="chip" data-gopt="tags" aria-pressed="false">Etiquetas</button>
+          <button class="chip" data-gopt="ghosts" aria-pressed="true">Sin crear</button>
+          <button class="chip" data-gopt="orphans" aria-pressed="true">Sin enlaces</button>
+          <span class="spacer"></span>
+          <span id="graph-count" class="muted graph-count"></span>
+          <div class="graph-zoom">
+            <button id="graph-zoom-out" aria-label="Alejar">−</button>
+            <button id="graph-fit">Ajustar</button>
+            <button id="graph-zoom-in" aria-label="Acercar">+</button>
+          </div>
+        </div>
+        <div class="graph-stage">
+          <canvas id="graph-canvas" role="img" aria-label="Grafo de notas: cada punto es una nota y cada línea un enlace. Haz clic en un punto para abrirla."></canvas>
+          <p id="graph-empty" class="graph-empty" hidden>Aún no hay notas. Crea algunas y enlázalas con [[ ]] para ver su red aquí.</p>
+        </div>
+        <div id="graph-legend" class="graph-legend"></div>
+      </div>
+
+      <div id="views-pane" class="views-pane">
+    <main>
+    <!-- Hoy -->
+    <section id="view-today" class="view active">
+      <div class="today-head">
+        <p id="today-date" class="today-date"></p>
+        <button id="today-daily" class="chip">📓 Nota diaria</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><span id="stat-pending" class="num">0</span><span class="label">Para hoy</span></div>
+        <div class="stat"><span id="stat-overdue" class="num">0</span><span class="label">Vencidas</span></div>
+        <div class="stat"><span id="stat-done" class="num">0</span><span class="label">Hechas hoy</span></div>
+        <div class="stat"><span id="stat-pomos" class="num">0</span><span class="label">Pomodoros</span></div>
+      </div>
+
+      <div id="today-calendar" class="today-calendar" hidden></div>
+
+      <h2 class="section-title">Para hoy</h2>
+      <form id="today-form" class="row quick-add">
+        <input id="today-title" type="text" placeholder="Añadir tarea para hoy" required maxlength="200">
+        <button type="submit" class="primary">Añadir</button>
+        <div id="today-preview" class="parse-preview" aria-live="polite" hidden></div>
+      </form>
+      <ul id="today-list" class="list"></ul>
+      <p id="today-empty" class="empty">Nada pendiente para hoy. 🎉</p>
+
+      <button id="today-journal" class="journal-nudge" hidden>
+        <span class="jn-icon" aria-hidden="true">✍️</span>
+        <span><strong>Aún no has escrito hoy.</strong> Un vaciado mental de 5 minutos despeja la cabeza.</span>
+      </button>
+
+      <button id="today-review" class="journal-nudge" hidden>
+        <span class="jn-icon" aria-hidden="true">🗓️</span>
+        <span><strong>Cierra la semana.</strong> Una revisión de 15 minutos: vencidas, proyectos, próxima semana y tus 3 prioridades.</span>
+      </button>
+
+      <h2 class="section-title">Hábitos de hoy <span id="today-habits-count" class="muted"></span></h2>
+      <div id="today-habits" class="habit-chips"></div>
+      <p id="today-habits-empty" class="empty">Crea hábitos en la pestaña Hábitos.</p>
+
+      <div class="log-head">
+        <h2 class="section-title">Bitácora</h2>
+        <div class="log-nav">
+          <button id="log-prev" class="nav-btn" aria-label="Día anterior">‹</button>
+          <span id="log-title" class="log-title"></span>
+          <button id="log-next" class="nav-btn" aria-label="Día siguiente">›</button>
+          <button id="log-today" class="chip" hidden>Hoy</button>
+        </div>
+      </div>
+      <div class="card log-card">
+        <div id="log-summary" class="log-summary"></div>
+        <ol id="log-list" class="log-list"></ol>
+        <p id="log-empty" class="muted log-empty"></p>
+      </div>
+    </section>
+
+    <!-- Tareas -->
+    <section id="view-tasks" class="view">
+      <form id="task-form" class="card row">
+        <input id="task-title" type="text" placeholder="Ej.: Llamar a Ana mañana a las 5 !alta #trabajo" required maxlength="200">
+        <select id="task-priority" aria-label="Prioridad">
+          <option value="2">Media</option>
+          <option value="3">Alta</option>
+          <option value="1">Baja</option>
+        </select>
+        <input id="task-due" type="date" aria-label="Fecha límite">
+        <input id="task-time" type="time" aria-label="Hora del recordatorio" title="Hora del recordatorio">
+        <select id="task-repeat" aria-label="Repetir">
+          <option value="">No se repite</option>
+          <option value="daily">Cada día</option>
+          <option value="weekdays">Lun a vie</option>
+          <option value="weekly">Cada semana</option>
+          <option value="monthly">Cada mes</option>
+        </select>
+        <button type="submit" class="primary">Añadir</button>
+        <div id="task-preview" class="parse-preview" aria-live="polite" hidden></div>
+      </form>
+
+      <div class="view-switch" role="group" aria-label="Vista">
+        <button class="seg active" data-taskview="list" aria-pressed="true">Lista</button>
+        <button class="seg" data-taskview="week" aria-pressed="false">Semana</button>
+      </div>
+
+      <div id="tag-filter" class="tag-filter" role="group" aria-label="Etiqueta" hidden></div>
+
+      <div id="list-pane">
+      <div class="toolbar">
+        <div class="filters" role="group" aria-label="Filtro">
+          <button class="chip active" data-filter="all">Todas</button>
+          <button class="chip" data-filter="today">Hoy</button>
+          <button class="chip" data-filter="pending">Pendientes</button>
+          <button class="chip" data-filter="done">Hechas</button>
+        </div>
+        <div class="sort">
+          <span id="task-stats" class="muted"></span>
+          <select id="task-sort" aria-label="Orden">
+            <option value="priority">Orden: prioridad</option>
+            <option value="manual">Orden: el mío</option>
+          </select>
+        </div>
+      </div>
+
+      <ul id="task-list" class="list"></ul>
+      <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
+      <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas · con «Orden: el mío» arrastra ⠿ para reordenar · las tareas 📝 vienen de tus notas (escribe <code>- [ ] tarea 📅 mañana</code> en cualquier nota).</p>
+      <button id="clear-done" class="link">Borrar tareas completadas</button>
+      </div>
+
+      <div id="week-pane" hidden>
+        <div class="week-head">
+          <button id="week-prev" class="nav-btn" aria-label="Semana anterior">‹</button>
+          <h3 id="week-title" class="week-title"></h3>
+          <button id="week-next" class="nav-btn" aria-label="Semana siguiente">›</button>
+          <button id="week-today" class="chip">Esta semana</button>
+        </div>
+        <div id="week-strip" class="week-strip"></div>
+        <div id="week-days" class="week-days"></div>
+        <button id="week-undated" class="link"></button>
+      </div>
+    </section>
+
+    <!-- Proyectos -->
+    <section id="view-projects" class="view">
+      <div id="projects-list-pane">
+        <form id="project-form" class="card row">
+          <input id="project-name" type="text" placeholder="Nuevo proyecto (p. ej. Rediseño de la web)" required maxlength="80">
+          <input id="project-deadline" type="date" aria-label="Fecha límite" title="Fecha límite (opcional)">
+          <button type="submit" class="primary">Crear</button>
+        </form>
+        <div class="filters project-filters" role="group" aria-label="Estado">
+          <button class="chip active" data-pfilter="active">Activos</button>
+          <button class="chip" data-pfilter="paused">En pausa</button>
+          <button class="chip" data-pfilter="done">Completados</button>
+          <button class="chip" data-pfilter="all">Todos</button>
+        </div>
+        <div id="project-list" class="project-grid"></div>
+        <p id="project-empty" class="empty">No hay proyectos aquí. Crea uno arriba y añádele tareas para seguir su avance.</p>
+      </div>
+
+      <div id="project-detail" hidden>
+        <button id="project-back" class="link back-link">← Todos los proyectos</button>
+        <div class="card pd-card">
+          <div class="pd-fields">
+            <input id="pd-name" class="pd-name" type="text" maxlength="80" aria-label="Nombre del proyecto">
+            <textarea id="pd-desc" class="notes" rows="2" placeholder="Objetivo, contexto, enlaces…" aria-label="Descripción del proyecto"></textarea>
+            <button id="pd-note" class="link pd-note-link"></button>
+            <div class="row pd-meta">
+              <label>Estado
+                <select id="pd-status">
+                  <option value="active">Activo</option>
+                  <option value="paused">En pausa</option>
+                  <option value="done">Completado</option>
+                </select>
+              </label>
+              <label>Fecha límite <input id="pd-deadline" type="date"></label>
+              <div class="pd-colors" id="pd-colors" role="radiogroup" aria-label="Color del proyecto"></div>
+            </div>
+          </div>
+          <div class="pd-progress">
+            <div class="pd-progress-head">
+              <span id="pd-percent" class="pd-percent">0 %</span>
+              <span id="pd-status-text" class="muted"></span>
+            </div>
+            <div class="progress-track big"><div id="pd-bar" class="progress-fill"></div></div>
+            <div class="row pd-mode">
+              <label class="switch"><input id="pd-manual" type="checkbox"> Ajustar el avance a mano</label>
+              <input id="pd-slider" type="range" min="0" max="100" step="5" aria-label="Avance manual" hidden>
+            </div>
+            <p id="pd-risk" class="pd-risk" hidden></p>
+          </div>
+        </div>
+
+        <h2 class="section-title">Tareas del proyecto <span id="pd-count" class="muted"></span></h2>
+        <form id="pd-task-form" class="row quick-add">
+          <input id="pd-task-title" type="text" placeholder="Nueva tarea del proyecto (p. ej. Revisar diseño el viernes)" required maxlength="200">
+          <button type="submit" class="primary">Añadir</button>
+          <div id="pd-task-preview" class="parse-preview" aria-live="polite" hidden></div>
+        </form>
+        <ul id="pd-tasks" class="list"></ul>
+        <p id="pd-tasks-empty" class="empty">Aún no hay tareas. Divide el proyecto en pasos y el avance se calculará solo.</p>
+        <button id="pd-delete" class="link danger-link">Eliminar proyecto</button>
+      </div>
+    </section>
+
+    <!-- Diario -->
+    <section id="view-journal" class="view">
+      <div class="journal-top">
+        <div id="journal-week" class="journal-week" aria-label="Ánimo de los últimos 7 días"></div>
+        <p id="journal-stats" class="muted"></p>
+      </div>
+
+      <form id="journal-form" class="card journal-composer">
+        <div class="filters" role="group" aria-label="Tipo de entrada">
+          <button type="button" class="chip active" data-jkind="dump">Vaciado mental</button>
+          <button type="button" class="chip" data-jkind="free">Libre</button>
+          <button type="button" class="chip" data-jkind="gratitude">Gratitud</button>
+          <button type="button" class="chip" data-jkind="reflection">Reflexión</button>
+        </div>
+        <p id="journal-hint" class="muted journal-hint"></p>
+        <div id="journal-fields"></div>
+        <div class="mood-row">
+          <span class="muted">¿Cómo te sientes?</span>
+          <div id="mood-picker" class="mood-picker" role="radiogroup" aria-label="Ánimo"></div>
+        </div>
+        <div class="row">
+          <button type="submit" class="primary">Guardar entrada</button>
+          <span id="journal-draft" class="muted"></span>
+        </div>
+      </form>
+
+      <div id="dump-convert" class="card dump-convert" hidden></div>
+
+      <div class="row journal-search">
+        <input id="journal-search" type="search" placeholder="Buscar en el diario" aria-label="Buscar en el diario">
+      </div>
+      <div id="journal-list"></div>
+      <p id="journal-empty" class="empty">Tu diario está vacío. Escribe la primera entrada arriba.</p>
+    </section>
+
+    <!-- Ideas -->
+    <section id="view-ideas" class="view">
+      <div class="view-switch" role="group" aria-label="Vista de ideas">
+        <button class="seg active" data-ideaview="notes" aria-pressed="true">Ideas</button>
+        <button class="seg" data-ideaview="maps" aria-pressed="false">Mapas mentales</button>
+      </div>
+
+      <div id="ideas-notes-pane">
+        <form id="idea-form" class="card idea-composer">
+          <textarea id="idea-text" class="notes" rows="2" placeholder="Apunta una idea antes de que se escape… (usa #etiquetas)" required maxlength="2000" aria-label="Nueva idea"></textarea>
+          <div class="row"><button type="submit" class="primary">Guardar idea</button><span class="muted">Ctrl + Enter para guardar</span></div>
+        </form>
+        <div class="row idea-tools">
+          <input id="idea-search" type="search" placeholder="Buscar ideas" aria-label="Buscar ideas">
+        </div>
+        <div id="idea-tags" class="tag-filter" hidden></div>
+        <div id="idea-list" class="idea-grid"></div>
+        <p id="idea-empty" class="empty">Sin ideas todavía. Las buenas ideas llegan en cualquier momento: apúntalas aquí.</p>
+      </div>
+
+      <div id="ideas-maps-pane" hidden>
+        <div id="maps-list-pane">
+          <form id="map-form" class="card row">
+            <input id="map-title" type="text" placeholder="Tema central del nuevo mapa (p. ej. Vacaciones de verano)" required maxlength="80">
+            <button type="submit" class="primary">Crear mapa</button>
+          </form>
+          <div id="map-list" class="map-grid"></div>
+          <p id="map-empty" class="empty">Crea tu primer mapa mental: escribe un tema central y ve sacando ramas.</p>
+        </div>
+
+        <div id="map-editor" hidden>
+          <div class="map-toolbar">
+            <button id="map-back" class="link back-link">← Mapas</button>
+            <input id="map-name" class="map-name" type="text" maxlength="80" aria-label="Título del mapa">
+            <button id="map-source" class="chip" hidden>📝 Nota de origen</button>
+            <button id="map-refresh" class="chip" hidden title="Vuelve a generar el mapa con los títulos y listas actuales de la nota">↻ Actualizar desde la nota</button>
+          </div>
+          <div class="map-actions" role="toolbar" aria-label="Acciones del mapa">
+            <button id="mm-child" title="Añadir rama (Tab)">+ Rama</button>
+            <button id="mm-sibling" title="Añadir hermano (Enter)">+ Hermano</button>
+            <button id="mm-edit" title="Editar texto (F2 o doble clic)">Editar</button>
+            <button id="mm-task" title="Crear una tarea con este nodo">→ Tarea</button>
+            <button id="mm-delete" title="Borrar nodo (Supr)">Borrar</button>
+            <span class="spacer"></span>
+            <button id="mm-zoom-out" aria-label="Alejar">−</button>
+            <button id="mm-fit" title="Ajustar a la pantalla">Ajustar</button>
+            <button id="mm-zoom-in" aria-label="Acercar">+</button>
+            <button id="mm-export" title="Descargar como imagen PNG">Imagen</button>
+          </div>
+          <div id="map-canvas" class="map-canvas" tabindex="0" aria-label="Mapa mental. Flechas para moverte, Tab añade rama, Enter añade hermano, F2 edita, Supr borra.">
+            <div id="map-stage" class="map-stage">
+              <svg id="map-edges" class="map-edges" aria-hidden="true"></svg>
+              <div id="map-nodes"></div>
+            </div>
+          </div>
+          <p class="muted hint">Toca un nodo para seleccionarlo. Doble toque para editar. Arrastra el fondo para moverte por el mapa.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pomodoro -->
+    <section id="view-timer" class="view">
+      <div class="card timer-card">
+        <div class="modes" role="group" aria-label="Modo">
+          <button class="chip active" data-mode="focus">Enfoque</button>
+          <button class="chip" data-mode="short">Pausa corta</button>
+          <button class="chip" data-mode="long">Pausa larga</button>
+        </div>
+        <div class="ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-bg" cx="60" cy="60" r="54"></circle>
+            <circle id="ring-fg" class="ring-fg" cx="60" cy="60" r="54"></circle>
+          </svg>
+          <div id="timer-display" class="time">25:00</div>
+        </div>
+        <label class="current-task">
+          Trabajando en:
+          <select id="timer-task"><option value="">— ninguna —</option></select>
+        </label>
+        <div class="row center">
+          <button id="timer-start" class="primary big">Iniciar</button>
+          <button id="timer-reset">Reiniciar</button>
+          <button id="timer-skip">Saltar</button>
+        </div>
+        <p class="muted">Pomodoros hoy: <strong id="pomo-today">0</strong></p>
+      </div>
+
+      <details class="card">
+        <summary>Ajustes (minutos)</summary>
+        <div class="settings">
+          <label>Enfoque <input id="set-focus" type="number" min="1" max="120"></label>
+          <label>Pausa corta <input id="set-short" type="number" min="1" max="60"></label>
+          <label>Pausa larga <input id="set-long" type="number" min="1" max="60"></label>
+        </div>
+      </details>
+    </section>
+
+    <!-- Hábitos -->
+    <section id="view-habits" class="view">
+      <form id="habit-form" class="card row">
+        <input id="habit-name" type="text" placeholder="Nuevo hábito (p. ej. Leer 20 min)" required maxlength="60">
+        <select id="habit-goal" aria-label="Objetivo">
+          <option value="7">Cada día</option>
+          <option value="6">6 veces por semana</option>
+          <option value="5">5 veces por semana</option>
+          <option value="4">4 veces por semana</option>
+          <option value="3">3 veces por semana</option>
+          <option value="2">2 veces por semana</option>
+          <option value="1">1 vez por semana</option>
+        </select>
+        <button type="submit" class="primary">Añadir</button>
+      </form>
+      <div class="card habits-wrap">
+        <table class="habits">
+          <thead><tr id="habit-head"></tr></thead>
+          <tbody id="habit-body"></tbody>
+        </table>
+        <p id="habit-empty" class="empty">Aún no tienes hábitos. Crea el primero.</p>
+      </div>
+      <p class="muted hint">Toca el nombre de un hábito para cambiarlo o ajustar su objetivo.</p>
+    </section>
+
+    <!-- Progreso -->
+    <section id="view-progress" class="view">
+      <div class="card summary-card">
+        <h3 class="summary-title">✨ Resumen semanal</h3>
+        <p class="muted ai-off-note">Al abrir la app desde Claude, Claude puede leer tu semana (bitácora, diario, hábitos, proyectos y tareas) y escribirte un resumen con logros, tiempo, ánimo y sugerencias.</p>
+        <div class="row ai-only" hidden>
+          <button id="summary-go" class="primary">Generar resumen de la semana</button>
+          <button id="summary-stop" hidden>Detener</button>
+          <button id="summary-save" hidden>Guardar como nota</button>
+        </div>
+        <p id="summary-status" class="muted" role="status"></p>
+        <div id="summary-out" class="md summary-out"></div>
+      </div>
+
+      <h2 class="section-title first">Últimos 7 días</h2>
+      <div id="progress-stats" class="stats"></div>
+
+      <div class="card">
+        <div class="chart-head">
+          <h3 id="chart-title" class="chart-title"></h3>
+          <div class="filters" role="group" aria-label="Métrica">
+            <button class="chip active" data-metric="pomodoros">Pomodoros</button>
+            <button class="chip" data-metric="tasks">Tareas</button>
+            <button class="chip" data-metric="minutes">Minutos</button>
+          </div>
+        </div>
+        <div id="chart" class="chart"></div>
+        <p id="chart-empty" class="muted chart-empty">Aún no hay datos esta semana. Completa tareas o pomodoros y aparecerán aquí.</p>
+      </div>
+
+      <h2 class="section-title">Hábitos · últimos 30 días</h2>
+      <ul id="habit-progress" class="list card"></ul>
+      <p id="habit-progress-empty" class="empty">Crea hábitos para ver tu constancia.</p>
+    </section>
+
+    <!-- Preguntar -->
+    <section id="view-ask" class="view">
+      <div class="ask-wrap">
+        <div class="ask-head">
+          <h2 class="section-title first">✨ Pregúntale a tus notas</h2>
+          <div class="row">
+            <button id="ask-save" class="chip" hidden>Guardar como nota</button>
+            <button id="ask-clear" class="chip" hidden>Nueva conversación</button>
+          </div>
+        </div>
+        <p class="muted ai-off-note">Al abrir la app desde Claude puedes hacer preguntas sobre tus notas, tareas y diario; Claude busca lo necesario y responde citando las notas con [[enlaces]].</p>
+        <div id="ask-empty" class="ask-empty ai-only" hidden>
+          <p class="muted">Claude busca en tus notas, tareas y diario y responde citando de dónde lo saca. Prueba con:</p>
+          <div class="ask-examples">
+            <button class="chip ask-example" type="button">¿Qué tengo pendiente esta semana?</button>
+            <button class="chip ask-example" type="button">¿Qué decidí en mis últimas reuniones?</button>
+            <button class="chip ask-example" type="button">¿Cómo me he sentido últimamente según mi diario?</button>
+            <button class="chip ask-example" type="button">Resume mis ideas sobre proyectos nuevos</button>
+          </div>
+        </div>
+        <div id="ask-messages" class="ask-messages" aria-live="polite"></div>
+        <p id="ask-progress" class="muted ask-progress" role="status"></p>
+        <form id="ask-form" class="ask-form ai-only" hidden>
+          <textarea id="ask-input" class="notes" rows="2" maxlength="2000" placeholder="Pregunta algo sobre tus notas…" title="Enter envía; Mayús+Enter añade un salto de línea" aria-label="Pregunta"></textarea>
+          <div class="ask-buttons">
+            <button id="ask-send" type="submit" class="primary">Preguntar</button>
+            <button id="ask-stop" type="button" hidden>Detener</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Revisión semanal -->
+    <section id="view-review" class="view">
+      <h2 class="section-title first">🗓️ Revisión semanal</h2>
+      <nav id="review-steps" class="rv-steps" aria-label="Pasos de la revisión"></nav>
+      <div class="card rv-card">
+        <h3 id="review-title" class="rv-heading"></h3>
+        <p id="review-hint" class="muted"></p>
+        <div id="review-body" class="rv-body-wrap"></div>
+      </div>
+      <div class="row rv-nav">
+        <button id="review-prev">‹ Anterior</button>
+        <button id="review-next" class="primary">Siguiente ›</button>
+        <button id="review-finish" class="primary" hidden>Terminar y guardar</button>
+      </div>
+    </section>
+
+    <!-- Ajustes -->
+    <section id="view-settings" class="view">
+      <h2 class="section-title first">Color de la app</h2>
+      <div id="accent-picker" class="card swatches" role="radiogroup" aria-label="Color de acento"></div>
+
+      <h2 class="section-title">Espacio</h2>
+      <div class="card storage">
+        <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas hace más de 7 días se archivan solas y siguen apareciendo en «Hechas».</p>
+        <div id="storage-meter"></div>
+      </div>
+
+      <h2 class="section-title">Google Calendar</h2>
+      <div class="card">
+        <label class="switch"><input id="cal-enabled" type="checkbox"> Mostrar mis eventos en Hoy y en la vista Semana</label>
+        <p id="cal-note" class="muted cal-note"></p>
+      </div>
+
+      <h2 class="section-title">Pasar a notas</h2>
+      <div class="card">
+        <p>Copia tu diario (cada entrada en la nota diaria de su día), tus ideas (una nota por idea en «Ideas») y tus mapas mentales (como esquema en «Mapas»). Los originales se quedan donde están. Si lo vuelves a usar, solo copia lo nuevo.</p>
+        <div class="row"><button id="import-notes" class="primary">Copiar a notas</button></div>
+        <p id="import-message" class="muted" role="status"></p>
+      </div>
+
+      <h2 class="section-title">Copia de seguridad</h2>
+      <div class="card backup">
+        <p>Guarda tus tareas, hábitos y estadísticas en un archivo, o restaura una copia anterior. Restaurar sustituye los datos actuales; podrás deshacerlo unos segundos.</p>
+        <div class="row">
+          <button id="backup-export" class="primary">Descargar copia</button>
+          <button id="backup-copy">Copiar</button>
+          <label class="file-btn">Restaurar desde archivo<input id="backup-file" type="file" accept="application/json,.json"></label>
+          <button id="backup-paste">Pegar copia</button>
+        </div>
+        <textarea id="backup-text" rows="4" readonly hidden aria-label="Copia de seguridad"></textarea>
+        <textarea id="restore-text" rows="4" placeholder="Pega aquí el texto de tu copia" hidden aria-label="Texto de la copia a restaurar"></textarea>
+        <p id="backup-message" class="muted" role="status"></p>
+      </div>
+    </section>
+    </main>
+      <footer class="footer">
+        <button id="shortcuts-toggle" class="link">Atajos de teclado (?)</button>
+        <div id="shortcuts" class="card shortcuts" hidden>
+          <dl>
+            <dt><kbd>Ctrl</kbd>+<kbd>O</kbd></dt><dd>Abrir o crear una nota</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>P</kbd></dt><dd>Paleta de comandos</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>N</kbd></dt><dd>Nueva nota</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>G</kbd></dt><dd>Vista de grafo</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>E</kbd></dt><dd>Alternar edición y lectura</dd>
+            <dt><kbd>Alt</kbd>+<kbd>D</kbd></dt><dd>Nota diaria</dd>
+            <dt><kbd>[[</kbd></dt><dd>Enlazar otra nota (con sugerencias)</dd>
+            <dt><kbd>1</kbd>–<kbd>8</kbd></dt><dd>Ir a Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso</dd>
+            <dt><kbd>N</kbd></dt><dd>Nueva tarea</dd>
+            <dt><kbd>Espacio</kbd></dt><dd>Iniciar o pausar el Pomodoro</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Cancelar la edición</dd>
+            <dt><kbd>?</kbd></dt><dd>Mostrar u ocultar esta ayuda</dd>
+          </dl>
+        </div>
+      </footer>
+      </div>
+
+      <div class="statusbar">
+        <span id="sync-status" class="sync" data-state="local"></span>
+        <span id="status-note" class="status-note"></span>
+      </div>
+    </div>
+
+    <aside id="right-panel" class="side right" aria-label="Panel derecho">
+      <div class="side-head">
+        <div class="side-tabs" role="tablist">
+          <button class="stab active" data-rpane="backlinks" role="tab">Enlaces</button>
+          <button class="stab" data-rpane="outline" role="tab">Esquema</button>
+          <button class="stab" data-rpane="graph" role="tab">Grafo</button>
+        </div>
+        <button id="close-right" class="side-btn mobile-only" aria-label="Cerrar panel"><span class="ico" data-icon="x"></span></button>
+      </div>
+      <div id="rp-backlinks" class="rpane"></div>
+      <div id="rp-outline" class="rpane" hidden></div>
+      <div id="rp-graph" class="rpane" hidden>
+        <p id="local-graph-empty" class="muted side-empty">Abre una nota para ver sus conexiones.</p>
+        <div id="local-graph-wrap" class="local-graph-wrap">
+          <label class="local-tools">Saltos
+            <select id="local-depth" aria-label="Profundidad del grafo local">
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            </select>
+          </label>
+          <div class="local-stage"><canvas id="local-canvas" role="img" aria-label="Grafo local de la nota abierta"></canvas></div>
+          <p class="muted side-empty">Toca un punto para abrir esa nota. Arrastra para moverte; rueda o pellizco para el zoom.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="scrim" class="scrim" hidden></div>
+  <div id="picker" class="picker-wrap" hidden>
+    <div class="picker" role="dialog" aria-modal="true" aria-labelledby="picker-input">
+      <input id="picker-input" type="text" autocomplete="off" spellcheck="false">
+      <ul id="picker-list" class="picker-list" role="listbox"></ul>
+      <div id="picker-hint" class="picker-hint"></div>
+    </div>
+  </div>
+  <div id="note-menu" class="menu" role="menu" hidden></div>
+  <ul id="link-suggest" class="suggest" role="listbox" hidden></ul>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="js/01-nucleo.js"></script>
+  <script src="js/02-tareas.js"></script>
+  <script src="js/03-pomodoro.js"></script>
+  <script src="js/04-habitos.js"></script>
+  <script src="js/05-progreso.js"></script>
+  <script src="js/06-ajustes.js"></script>
+  <script src="js/07-proyectos.js"></script>
+  <script src="js/08-diario.js"></script>
+  <script src="js/09-ideas-mapas.js"></script>
+  <script src="js/10-bitacora.js"></script>
+  <script src="js/11-markdown.js"></script>
+  <script src="js/12-notas.js"></script>
+  <script src="js/13-grafo.js"></script>
+  <script src="js/14-tareas-en-notas.js"></script>
+  <script src="js/15-claude.js"></script>
+  <script src="js/16-calendario.js"></script>
+  <script src="js/17-plantillas-consultas.js"></script>
+  <script src="js/18-recordatorios-espacio-atajos.js"></script>
+  <script src="js/19-sincronizacion.js"></script>
+  <script src="js/21-preguntar.js"></script>
+  <script src="js/22-revision.js"></script>
+  <script src="js/23-inicio.js"></script>
+</body>
+</html>
