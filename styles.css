@@ -96,7 +96,8 @@ body {
   .tabs .tab { flex: none; padding: 6px 12px; font-size: .9rem; }
 }
 
-main { max-width: 760px; margin: 0 auto; padding: 8px 16px 48px; }
+/* Las secciones aprovechan el ancho disponible (hasta un tope para pantallas muy anchas). */
+main { max-width: 1240px; margin: 0 auto; padding: 10px 24px 48px; }
 
 .tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px; }
 .tab { border: 0; background: none; border-radius: 999px; padding: 6px 14px; }
@@ -285,7 +286,7 @@ summary { cursor: pointer; font-weight: 600; }
 .toast-action { background: none; border: 0; color: inherit; font-weight: 700; text-decoration: underline; padding: 4px; }
 
 /* Atajos */
-.footer { max-width: 760px; margin: 0 auto; padding: 0 16px 32px; text-align: center; }
+.footer { max-width: 1240px; margin: 0 auto; padding: 0 16px 32px; text-align: center; }
 .shortcuts { text-align: left; margin-top: 8px; }
 .shortcuts dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
 .shortcuts dd { margin: 0; color: var(--muted); }
@@ -668,12 +669,13 @@ html, body { height: 100%; }
 body { overflow: hidden; }
 .ico { display: inline-grid; place-items: center; line-height: 0; }
 .app {
+  --left-w: 224px; --right-w: 260px; /* se pueden cambiar arrastrando el borde de cada panel */
   display: grid; height: 100%;
-  grid-template-columns: 52px 264px minmax(0, 1fr) 280px;
+  grid-template-columns: 52px var(--left-w) minmax(0, 1fr) var(--right-w);
   grid-template-areas: "ribbon left work right";
 }
-.app.left-collapsed { grid-template-columns: 52px 0 minmax(0, 1fr) 280px; }
-.app.right-collapsed { grid-template-columns: 52px 264px minmax(0, 1fr) 0; }
+.app.left-collapsed { grid-template-columns: 52px 0 minmax(0, 1fr) var(--right-w); }
+.app.right-collapsed { grid-template-columns: 52px var(--left-w) minmax(0, 1fr) 0; }
 .app.left-collapsed.right-collapsed { grid-template-columns: 52px 0 minmax(0, 1fr) 0; }
 .app.left-collapsed .side.left, .app.right-collapsed .side.right { visibility: hidden; }
 
@@ -694,21 +696,21 @@ body { overflow: hidden; }
 .rib.warn::after { content: ""; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--mid); border: 2px solid var(--side); }
 
 /* Paneles laterales */
-.side { background: var(--side); min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+.side { background: var(--side); min-width: 0; overflow: hidden; display: flex; flex-direction: column; position: relative; }
 .side.left { grid-area: left; border-right: 1px solid var(--border); }
 .side.right { grid-area: right; border-left: 1px solid var(--border); }
-.side-head { display: flex; align-items: center; gap: 4px; padding: 10px 10px 6px 14px; min-height: 44px; }
-.vault-name { flex: 1; font-weight: 700; font-size: .95rem; letter-spacing: .01em; }
+.side-head { display: flex; align-items: center; gap: 2px; padding: 8px 8px 4px 12px; min-height: 40px; }
+.vault-name { flex: 1; font-weight: 700; font-size: .88rem; letter-spacing: .01em; }
 .side-btn {
   border: 0; background: none; color: var(--muted); padding: 6px; border-radius: 6px; line-height: 0;
 }
 .side-btn:hover { background: var(--side-hover); color: var(--text); }
 .side-tabs { display: flex; gap: 2px; padding: 0 8px 6px; border-bottom: 1px solid var(--border); }
 .side.right .side-head .side-tabs { border: 0; padding: 0; flex: 1; }
-.stab { border: 0; background: none; padding: 5px 10px; border-radius: 6px; font-size: .82rem; color: var(--muted); }
+.stab { border: 0; background: none; padding: 4px 8px; border-radius: 6px; font-size: .78rem; color: var(--muted); }
 .stab:hover { background: var(--side-hover); color: var(--text); }
 .stab.active { color: var(--text); background: var(--side-hover); font-weight: 600; }
-.lpane, .rpane { flex: 1; overflow: auto; padding: 6px 6px 24px; }
+.lpane, .rpane { flex: 1; overflow: auto; padding: 4px 4px 24px; }
 .side.right .rpane { padding: 8px 12px 24px; border-top: 1px solid var(--border); }
 .side-empty { font-size: .82rem; padding: 8px; margin: 0; }
 .mobile-only { display: none; }
@@ -718,7 +720,7 @@ body { overflow: hidden; }
 .tree-row {
   display: flex; align-items: center; gap: 4px; width: 100%; text-align: left;
   border: 0; background: none; color: var(--text); border-radius: 6px;
-  padding: 4px 8px; font-size: .88rem; cursor: pointer; position: relative;
+  padding: 3px 8px; font-size: .82rem; line-height: 1.35; cursor: pointer; position: relative;
 }
 .tree-row:hover { background: var(--side-hover); }
 .tree-row.file { color: color-mix(in srgb, var(--text) 85%, var(--muted)); }
@@ -727,7 +729,7 @@ body { overflow: hidden; }
 .tree-row.drop { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .file-tree.drop { outline: 2px dashed var(--accent); outline-offset: -4px; border-radius: 8px; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-count { font-size: .72rem; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.tree-count { font-size: .68rem; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .chev { color: var(--muted); transition: transform .15s; display: inline-grid; }
 .chev svg { width: 14px; height: 14px; }
 .chev.open { transform: rotate(90deg); }
@@ -1258,3 +1260,11 @@ body { overflow: hidden; }
 .cv-hint { position: absolute; left: 12px; right: 12px; bottom: 10px; margin: 0; font-size: .8rem; text-align: center; pointer-events: none; }
 @media (hover: none) { .cv-card .cv-dot, .cv-card .cv-resize { opacity: .9; } .cv-dot { width: 18px; height: 18px; } }
 @media (max-width: 599px) { .cv-viewport { height: calc(100vh - 250px); } .cv-zoom-tools { margin-left: 0; } }
+
+/* Asa para cambiar el ancho de los paneles laterales */
+.side-resize { position: absolute; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 3; touch-action: none; }
+.side.left .side-resize { right: -3px; }
+.side.right .side-resize { left: -3px; }
+.side-resize:hover, .side-resize.dragging, .side-resize:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); outline: none; }
+body.resizing-panel { cursor: col-resize; user-select: none; }
+@media (max-width: 899px) { .side-resize { display: none; } }

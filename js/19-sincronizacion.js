@@ -109,6 +109,22 @@ function removeBucket(name) {
   if (name.startsWith('note-')) state.notes = state.notes.filter((n) => `note-${n.id}` !== name);
 }
 
+function dedupeNotes() {
+  const keep = new Map();
+  const drop = new Set();
+  state.notes
+    .slice()
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || a.id.localeCompare(b.id))
+    .forEach((n) => {
+      const key = `${n.path}\u0000${n.enc ? JSON.stringify(n.enc) : n.body}`;
+      if (keep.has(key)) drop.add(n.id);
+      else keep.set(key, n);
+    });
+  if (!drop.size) return false;
+  state.notes = state.notes.filter((n) => !drop.has(n.id));
+  return true;
+}
+
 function scheduleSync() {
   if (!sync.col) return;
   setSyncStatus('saving');
@@ -211,6 +227,10 @@ function receiveSnapshot(snap, first) {
     delete meta.times[name];
     changed = true;
   }
+
+  // Cada dispositivo pudo crear su propia nota de bienvenida (u otra igual): las copias idénticas
+  // (misma ruta y mismo texto) se juntan en la más antigua.
+  if (dedupeNotes()) changed = true;
 
   if (changed) {
     saveLocal();

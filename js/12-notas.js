@@ -340,8 +340,16 @@ const savePanels = () => {
 };
 const isNarrow = () => window.matchMedia('(max-width: 899px)').matches;
 
+const PANEL_WIDTH = { left: [224, 170, 420], right: [260, 200, 460] }; // por defecto, mínimo, máximo
+
 function applyPanels() {
   const app = $('#app');
+  ['left', 'right'].forEach((side) => {
+    const [def, min, max] = PANEL_WIDTH[side];
+    const w = Math.min(max, Math.max(min, Number(panels[`${side}W`]) || def));
+    app.style.setProperty(`--${side}-w`, `${w}px`);
+    $(`.side-resize[data-side="${side}"]`)?.setAttribute('aria-valuenow', String(w));
+  });
   app.classList.toggle('left-collapsed', !panels.left);
   app.classList.toggle('right-collapsed', !panels.right);
   $$('[data-lpane]').forEach((b) => b.classList.toggle('active', b.dataset.lpane === panels.lpane));
@@ -353,6 +361,46 @@ function applyPanels() {
   $('#rp-outline').hidden = panels.rpane !== 'outline';
   $('#rp-graph').hidden = panels.rpane !== 'graph';
 }
+
+// Arrastrar el borde de un panel cambia su ancho (se recuerda en este dispositivo).
+$$('.side-resize').forEach((handle) => {
+  const side = handle.dataset.side;
+  const setWidth = (w) => {
+    const [, min, max] = PANEL_WIDTH[side];
+    panels[`${side}W`] = Math.round(Math.min(max, Math.max(min, w)));
+    applyPanels();
+  };
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = $(`#${side}-panel`).getBoundingClientRect().width;
+    handle.classList.add('dragging');
+    document.body.classList.add('resizing-panel');
+    const onMove = (ev) => setWidth(startW + (side === 'left' ? ev.clientX - startX : startX - ev.clientX));
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      handle.classList.remove('dragging');
+      document.body.classList.remove('resizing-panel');
+      savePanels();
+      if (activeTab()?.type === 'graph') globalGraph?.resize();
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  });
+  handle.addEventListener('dblclick', () => {
+    delete panels[`${side}W`];
+    applyPanels();
+    savePanels();
+  });
+  handle.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const grow = (e.key === 'ArrowRight') === (side === 'left');
+    setWidth($(`#${side}-panel`).getBoundingClientRect().width + (grow ? 16 : -16));
+    savePanels();
+  });
+});
 
 function toggleSide(side) {
   if (isNarrow()) {
