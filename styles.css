@@ -666,7 +666,8 @@ textarea.notes:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
    Interfaz de notas: barra de iconos | panel izquierdo | espacio de trabajo | panel derecho
    ========================================================= */
 html, body { height: 100%; }
-body { overflow: hidden; }
+html, body { overflow: hidden; }
+.app { overflow: hidden; grid-template-rows: minmax(0, 1fr); }
 .ico { display: inline-grid; place-items: center; line-height: 0; }
 .app {
   --left-w: 224px; --right-w: 260px; /* se pueden cambiar arrastrando el borde de cada panel */
@@ -683,6 +684,18 @@ body { overflow: hidden; }
 .ribbon {
   grid-area: ribbon; display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 10px 0; background: var(--side); border-right: 1px solid var(--border);
+  min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; /* con pantallas bajas, la barra se desplaza sola */
+}
+.ribbon::-webkit-scrollbar { display: none; }
+.rib { flex: none; }
+/* Pantallas bajas (portátiles, ventanas pequeñas): iconos y huecos más compactos */
+@media (max-height: 780px) {
+  .ribbon { gap: 0; padding: 6px 0; }
+  .rib { width: 34px; height: 31px; }
+  .rib svg { width: 18px; height: 18px; }
+  .rib-sep { margin: 3px 0; }
+  .side-head { min-height: 36px; padding-top: 6px; }
+  .ws-bar, .note-toolbar { min-height: 0; }
 }
 .rib {
   width: 38px; height: 38px; padding: 0; border: 0; border-radius: 8px; background: none;
@@ -1272,7 +1285,8 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 /* ---------- Claude en una nota ---------- */
 .note-ai { border-top: 1px solid var(--border); background: var(--surface); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; max-height: 55%; overflow: auto; box-shadow: 0 -6px 18px rgb(0 0 0 / .06); }
 .note-ai[hidden] { display: none; }
-.na-head { display: flex; align-items: center; gap: 10px; }
+.na-head { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; }
+.na-head .na-note { max-width: 55%; }
 .na-head .muted { flex: 1; font-size: .82rem; }
 .na-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .na-actions .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
@@ -1337,3 +1351,27 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .shared-item.done .si-text { text-decoration: line-through; color: var(--muted); }
 .si-meta { font-size: .75rem; }
 #shared-error:empty { display: none; }
+
+/* Preguntar: el título queda arriba y la caja de pregunta abajo, aunque la conversación crezca */
+#view-ask .ask-head { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 6px 0; }
+
+/* Claude en la nota: al lado de la nota cuando hay sitio (la nota sigue a la vista) */
+.note-pane.ai-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 36%); grid-template-rows: auto minmax(0, 1fr); }
+.note-pane.ai-side > .note-toolbar { grid-column: 1 / -1; }
+.note-pane.ai-side > .note-scroll { grid-column: 1; grid-row: 2; }
+.note-pane.ai-side > .note-ai { grid-column: 2; grid-row: 2; max-height: none; border-top: 0; border-left: 1px solid var(--border); box-shadow: none; }
+.note-pane.ai-side .na-result { max-height: none; }
+.na-note { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Abajo (pantallas estrechas o bajas): más compacto para no tapar la nota */
+.note-pane:not(.ai-side) > .note-ai { max-height: 46%; padding: 8px 12px 10px; gap: 6px; }
+.note-pane:not(.ai-side) .na-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.note-pane:not(.ai-side) .na-actions .chip { flex: none; }
+.note-pane:not(.ai-side) .na-result { max-height: 22vh; }
+.note-ai > .na-head, .note-ai > .na-actions, .note-ai > .na-form { flex: none; }
+.note-ai > .na-out { flex: 1 1 auto; min-height: 90px; }
+.note-pane:not(.ai-side) .na-out .na-result { max-height: none; flex: 1 1 auto; min-height: 0; overflow: auto; }
+.note-pane:not(.ai-side) .na-out { min-height: 0; overflow: hidden; }
+.note-pane.ai-side .note-ai > .na-out { flex: none; min-height: 0; }
+.note-pane.ai-side .na-actions .chip { font-size: .82rem; padding: 3px 10px; }
+.note-pane:not(.ai-side) > .note-ai { max-height: 56%; }
+.note-pane:not(.ai-side) .note-ai > .na-out { min-height: 120px; }

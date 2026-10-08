@@ -187,7 +187,7 @@ function showDumpConvert(entry) {
   );
   update();
   box.hidden = false;
-  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  reveal(box, { smooth: true });
 }
 
 function showToastMessage(message) {

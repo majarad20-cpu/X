@@ -139,7 +139,7 @@ function renderAsk() {
   $('#ask-empty').hidden = askState.turns.length > 0 || !aiReady();
   $('#ask-save').hidden = !askState.turns.some((t) => t.role === 'assistant' && t.content);
   $('#ask-clear').hidden = !askState.turns.length;
-  list.lastElementChild?.scrollIntoView({ block: 'end' });
+  reveal(list.lastElementChild, { block: 'end' });
 }
 
 async function sendQuestion(question) {

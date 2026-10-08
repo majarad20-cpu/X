@@ -190,6 +190,31 @@ function save() {
 }
 
 // ---------- Utilidades ----------
+// Desplaza solo el contenedor con barra de desplazamiento más cercano para que se vea `el`.
+// (scrollIntoView movería también la página entera, que debe quedarse quieta.)
+function reveal(el, { block = 'nearest', smooth = false } = {}) {
+  if (!el) return;
+  let box = el.parentElement;
+  while (box && box !== document.body) {
+    const oy = getComputedStyle(box).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && box.scrollHeight > box.clientHeight) break;
+    box = box.parentElement;
+  }
+  if (!box || box === document.body) return;
+  const r = el.getBoundingClientRect();
+  const b = box.getBoundingClientRect();
+  let top = null;
+  if (block === 'start') top = box.scrollTop + r.top - b.top - 8;
+  else if (block === 'end') top = box.scrollTop + r.bottom - b.bottom + 8;
+  else if (r.top < b.top) top = box.scrollTop + r.top - b.top - 8;
+  else if (r.bottom > b.bottom) top = box.scrollTop + r.bottom - b.bottom + 8;
+  if (top !== null) box.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+}
+
+// La página en sí nunca se desplaza: si algo la mueve, vuelve a su sitio.
+window.addEventListener('scroll', () => {
+  if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+});
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
