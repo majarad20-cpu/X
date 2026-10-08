@@ -70,6 +70,7 @@ function openNoteAI() {
   noteAI.result = '';
   noteAI.error = '';
   $('#note-ai').hidden = false;
+  layoutNoteAI();
   renderNoteAI();
   $('#note-ai-input').focus();
 }
@@ -78,13 +79,23 @@ function closeNoteAI() {
   noteAI.ctl?.abort();
   noteAI.noteId = null;
   $('#note-ai').hidden = true;
+  layoutNoteAI();
 }
+
+// Con sitio, el panel va al lado de la nota (que sigue entera a la vista); si no, debajo y compacto.
+function layoutNoteAI() {
+  const pane = $('#note-pane');
+  pane.classList.toggle('ai-side', !$('#note-ai').hidden && pane.clientWidth >= 720);
+}
+new ResizeObserver(() => layoutNoteAI()).observe($('#note-pane'));
 
 function renderNoteAI() {
   const note = noteById(noteAI.noteId);
   if (!note) return closeNoteAI();
   const scope = noteAI.sel ? `Sobre el texto seleccionado (${plural(noteAI.sel.text.split(/\s+/).filter(Boolean).length, 'palabra', 'palabras')})` : 'Sobre toda la nota';
   $('#note-ai-scope').textContent = scope;
+  $('#note-ai-note').textContent = `«${baseName(note.path)}»`;
+  $('#note-ai-note').title = note.path;
   $$('#note-ai [data-ai-action]').forEach((b) => {
     b.disabled = noteAI.busy;
     b.classList.toggle('active', b.dataset.aiAction === noteAI.action);

@@ -788,7 +788,7 @@ function scrollToHeading(note, heading) {
     const scroller = $('#note-scroll');
     scroller.scrollTop = ta.offsetTop + (h.line / Math.max(1, note.body.split('\n').length)) * ta.scrollHeight - 40;
   } else {
-    setTimeout(() => document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    setTimeout(() => reveal(document.getElementById(h.id), { block: 'start', smooth: true }));
   }
 }
 
@@ -1135,7 +1135,7 @@ function suggestKey(e) {
     e.preventDefault();
     suggestState.index = (suggestState.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
     $$('#link-suggest .sg-item').forEach((li, i) => li.classList.toggle('active', i === suggestState.index));
-    $('#link-suggest .sg-item.active')?.scrollIntoView({ block: 'nearest' });
+    reveal($('#link-suggest .sg-item.active'));
     return true;
   }
   if (e.key === 'Enter' || e.key === 'Tab') {
@@ -1218,7 +1218,7 @@ function renderPicker() {
     })
   );
   if (!picker.list.length) $('#picker-list').append(el('li', { className: 'pk-empty' }, 'Sin resultados'));
-  $('#picker-list .pk-item.active')?.scrollIntoView({ block: 'nearest' });
+  reveal($('#picker-list .pk-item.active'));
 }
 
 function runPicker(i, newTab = false) {

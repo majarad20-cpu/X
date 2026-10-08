@@ -770,7 +770,7 @@ function renderWeek() {
         el('span', { className: 'sd-num' }, String(d.getDate())),
         el('span', { className: `sd-count${pending ? '' : ' zero'}` }, pending ? String(pending) : '·'),
       ]);
-      btn.addEventListener('click', () => document.getElementById(`day-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      btn.addEventListener('click', () => reveal(document.getElementById(`day-${key}`), { block: 'start', smooth: true }));
       return btn;
     })
   );
