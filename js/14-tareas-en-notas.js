@@ -5,7 +5,7 @@
 //   📅 2026-10-08  o  📅 mañana   fecha     ⏰ 17:30  hora      !alta  prioridad
 //   #etiqueta                     etiquetas +proyecto proyecto  ✅ 2026-10-07  completada ese día
 // En una nota diaria (Diario/AAAA-MM-DD), las tareas sin fecha son de ese día.
-const NOTE_TASK_RE = /^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)$/;
+const NOTE_TASK_RE = /^(\s*)[-*+]\s+\[([ xX/])\]\s+(.*)$/;
 let noteTaskCache = { stamp: '', list: [] };
 
 function projectFromToken(text) {
@@ -48,6 +48,7 @@ function parseNoteTask(note, idx, raw) {
     line: idx,
     title: title || text.trim(),
     done: m[2].toLowerCase() === 'x',
+    status: m[2] === '/' ? 'doing' : null,
     doneOn,
     due: due || (daily ? daily[1] : null),
     time,
@@ -62,16 +63,30 @@ function noteTasks() {
   const stamp = `${dataRev}:${state.notes.length}:${state.projects.length}`;
   if (noteTaskCache.stamp === stamp) return noteTaskCache.list;
   const list = [];
+  // Cada nota se vuelve a leer solo si cambió su texto, su ruta, los proyectos o el día.
+  const ctx = `${state.projects.map((p) => `${p.id}=${p.name}`).join('|')}#${dateKey()}`;
+  const perNote = new Map();
   state.notes.forEach((note) => {
-    let inCode = false;
-    note.body.split('\n').forEach((line, idx) => {
-      if (/^\s*```/.test(line)) inCode = !inCode;
-      if (inCode) return;
-      const t = parseNoteTask(note, idx, line);
-      if (t) list.push(t);
-    });
+    const prev = noteTaskCache.perNote?.get(note.id);
+    if (prev && prev.body === note.body && prev.path === note.path && prev.ctx === ctx) {
+      perNote.set(note.id, prev);
+      list.push(...prev.tasks);
+      return;
+    }
+    const tasks = [];
+    if (note.body.includes('[')) {
+      let inCode = false;
+      note.body.split('\n').forEach((line, idx) => {
+        if (/^\s*```/.test(line)) inCode = !inCode;
+        if (inCode) return;
+        const t = parseNoteTask(note, idx, line);
+        if (t) tasks.push(t);
+      });
+    }
+    perNote.set(note.id, { body: note.body, path: note.path, ctx, tasks });
+    list.push(...tasks);
   });
-  noteTaskCache = { stamp, list };
+  noteTaskCache = { stamp, list, perNote };
   return list;
 }
 
@@ -84,7 +99,7 @@ function toggleNoteTask(noteId, line, done) {
   if (!t || t.done === done) return;
   const today = dateKey();
   if (done) {
-    lines[line] = `${lines[line].replace(/\[ \]/, '[x]').replace(/\s*✅\s*\d{4}-\d{2}-\d{2}/u, '')} ✅ ${today}`;
+    lines[line] = `${lines[line].replace(/\[[ /]\]/, '[x]').replace(/\s*✅\s*\d{4}-\d{2}-\d{2}/u, '')} ✅ ${today}`;
     bump(state.completions, today, 1);
     logEvent('task', t.title, { ref: `${noteId}:${t.title}`, detail: `📝 ${baseName(note.path)}` });
   } else {
@@ -120,6 +135,7 @@ function noteTaskItem(t) {
   const check = el('input', { type: 'checkbox', checked: t.done, ariaLabel: 'Completar' });
   check.addEventListener('change', () => toggleNoteTask(t.noteId, t.line, check.checked));
   const meta = el('div', { className: 'meta' }, PRIORITY_LABEL[t.priority]);
+  if (t.status === 'doing' && !t.done) meta.prepend(el('span', { className: 'doing-badge' }, '◐ En curso'), ' · ');
   if (t.due) {
     const overdue = !t.done && t.due < dateKey();
     meta.append(' · ', el('span', { className: overdue ? 'overdue' : '' }, (overdue ? 'Vencida: ' : '') + formatDue(t.due)));

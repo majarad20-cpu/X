@@ -14,6 +14,7 @@ const ICONS = {
   bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>',
   timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/>',
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.4-2.3-5.6-4-7.4-.3 2.2-1.3 3.3-2.4 3.8C13 8.7 11.6 5 9 2c0 4-4 6.6-4 11.4C5 19.3 8 22 12 22z"/>',
+  canvas: '<rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6h4M17.5 9v6"/>',
   sparkle: '<path d="M12 3l1.8 4.9L19 9.7l-5.2 1.8L12 16.5l-1.8-5L5 9.7l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   review: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/>',
   chart: '<path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-9"/>',
@@ -61,13 +62,52 @@ const folderOf = (path) => path.split('/').slice(0, -1).join('/');
 const joinPath = (folder, name) => (folder ? `${folder}/${name}` : name);
 const cleanName = (s) => s.replace(/[\\/:*?"<>|[\]#^]/g, ' ').replace(/\s+/g, ' ').trim();
 
+// Índice de notas por ruta, por nombre y por id. Se rehace cuando cambian los datos (dataRev)
+// o la lista de notas; cada acierto se comprueba, así que un índice viejo nunca da una nota equivocada.
+const noteIndex = { key: '', list: null, byPath: new Map(), byName: new Map(), byId: new Map(), resolved: new Map() };
+
+function notesIndexed() {
+  const key = `${dataRev}:${state.notes.length}`;
+  if (noteIndex.key === key && noteIndex.list === state.notes) return noteIndex;
+  noteIndex.key = key;
+  noteIndex.list = state.notes;
+  noteIndex.byPath = new Map();
+  noteIndex.byName = new Map();
+  noteIndex.byId = new Map();
+  noteIndex.resolved = new Map();
+  for (const x of state.notes) {
+    const lower = x.path.toLowerCase();
+    if (!noteIndex.byPath.has(lower)) noteIndex.byPath.set(lower, x);
+    const name = baseName(lower);
+    if (!noteIndex.byName.has(name)) noteIndex.byName.set(name, x);
+    noteIndex.byId.set(x.id, x);
+  }
+  return noteIndex;
+}
+
 function findNoteByName(name) {
+  const idx = notesIndexed();
+  // Los enlaces se repiten mucho (grafo, enlaces entrantes): cada texto se resuelve una vez por versión.
+  if (idx.resolved.has(name)) return idx.resolved.get(name);
+  const found = resolveNoteName(name, idx);
+  idx.resolved.set(name, found);
+  return found;
+}
+
+function resolveNoteName(name, idx) {
   const n = name.trim().replace(/\.md$/i, '').toLowerCase();
   if (!n) return null;
+  const hit = idx.byPath.get(n) || idx.byName.get(n);
+  // Sin acierto, el índice (que se rehace al cambiar rutas) es fiable: no hay tal nota.
+  if (!hit) return null;
+  if (hit.path.toLowerCase() === n || baseName(hit.path).toLowerCase() === n) return hit;
   return state.notes.find((x) => x.path.toLowerCase() === n) || state.notes.find((x) => baseName(x.path).toLowerCase() === n) || null;
 }
 
-const noteById = (id) => state.notes.find((n) => n.id === id);
+function noteById(id) {
+  const hit = notesIndexed().byId.get(id);
+  return hit && hit.id === id ? hit : state.notes.find((n) => n.id === id);
+}
 
 function allFolders() {
   const set = new Set(state.folders);
@@ -86,7 +126,28 @@ function uniquePath(folder, name) {
 }
 
 // Enlaces [[...]] de un texto, sin contar los que están dentro de bloques de código.
+// Los resultados se recuerdan por texto: el grafo, los enlaces entrantes y las consultas
+// vuelven a pedir los mismos cuerpos de nota muchas veces.
+const parseMemo = { links: new Map(), tags: new Map() };
+function memoBy(map, body, fn) {
+  let v = map.get(body);
+  if (v === undefined) {
+    if (map.size > 8000) map.clear();
+    v = fn(body);
+    map.set(body, v);
+  }
+  return v;
+}
+
 function linksIn(body) {
+  return memoBy(parseMemo.links, body, parseLinks);
+}
+
+function tagsIn(body) {
+  return memoBy(parseMemo.tags, body, parseTags);
+}
+
+function parseLinks(body) {
   const out = [];
   let inCode = false;
   body.split('\n').forEach((line, idx) => {
@@ -99,7 +160,7 @@ function linksIn(body) {
   return out;
 }
 
-function tagsIn(body) {
+function parseTags(body) {
   const tags = new Set();
   let inCode = false;
   body.split('\n').forEach((line) => {
@@ -179,6 +240,7 @@ function movePath(note, newPath) {
   }
   const oldPath = note.path;
   note.path = newPath;
+  noteIndex.key = '';
   note.updatedAt = Date.now();
   const changed = relinkAll(oldPath, newPath);
   save();
@@ -201,8 +263,8 @@ function deleteNote(note) {
 
 // ---------- Pestañas del espacio de trabajo ----------
 const TABS_KEY = 'enfoque:tabs';
-const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', settings: 'Ajustes' };
-const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', settings: 'gear' };
+const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', canvas: 'Lienzos', settings: 'Ajustes' };
+const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', canvas: 'canvas', settings: 'gear' };
 const noteMode = new Map(); // id -> 'edit' | 'read'
 let ws = { tabs: [{ type: 'view', view: 'today' }], active: 0 };
 try {
@@ -375,6 +437,7 @@ function renameFolder(oldPath, newName) {
       const p = newPath + n.path.slice(oldPath.length);
       relinkAll(n.path, p);
       n.path = p;
+      noteIndex.key = '';
     }
   });
   state.folders = state.folders.map((f) => (f === oldPath || f.startsWith(prefix) ? newPath + f.slice(oldPath.length) : f));
@@ -395,16 +458,40 @@ function moveNoteToFolder(note, folder) {
   movePath(note, joinPath(folder, baseName(note.path)));
 }
 
+let treeKey = '';
+
 function renderTree() {
   const current = activeNote();
   const folders = allFolders();
+  // Si no cambió ninguna ruta, ni la nota activa, ni las carpetas plegadas, el árbol se deja como está.
+  const key = [[...collapsedFolders].join('|'), folders.join('|'), state.notes.map((n) => n.path).join('\n')].join('\u0000');
+  if (key === treeKey && $('#file-tree').childElementCount) {
+    // Solo cambió la nota abierta: se mueve el resaltado.
+    $$('#file-tree .tree-row.file.active').forEach((r) => r.classList.remove('active'));
+    if (current) $(`#file-tree .tree-row.file[data-id="${CSS.escape(current.id)}"]`)?.classList.add('active');
+    return;
+  }
+  treeKey = key;
+  // Notas agrupadas por carpeta y número de notas dentro de cada carpeta (subcarpetas incluidas).
+  const byFolder = new Map();
+  const counts = new Map();
+  for (const n of state.notes) {
+    const f = folderOf(n.path);
+    if (!byFolder.has(f)) byFolder.set(f, []);
+    byFolder.get(f).push(n);
+    for (let i = f.indexOf('/'); ; i = f.indexOf('/', i + 1)) {
+      const part = i < 0 ? f : f.slice(0, i);
+      if (part) counts.set(part, (counts.get(part) || 0) + 1);
+      if (i < 0) break;
+    }
+  }
   const build = (folder, depth) => {
     const nodes = [];
     folders
       .filter((f) => folderOf(f) === folder)
       .forEach((f) => {
         const open = !collapsedFolders.has(f);
-        const count = state.notes.filter((n) => n.path.startsWith(`${f}/`)).length;
+        const count = counts.get(f) || 0;
         const row = el('div', { className: 'tree-row folder', role: 'treeitem', ariaExpanded: String(open), title: f, tabIndex: 0 }, [
           el('span', { className: `chev${open ? ' open' : ''}` }, ico('chevron')),
           el('span', { className: 'tree-name' }, baseName(f)),
@@ -416,6 +503,7 @@ function renderTree() {
           e.stopPropagation();
           showMenu(more, [
             { label: 'Nueva nota aquí', action: () => createNote({ folder: f }) },
+            { label: 'Ver como tabla', action: () => openFolderTable(f) },
             { label: 'Nueva subcarpeta', action: () => promptText({ placeholder: 'Nombre de la subcarpeta', action: 'Crear carpeta', onSubmit: (v) => createFolder(joinPath(f, v)) }) },
             { label: 'Renombrar', action: () => promptText({ placeholder: 'Nuevo nombre', initial: baseName(f), action: 'Renombrar', onSubmit: (v) => renameFolder(f, v) }) },
             { label: 'Eliminar carpeta', danger: true, action: () => deleteFolder(f) },
@@ -443,13 +531,14 @@ function renderTree() {
         nodes.push(row);
         if (open) nodes.push(...build(f, depth + 1));
       });
-    state.notes
-      .filter((n) => folderOf(n.path) === folder)
+    (byFolder.get(folder) || [])
+      .slice()
       .sort((a, b) => baseName(a.path).localeCompare(baseName(b.path), 'es', { numeric: true }))
       .forEach((n) => {
         const row = el('button', { className: `tree-row file${current && current.id === n.id ? ' active' : ''}`, role: 'treeitem', title: n.path, draggable: true }, [
           el('span', { className: 'tree-name' }, baseName(n.path)),
         ]);
+        row.dataset.id = n.id;
         row.style.paddingLeft = `${22 + depth * 14}px`;
         row.addEventListener('click', (e) => openNote(n, { newTab: e.ctrlKey || e.metaKey }));
         row.addEventListener('auxclick', (e) => {
@@ -662,8 +751,31 @@ function autosize(ta) {
   ta.style.height = `${ta.scrollHeight + 4}px`;
 }
 
+// Texto de una nota. Las notas con contraseña (27-notas-protegidas.js) guardan en `body` solo un
+// aviso; su texto real vive cifrado en `enc` y, una vez desbloqueadas, en memoria (unlockedNotes).
+const unlockedNotes = new Map();
+const noteText = (note) => (note.enc ? unlockedNotes.get(note.id) ?? null : note.body);
+
+// Opciones extra del menú ⋯ de la nota (las añaden otros módulos): (nota) => opción | null.
+const NOTE_MENU_EXTRA = [];
+
 function renderNotePane(note) {
-  const mode = noteMode.get(note.id) || (note.body.trim() ? 'read' : 'edit');
+  const text = noteText(note);
+  const locked = text === null || (lockUI.mode === 'setup' && lockUI.noteId === note.id);
+  $('#note-lock').hidden = !locked;
+  if (locked) {
+    // Nota protegida y bloqueada: se pide la contraseña.
+    const folder = folderOf(note.path);
+    $('#note-crumbs').replaceChildren(...(folder ? folder.split('/').flatMap((f) => [el('span', {}, f), el('span', { className: 'sep' }, '/')]) : []), el('span', { className: 'crumb-name' }, `🔒 ${baseName(note.path)}`));
+    if (document.activeElement !== $('#note-title')) $('#note-title').value = baseName(note.path);
+    $('#note-editor').hidden = true;
+    $('#note-reading').hidden = true;
+    renderLockPanel(note);
+    $('#status-note').textContent = text === null ? 'Nota protegida con contraseña' : '';
+    return;
+  }
+  ensureBaseline(note);
+  const mode = noteMode.get(note.id) || (text.trim() ? 'read' : 'edit');
   noteMode.set(note.id, mode);
   const folder = folderOf(note.path);
   $('#note-crumbs').replaceChildren(...(folder ? folder.split('/').flatMap((f) => [el('span', {}, f), el('span', { className: 'sep' }, '/')]) : []), el('span', { className: 'crumb-name' }, baseName(note.path)));
@@ -679,19 +791,19 @@ function renderNotePane(note) {
   btn.ariaLabel = btn.title;
   paintIcons(btn);
   if (mode === 'edit') {
-    if (ta.dataset.note !== note.id || (document.activeElement !== ta && ta.value !== note.body)) {
-      ta.value = note.body;
+    if (ta.dataset.note !== note.id || (document.activeElement !== ta && ta.value !== text)) {
+      ta.value = text;
       ta.dataset.note = note.id;
     }
     autosize(ta);
   } else {
     reading.dataset.note = note.id;
-    reading.innerHTML = note.body.trim() ? renderMd(note.body, { noteId: note.id }) : '<p class="muted">Nota vacía. Haz doble clic o pulsa Ctrl+E para escribir.</p>';
+    reading.innerHTML = text.trim() ? renderMd(text, { noteId: note.id, noTasks: !!note.enc }) : '<p class="muted">Nota vacía. Haz doble clic o pulsa Ctrl+E para escribir.</p>';
     hydrateQueries(reading, note.id);
   }
-  const words = note.body.split(/\s+/).filter(Boolean).length;
+  const words = text.split(/\s+/).filter(Boolean).length;
   const { linked } = backlinksOf(note);
-  $('#status-note').textContent = `${plural(words, 'palabra', 'palabras')} · ${plural(note.body.length, 'carácter', 'caracteres')} · ${plural(linked.length, 'enlace entrante', 'enlaces entrantes')}`;
+  $('#status-note').textContent = `${note.enc ? '🔒 ' : ''}${plural(words, 'palabra', 'palabras')} · ${plural(text.length, 'carácter', 'caracteres')} · ${plural(linked.length, 'enlace entrante', 'enlaces entrantes')}`;
 }
 
 function setNoteMode(note, mode) {
@@ -729,7 +841,12 @@ $('#note-reading').addEventListener('dblclick', (e) => {
 $('#note-editor').addEventListener('input', (e) => {
   const note = activeNote();
   if (!note) return;
-  note.body = e.target.value;
+  if (note.enc) {
+    // Nota protegida: el texto se queda en memoria y se vuelve a cifrar (nunca se guarda en claro).
+    if (!unlockedNotes.has(note.id)) return;
+    unlockedNotes.set(note.id, e.target.value);
+    scheduleEncrypt(note);
+  } else note.body = e.target.value;
   note.updatedAt = Date.now();
   dataRev++;
   autosize(e.target);
@@ -737,10 +854,12 @@ $('#note-editor').addEventListener('input', (e) => {
   noteSaveTimer = setTimeout(() => {
     noteSaveTimer = null;
     save();
+    snapshotNote(note);
     renderSidePanes();
     renderRightPanel();
-    const words = note.body.split(/\s+/).filter(Boolean).length;
-    $('#status-note').textContent = `${plural(words, 'palabra', 'palabras')} · ${plural(note.body.length, 'carácter', 'caracteres')}`;
+    const text = noteText(note) ?? '';
+    const words = text.split(/\s+/).filter(Boolean).length;
+    $('#status-note').textContent = `${note.enc ? '🔒 ' : ''}${plural(words, 'palabra', 'palabras')} · ${plural(text.length, 'carácter', 'caracteres')}`;
   }, 500);
   updateSuggest();
 });
@@ -759,7 +878,7 @@ $('#note-editor').addEventListener('keydown', (e) => {
   const lineStart = value.lastIndexOf('\n', s - 1) + 1;
   const line = value.slice(lineStart, s);
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && s === end) {
-    const m = line.match(/^(\s*)([-*+]|(\d+)([.)]))\s+(\[[ xX]\]\s+)?/);
+    const m = line.match(/^(\s*)([-*+]|(\d+)([.)]))\s+(\[[ xX/]\]\s+)?/);
     if (!m) return;
     e.preventDefault();
     if (line.trim() === m[0].trim()) {
@@ -858,7 +977,8 @@ $('#note-more').addEventListener('click', () => {
       if (isNarrow()) toggleSide('right');
       renderRightPanel();
     } },
-    { label: 'Duplicar', action: () => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false }) },
+    ...NOTE_MENU_EXTRA.map((f) => f(note)).filter(Boolean),
+    ...(note.enc ? [] : [{ label: 'Duplicar', action: () => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false }) }]),
     { label: 'Eliminar nota', danger: true, action: () => deleteNote(note) },
   ]);
 });
@@ -897,7 +1017,8 @@ function updateSuggest() {
   const ta = $('#note-editor');
   const before = ta.value.slice(0, ta.selectionStart);
   const m = before.match(/\[\[([^\]\n|#]*)$/);
-  if (!m) return hideSuggest();
+  // Sin [[ abierto, quizá es un comando «/» (24-comando-barra.js).
+  if (!m) return slashSuggest(ta, before);
   const q = m[1].toLowerCase();
   const current = activeNote();
   const items = state.notes
@@ -907,11 +1028,19 @@ function updateSuggest() {
     .map((n) => ({ label: baseName(n.path), detail: folderOf(n.path), insert: baseName(n.path) }));
   if (m[1].trim() && !findNoteByName(m[1])) items.push({ label: `Enlazar nota nueva «${m[1].trim()}»`, detail: 'se creará al abrir el enlace', insert: m[1].trim() });
   if (!items.length) return hideSuggest();
-  suggestState = { items, index: 0, start: ta.selectionStart - m[1].length };
+  showSuggestBox(ta, items, ta.selectionStart - m[1].length);
+}
+
+// Muestra la lista de sugerencias bajo el cursor. Cada elemento inserta texto o, con `run`, hace algo.
+function showSuggestBox(ta, items, start) {
+  suggestState = { items, index: 0, start };
   const box = $('#link-suggest');
   box.replaceChildren(
     ...items.map((it, i) => {
-      const li = el('li', { className: `sg-item${i === 0 ? ' active' : ''}`, role: 'option' }, [el('span', { className: 'sg-label' }, it.label), it.detail ? el('span', { className: 'sg-detail' }, it.detail) : '']);
+      const text = [el('span', { className: 'sg-label' }, it.label), it.detail ? el('span', { className: 'sg-detail' }, it.detail) : ''];
+      const li = it.icon
+        ? el('li', { className: `sg-item has-icon${i === 0 ? ' active' : ''}`, role: 'option' }, [el('span', { className: 'sg-icon', ariaHidden: 'true' }, it.icon), el('span', { className: 'sg-text' }, text)])
+        : el('li', { className: `sg-item${i === 0 ? ' active' : ''}`, role: 'option' }, text);
       li.addEventListener('mousedown', (e) => {
         e.preventDefault();
         acceptSuggest(i);
@@ -934,6 +1063,12 @@ function hideSuggest() {
 function acceptSuggest(i) {
   const ta = $('#note-editor');
   const it = suggestState.items[i];
+  if (it.run) {
+    const start = suggestState.start;
+    hideSuggest();
+    it.run(ta, start, ta.selectionStart);
+    return;
+  }
   const after = ta.value.slice(ta.selectionStart);
   const close = after.startsWith(']]') ? '' : ']]';
   ta.setRangeText(`${it.insert}${close}`, suggestState.start, ta.selectionStart, 'end');
@@ -950,6 +1085,7 @@ function suggestKey(e) {
     e.preventDefault();
     suggestState.index = (suggestState.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
     $$('#link-suggest .sg-item').forEach((li, i) => li.classList.toggle('active', i === suggestState.index));
+    $('#link-suggest .sg-item.active')?.scrollIntoView({ block: 'nearest' });
     return true;
   }
   if (e.key === 'Enter' || e.key === 'Tab') {
@@ -1162,6 +1298,10 @@ function commands() {
       if (aiReady()) generateSummary();
     } },
     { label: 'Preguntar a tus notas (Claude)', action: ({ newTab }) => showView('ask', { newTab }) },
+    { label: 'Nuevo lienzo', action: () => {
+      showView('canvas');
+      $('#canvas-title').focus();
+    } },
     { label: 'Hacer la revisión semanal', action: ({ newTab }) => showView('review', { newTab }) },
     { label: 'Abrir vista de grafo', kbd: 'Ctrl+G', action: ({ newTab }) => openTab({ type: 'graph' }, { newTab }) },
     { label: 'Mostrar u ocultar el panel izquierdo', action: () => toggleSide('left') },
@@ -1243,7 +1383,14 @@ function renderWorkspace() {
       return b;
     })
   );
-  $('#ws-tabs .ws-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  // Solo la barra de pestañas se desplaza (scrollIntoView movería también el resto de la página).
+  const activeEl = $('#ws-tabs .ws-tab.active');
+  const bar = $('#ws-tabs');
+  if (activeEl && bar.scrollWidth > bar.clientWidth) {
+    const l = activeEl.offsetLeft, r = l + activeEl.offsetWidth;
+    if (l < bar.scrollLeft) bar.scrollLeft = l;
+    else if (r > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = r - bar.clientWidth;
+  }
 
   const isNote = tab.type === 'note';
   const isGraph = tab.type === 'graph';
@@ -1283,10 +1430,17 @@ const VIEW_RENDER = {
   projects: () => renderProjects(),
   journal: () => renderJournal(),
   ideas: () => renderIdeas(),
-  timer: () => renderTimer(),
+  timer: () => {
+    renderTimer();
+    renderTimerTaskOptions();
+  },
   habits: () => renderHabits(),
   progress: () => renderProgress(),
   review: () => renderReviewStep(),
+  canvas: () => {
+    renderCanvasView();
+    if (cv.id) requestAnimationFrame(applyView);
+  },
   ask: () => {
     renderAsk();
     if (aiReady()) $('#ask-input').focus();

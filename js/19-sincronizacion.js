@@ -11,6 +11,8 @@
 //   archive-AAAA-MM  tareas completadas archivadas ese mes
 //   log-AAAA-MM      bitácora de hitos de ese mes (se fusiona, no se pisa)
 //   map-<id>         cada mapa mental
+//   canvas-<id>      cada lienzo
+//   file-<id>        cada imagen (26-imagenes.js)
 //   note-<id>        cada nota
 // Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
 const sync = { col: null, writing: false, dirty: false, timeout: null };
@@ -47,6 +49,7 @@ function localBuckets() {
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
   archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
   state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
+  state.canvases.forEach((c) => out.set(`canvas-${c.id}`, { canvas: c }));
   state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
   return out;
 }
@@ -54,6 +57,7 @@ function localBuckets() {
 function bucketIsEmpty(name, data) {
   if (name === 'state') return !data.tasks?.length && !data.habits?.length && !data.projects?.length;
   if (name.startsWith('map-')) return !data.map;
+  if (name.startsWith('canvas-')) return !data.canvas;
   if (name.startsWith('note-')) return !data.note;
   return !data.items?.length;
 }
@@ -88,6 +92,10 @@ function applyBucket(name, data) {
     const i = state.notes.findIndex((x) => x.id === data.note.id);
     if (i >= 0) state.notes[i] = data.note;
     else state.notes.push(data.note);
+  } else if (name.startsWith('canvas-') && data.canvas) {
+    const i = state.canvases.findIndex((x) => x.id === data.canvas.id);
+    if (i >= 0) state.canvases[i] = data.canvas;
+    else state.canvases.push(data.canvas);
   } else if (name.startsWith('map-') && data.map) {
     const i = state.maps.findIndex((x) => x.id === data.map.id);
     if (i >= 0) state.maps[i] = data.map;
@@ -97,6 +105,7 @@ function applyBucket(name, data) {
 
 function removeBucket(name) {
   if (name.startsWith('map-')) state.maps = state.maps.filter((m) => `map-${m.id}` !== name);
+  if (name.startsWith('canvas-')) state.canvases = state.canvases.filter((c) => `canvas-${c.id}` !== name);
   if (name.startsWith('note-')) state.notes = state.notes.filter((n) => `note-${n.id}` !== name);
 }
 
@@ -136,12 +145,13 @@ async function pushState() {
     }
     // Mapas borrados en este dispositivo.
     for (const name of Object.keys(meta.sent)) {
-      if ((name.startsWith('map-') || name.startsWith('note-')) && !buckets.has(name)) {
+      if (/^(map|note|canvas)-/.test(name) && !buckets.has(name)) {
         await sync.col.doc(name).delete();
         delete meta.sent[name];
         delete meta.times[name];
       }
     }
+    await pushFiles();
     saveLocal();
     setSyncStatus(tooBig ? 'full' : 'synced');
   } catch {
@@ -165,6 +175,11 @@ function receiveSnapshot(snap, first) {
   for (const doc of snap.docs) {
     const name = doc.id;
     remoteNames.add(name);
+    // Las imágenes van aparte: no cambian y no forman parte del estado (26-imagenes.js).
+    if (name.startsWith('file-')) {
+      receiveFile(name, doc.data());
+      continue;
+    }
     const body = JSON.parse(JSON.stringify(doc.data()));
     const remoteAt = body.updatedAt || 0;
     delete body.updatedAt;
@@ -188,7 +203,7 @@ function receiveSnapshot(snap, first) {
 
   // Mapas que ya no están en la nube: otro dispositivo los borró (si aquí no cambiaron).
   for (const name of Object.keys(meta.sent)) {
-    if (remoteNames.has(name) || !(name.startsWith('map-') || name.startsWith('note-'))) continue;
+    if (remoteNames.has(name) || !/^(map|note|canvas)-/.test(name)) continue;
     const localData = local.get(name);
     if (localData && JSON.stringify(localData) !== meta.sent[name]) continue;
     removeBucket(name);

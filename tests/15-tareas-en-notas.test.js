@@ -15,7 +15,7 @@ const seed = {
   const p = await c.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type()==='error' && errs.push(m.text()));
   await p.clock.install({ time: new Date(now) });
   await p.goto(url);
-  const store = () => p.evaluate(() => JSON.parse(localStorage.getItem('enfoque:v1')));
+  const store = () => p.evaluate(() => { flushLocal(); return JSON.parse(localStorage.getItem('enfoque:v1')); });
   // Proyecto + su nota
   await p.evaluate(() => showView('projects'));
   await p.fill('#project-name', 'Web nueva'); await p.click('#project-form button');

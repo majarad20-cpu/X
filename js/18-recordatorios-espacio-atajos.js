@@ -80,15 +80,31 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- Espacio ----------
-// Cada bloque de la nube admite 256 KB; la copia local del navegador, unos 5 MB.
+// Cada bloque de la nube admite 256 KB. La copia local va en IndexedDB (sin el límite de unos 5 MB
+// de localStorage, que solo se usa si IndexedDB no está disponible).
 const BLOCK_LIMIT = 256 * 1024;
 const LOCAL_LIMIT = 5 * 1024 * 1024;
-const bytes = (data) => new Blob([JSON.stringify(data)]).size;
+// Bytes en UTF-8 del JSON, contados sin crear copias (un Blob por bloque era lento con miles de notas).
+function bytes(data) {
+  const s = JSON.stringify(data) || '';
+  let n = s.length;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) continue;
+    if (c < 0x800) n += 1;
+    else if (c >= 0xd800 && c < 0xdc00) {
+      n += 2; // par sustituto: 4 bytes para los dos caracteres
+      i++;
+    } else n += 2;
+  }
+  return n;
+}
 
 function formatBytes(n) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
 const monthName = (m) => {
@@ -122,7 +138,12 @@ function storageReport() {
     r.ratio = r.b / BLOCK_LIMIT;
   });
   const local = bytes(state);
-  rows.push({ key: 'local', label: 'Copia en este dispositivo', detail: 'Todo junto, guardado en el navegador', b: local, limit: LOCAL_LIMIT, ratio: local / LOCAL_LIMIT });
+  if (idb.ok) {
+    // IndexedDB: el límite lo pone el navegador (normalmente una parte grande del disco libre).
+    const limit = Math.max(idb.quota || 0, local * 2, 50 * 1024 * 1024);
+    const imgs = files.count ? ` · más ${plural(files.count, 'imagen', 'imágenes')} (${formatBytes(files.bytes)})` : '';
+    rows.push({ key: 'local', label: 'Copia en este dispositivo', detail: `Todo junto, en la base de datos del navegador${idb.persisted ? ' (protegida contra borrado automático)' : ''}${imgs}`, b: local + files.bytes, limit, ratio: (local + files.bytes) / limit });
+  } else rows.push({ key: 'local', label: 'Copia en este dispositivo', detail: 'Todo junto, guardado en el navegador', b: local, limit: LOCAL_LIMIT, ratio: local / LOCAL_LIMIT });
   return rows;
 }
 
@@ -202,7 +223,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.target.closest?.('#map-canvas')) return;
+  if (e.target.closest?.('#map-canvas, #cv-viewport')) return;
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 

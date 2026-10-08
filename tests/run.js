@@ -15,7 +15,23 @@ const EXPECT = { '05-arrastrar-raton.test.js': 'final DABC', '06-arrastrar-tacti
 const filter = process.argv[2] || '';
 const files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.js') && f.includes(filter)).sort();
 
+// Los módulos de js/ comparten el ámbito global: un nombre repetido en dos archivos pisa al
+// primero sin avisar. Se comprueba antes de lanzar las pruebas.
+const jsDir = path.resolve(dir, '..', 'js');
+const seen = new Map();
+const dupes = [];
+for (const file of fs.readdirSync(jsDir).filter((x) => x.endsWith('.js')).sort()) {
+  for (const m of fs.readFileSync(path.join(jsDir, file), 'utf8').matchAll(/^(?:async )?function ([A-Za-z0-9_$]+)|^(?:const|let|var|class) ([A-Za-z0-9_$]+)/gm)) {
+    const name = m[1] || m[2];
+    if (seen.has(name)) dupes.push(`${name} (${seen.get(name)} y ${file})`);
+    else seen.set(name, file);
+  }
+}
 let failed = 0;
+if (dupes.length) {
+  console.log(`✗ nombres globales repetidos: ${dupes.join(', ')}`);
+  failed++;
+}
 for (const f of files) {
   const t0 = Date.now();
   const r = spawnSync(process.execPath, [path.join(dir, f), url, out], { encoding: 'utf8', timeout: 180000 });
