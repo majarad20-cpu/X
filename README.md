@@ -39,8 +39,11 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Texto de una imagen**: en el visor de una imagen de la nota, «📝 Sacar texto (Claude)», o `/texto de imagen` para añadir una foto y transcribirla. Claude lee documentos, pizarras o notas a mano y el texto queda bajo la imagen.
 - **Tareas desde Gmail** (Tareas › 📧 Desde Gmail): tus correos destacados, importantes sin leer o de los últimos 7 días (o una búsqueda de Gmail). «+ Tarea» crea una tarea con el asunto, la etiqueta `#correo` y un enlace al correo; «✨ Tareas con Claude» lee el correo entero y propone sus tareas con fecha y prioridad para elegir antes de crearlas.
 - **Listas compartidas** (barra de iconos): listas que ven y editan en vivo las personas con quienes compartas la app desde «Compartir» (con permiso de edición), con quién añadió y quién marcó cada cosa. Un elemento se copia a tus tareas con ＋. Tus notas y tareas siguen siendo privadas.
-- **Google Calendar** (activar en Ajustes): tus eventos aparecen en Hoy y en Tareas › Semana, con enlace a Meet y a Calendar; una tarea con fecha y hora se puede añadir al calendario desde su panel ☰.
-- Cada uso de Claude o del calendario pide permiso la primera vez. Fuera de Claude estas funciones no aparecen.
+- **Google Calendar** (activar en Ajustes): tus eventos aparecen en Hoy y en Tareas › Semana, con enlace a Meet y a Calendar. Cualquier tarea se puede **agendar** desde su panel ☰ («📅 Agendar en Google Calendar…»): eliges día, hora y duración, con los huecos libres de ese día entre las 8:00 y las 20:00; si la tarea no tenía fecha u hora, toma las del evento. En Pomodoro, «🎯 Reservar tiempo de concentración» crea un bloque en tu calendario.
+- **Copia en Google Drive** (Ajustes): «Copiar ahora» o una copia automática al día en la carpeta «Enfoque» de tu Drive (con imágenes si caben), y «Restaurar desde Drive…» con las 10 últimas copias.
+- **Exportar a Google Docs** (menú ⋯ de la nota o paleta): crea un documento de Google con el formato de la nota (títulos, listas, casillas, tablas, negritas, imágenes) en la carpeta «Enfoque», y muestra el enlace para abrirlo.
+- **Resumen semanal por Gmail** (Ajustes): el día que elijas, al abrir la app, te envía un correo con lo que hiciste (tareas, pomodoros, tiempo de enfoque, hábitos, notas nuevas), lo que viene en los próximos 7 días y lo atrasado. Se envía al correo que escribas; «Ver cómo queda» lo muestra antes y «Enviar ahora» lo manda en el momento.
+- Cada uso de Claude o de un conector de Google pide permiso la primera vez. Fuera de Claude estas funciones no aparecen.
 
 ## Funciones
 

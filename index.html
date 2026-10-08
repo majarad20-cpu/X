@@ -471,6 +471,7 @@
           </svg>
           <div id="timer-display" class="time">25:00</div>
         </div>
+        <button id="focus-block" class="link focus-block" hidden>🎯 Reservar tiempo de concentración en Google Calendar…</button>
         <label class="current-task">
           Trabajando en:
           <select id="timer-task"><option value="">— ninguna —</option></select>
@@ -685,6 +686,35 @@
       <div class="card">
         <label class="switch"><input id="cal-enabled" type="checkbox"> Mostrar mis eventos en Hoy y en la vista Semana</label>
         <p id="cal-note" class="muted cal-note"></p>
+        <p class="muted">Para agendar una tarea, ábrela y pulsa «📅 Agendar en Google Calendar…». Para reservar tiempo de concentración, usa el botón de Pomodoro.</p>
+      </div>
+
+      <h2 class="section-title">Copia en Google Drive</h2>
+      <div class="card g-card" id="gdrive-card">
+        <label class="switch"><input id="gdrive-auto" type="checkbox"> Hacer una copia automática cada día en la carpeta «Enfoque» de mi Drive</label>
+        <div class="row">
+          <button id="gdrive-now" class="primary">Copiar ahora</button>
+          <button id="gdrive-list">Restaurar desde Drive…</button>
+        </div>
+        <p id="gdrive-status" class="muted" role="status"></p>
+        <ul id="gdrive-backups" class="g-list" hidden></ul>
+      </div>
+
+      <h2 class="section-title">Resumen semanal por Gmail</h2>
+      <div class="card g-card" id="gweekly-card">
+        <label class="switch"><input id="gweekly-on" type="checkbox"> Enviarme cada semana un resumen de lo que hice y lo que viene</label>
+        <div class="row g-row">
+          <label>Día <select id="gweekly-day">
+            <option value="1">lunes</option><option value="2">martes</option><option value="3">miércoles</option><option value="4">jueves</option><option value="5">viernes</option><option value="6">sábado</option><option value="0">domingo</option>
+          </select></label>
+          <label class="g-to">Enviar a <input id="gweekly-to" type="email" placeholder="tu correo de Gmail" autocomplete="email"></label>
+        </div>
+        <div class="row">
+          <button id="gweekly-send">Enviar ahora</button>
+          <button id="gweekly-preview">Ver cómo queda</button>
+        </div>
+        <p id="gweekly-status" class="muted" role="status"></p>
+        <div id="gweekly-sample" class="g-sample" hidden></div>
       </div>
 
       <h2 class="section-title">Pasar a notas</h2>
@@ -838,6 +868,33 @@
       </div>
     </div>
   </div>
+  <div id="gsched" class="modal-back" hidden>
+    <div class="modal gsched-modal" role="dialog" aria-modal="true" aria-labelledby="gsched-title">
+      <header class="modal-head">
+        <h3 id="gsched-title">📅 Agendar en Google Calendar</h3>
+        <button id="gsched-close" class="iv-close modal-x" aria-label="Cerrar">✕</button>
+      </header>
+      <form id="gsched-form" class="gsched-body">
+        <label>Título <input id="gsched-name" type="text" maxlength="200" required></label>
+        <div class="row g-row">
+          <label>Día <input id="gsched-date" type="date" required></label>
+          <label>Hora <input id="gsched-time" type="time" required step="300"></label>
+          <label>Duración <select id="gsched-dur">
+            <option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h</option><option value="90">1 h 30</option><option value="120">2 h</option><option value="180">3 h</option>
+          </select></label>
+        </div>
+        <div class="gsched-free">
+          <span class="muted" id="gsched-free-label">Huecos libres ese día</span>
+          <div id="gsched-slots" class="filters"></div>
+        </div>
+        <p id="gsched-status" class="muted" role="status"></p>
+        <div class="row end">
+          <button type="button" id="gsched-cancel">Cancelar</button>
+          <button type="submit" id="gsched-ok" class="primary">Crear evento</button>
+        </div>
+      </form>
+    </div>
+  </div>
   <div id="voice" class="modal-back" hidden>
     <div class="modal voice-modal" role="dialog" aria-modal="true" aria-labelledby="voice-title">
       <header class="modal-head"><h3 id="voice-title">🎤 Nota de voz</h3></header>
@@ -908,6 +965,7 @@
   <script src="js/38-apariencia.js"></script>
   <script src="js/39-obsidian.js"></script>
   <script src="js/40-edicion-bloques.js"></script>
+  <script src="js/41-google.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

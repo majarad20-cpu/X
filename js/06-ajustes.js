@@ -94,10 +94,12 @@ function restoreBackup(text) {
     setBackupMessage('Ese archivo no es una copia de Enfoque válida.', true);
     return;
   }
+  // Las conexiones con Google (copia diaria, resumen) se quedan como están ahora.
+  const google = state.settings.google;
   withUndo('Copia restaurada', () => {
     const fresh = defaults();
     for (const k of DATA_KEYS) state[k] = data[k] ?? fresh[k];
-    state.settings = { ...fresh.settings, ...state.settings };
+    state.settings = { ...fresh.settings, ...state.settings, ...(google ? { google } : {}) };
   });
   applySettings();
   renderAccents();

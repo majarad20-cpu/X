@@ -346,13 +346,11 @@ function subtaskPanel(t) {
   });
 
   const extra = [];
-  if (calEnabled() && t.due && t.time) {
-    if (t.calEventId) extra.push(el('p', { className: 'muted cal-done' }, '📅 Ya está en tu Google Calendar'));
-    else {
-      const add = el('button', { className: 'chip' }, '📅 Añadir a Google Calendar');
-      add.addEventListener('click', () => addTaskToCalendar(t, add));
-      extra.push(el('div', { className: 'row cal-add' }, add));
-    }
+  if (cal.mcp && !t.done) {
+    // Agendar en Google Calendar: elige día, hora y duración (con los huecos libres de ese día).
+    const add = el('button', { className: 'chip' }, t.calEventId ? '📅 Agendar otra vez…' : '📅 Agendar en Google Calendar…');
+    add.addEventListener('click', () => openSchedule({ task: t }));
+    extra.push(el('div', { className: 'row cal-add' }, [t.calEventId ? el('span', { className: 'muted cal-done' }, '📅 Ya está en tu Google Calendar') : '', add]));
   }
   return el('div', { className: 'subtasks' }, [
     ...extra,

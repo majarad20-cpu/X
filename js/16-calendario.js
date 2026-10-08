@@ -26,6 +26,7 @@ async function startCalendar() {
   }
   renderMailButton();
   renderCalendarSettings();
+  startGoogle();
   if (cal.mcp && state.settings.calendar) loadCalendar();
 }
 
@@ -168,36 +169,3 @@ $('#cal-enabled').addEventListener('change', (e) => {
     renderCalendarViews();
   }
 });
-
-// Crea un evento en Google Calendar a partir de una tarea con fecha y hora (30 minutos).
-async function addTaskToCalendar(t, btn) {
-  if (!calEnabled() || !t.due || !t.time) return;
-  const [y, m, d] = t.due.split('-').map(Number);
-  const [hh, mm] = t.time.split(':').map(Number);
-  const start = new Date(y, m - 1, d, hh, mm);
-  const end = new Date(start.getTime() + 30 * 60000);
-  // Hora local sin desfase + zona horaria: el conector interpreta la hora en esa zona
-  // (si se mandara en UTC, la zona horaria sustituiría el desfase y el evento se movería).
-  const local = (dt) => `${dateKey(dt)}T${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}:00`;
-  btn.disabled = true;
-  btn.textContent = 'Creando evento…';
-  try {
-    const res = await cal.mcp.callTool(CAL_SERVER, 'create_event', {
-      summary: t.title,
-      startTime: local(start),
-      endTime: local(end),
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      description: 'Creado desde Enfoque.',
-    });
-    t.calEventId = res?.payload?.id || 'creado';
-    save();
-    showToastMessage('Evento creado en Google Calendar');
-    loadCalendar({ refresh: true });
-    renderAll();
-  } catch (e) {
-    // Un fallo de conexión no garantiza que el evento no se creara: no se reintenta solo.
-    showToastMessage(e?.code === 'server_unavailable' || e?.code === 'upstream_error' ? 'No se pudo confirmar. Revisa tu calendario antes de volver a intentarlo.' : calErrorText(e));
-    btn.disabled = false;
-    btn.textContent = '📅 Añadir a Google Calendar';
-  }
-}

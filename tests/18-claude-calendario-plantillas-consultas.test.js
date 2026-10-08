@@ -71,7 +71,7 @@ const mock = (opts) => {
   // crear evento desde la tarea con hora
   await p.click('[data-taskview=list]');
   await p.click('#task-list .task:has-text("Llamar al banco") .sub-toggle');
-  await p.click('#task-list .cal-add button'); await p.clock.runFor(200);
+  await p.click('#task-list .cal-add button'); await p.clock.runFor(200); await p.click('#gsched-ok'); await p.clock.runFor(200);
   console.log('create call:', JSON.stringify(await p.evaluate(() => window.__calls.filter(c => c[2] === 'create_event'))), '| marked:', await p.evaluate(() => state.tasks.find(t => t.title === 'Llamar al banco').calEventId));
   // ---- Plantillas
   await p.keyboard.press('Control+p'); await p.keyboard.type('desde plantilla'); await p.keyboard.press('Enter');
