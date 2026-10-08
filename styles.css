@@ -1268,3 +1268,20 @@ body { overflow: hidden; }
 .side-resize:hover, .side-resize.dragging, .side-resize:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); outline: none; }
 body.resizing-panel { cursor: col-resize; user-select: none; }
 @media (max-width: 899px) { .side-resize { display: none; } }
+
+/* ---------- Claude en una nota ---------- */
+.note-ai { border-top: 1px solid var(--border); background: var(--surface); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; max-height: 55%; overflow: auto; box-shadow: 0 -6px 18px rgb(0 0 0 / .06); }
+.note-ai[hidden] { display: none; }
+.na-head { display: flex; align-items: center; gap: 10px; }
+.na-head .muted { flex: 1; font-size: .82rem; }
+.na-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.na-actions .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.na-translate { display: inline-flex; gap: 4px; align-items: center; }
+.na-translate select { padding: 3px 6px; font-size: .85rem; }
+.na-form input { flex: 1; min-width: 0; }
+.na-out { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--editor); display: flex; flex-direction: column; gap: 6px; }
+.na-result { max-height: 260px; overflow: auto; }
+.na-result > :first-child { margin-top: 0; }
+.na-result > :last-child { margin-bottom: 0; }
+.na-out .ask-error:empty { display: none; }
+.na-apply { flex-wrap: wrap; gap: 6px; }

@@ -36,6 +36,7 @@ function renderAIControls() {
   const ok = aiReady();
   $$('.ai-only').forEach((n) => (n.hidden = !ok));
   $$('.ai-off-note').forEach((n) => (n.hidden = ok));
+  if (activeNote()) syncNoteAI(activeNote());
 }
 
 function handleAIError(e, statusEl) {

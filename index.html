@@ -67,6 +67,7 @@
       <div id="note-pane" class="note-pane" hidden>
         <div class="note-toolbar">
           <span id="note-crumbs" class="note-crumbs"></span>
+          <button id="note-ai-btn" class="side-btn" title="Claude en esta nota (Ctrl+J)" aria-label="Claude en esta nota" hidden><span class="ico" data-icon="sparkle"></span></button>
           <button id="note-mode" class="side-btn" title="Alternar edición / lectura (Ctrl+E)"><span class="ico" data-icon="pencil"></span></button>
           <button id="note-more" class="side-btn" title="Más opciones" aria-label="Más opciones" aria-haspopup="menu"><span class="ico" data-icon="more"></span></button>
         </div>
@@ -78,6 +79,41 @@
           <div id="note-reading" class="note-reading md" hidden></div>
           </div>
         </div>
+        <section id="note-ai" class="note-ai" aria-label="Claude en esta nota" hidden>
+          <div class="na-head">
+            <strong>✨ Claude</strong>
+            <span id="note-ai-scope" class="muted"></span>
+            <button id="note-ai-close" class="side-btn" aria-label="Cerrar">✕</button>
+          </div>
+          <div class="na-actions" role="group" aria-label="Acciones">
+            <button class="chip" data-ai-action="summary">Resumir</button>
+            <button class="chip" data-ai-action="continue">Continuar escribiendo</button>
+            <button class="chip" data-ai-action="improve">Mejorar redacción</button>
+            <button class="chip" data-ai-action="fix">Corregir ortografía</button>
+            <button class="chip" data-ai-action="tasks">Sacar tareas</button>
+            <span class="na-translate">
+              <button class="chip" data-ai-action="translate">Traducir al</button>
+              <select id="note-ai-lang" aria-label="Idioma">
+                <option>inglés</option><option>español</option><option>portugués</option><option>francés</option><option>italiano</option><option>alemán</option>
+              </select>
+            </span>
+          </div>
+          <form id="note-ai-form" class="row na-form">
+            <input id="note-ai-input" type="text" maxlength="500" placeholder="O pide otra cosa: «haz una tabla con esto», «dame 5 títulos»…" aria-label="Petición a Claude">
+            <button id="note-ai-send" type="submit" class="primary">Pedir</button>
+            <button id="note-ai-stop" type="button" hidden>Detener</button>
+          </form>
+          <div id="note-ai-out" class="na-out" hidden>
+            <div id="note-ai-result" class="md na-result" aria-live="polite"></div>
+            <p id="note-ai-error" class="ask-error"></p>
+            <div class="row na-apply">
+              <button id="note-ai-replace" class="primary" hidden>Reemplazar la selección</button>
+              <button id="note-ai-insert" class="primary" hidden>Añadir al final</button>
+              <button id="note-ai-copy" hidden>Copiar</button>
+              <button id="note-ai-retry" hidden>Otra vez</button>
+            </div>
+          </div>
+        </section>
       </div>
 
       <div id="graph-pane" class="graph-pane" hidden>
@@ -768,6 +804,7 @@
   <script src="js/30-tablas.js"></script>
   <script src="js/31-dibujo.js"></script>
   <script src="js/32-lienzos.js"></script>
+  <script src="js/33-claude-nota.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

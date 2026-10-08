@@ -32,6 +32,7 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Claude ordena tu vaciado mental**: al guardar un vaciado mental, «✨ Ordenar con Claude» propone tareas con fecha, hora, prioridad, proyecto y etiquetas; se pueden editar y desmarcar antes de crearlas.
 - **Resumen semanal** (Progreso): Claude lee la bitácora, el diario, los hábitos, los proyectos y las tareas de la semana y escribe logros, en qué se fue el tiempo, ánimo, pendientes y 3 sugerencias. Se puede guardar como nota en `Revisiones/`.
 - **Pregúntale a tus notas** (✨ en la barra de iconos): un chat en el que Claude busca y lee tus notas, tareas y diario para responder, citando las notas con `[[enlaces]]` que se abren al tocarlos. La conversación se puede guardar como nota en `Preguntas/`.
+- **Claude en una nota** (botón ✨ de la barra de la nota, `/claude` o Ctrl+J): resumir, continuar escribiendo desde el cursor, mejorar la redacción, corregir la ortografía, sacar las tareas (como casillas `- [ ]` con fecha y prioridad, que aparecen en Tareas), traducir o cualquier otra petición. Trabaja sobre el texto seleccionado o sobre toda la nota; el resultado se ve antes de reemplazar o insertarlo, y lo anterior queda en el historial de versiones. No funciona en notas con contraseña.
 - **Google Calendar** (activar en Ajustes): tus eventos aparecen en Hoy y en Tareas › Semana, con enlace a Meet y a Calendar; una tarea con fecha y hora se puede añadir al calendario desde su panel ☰.
 - Cada uso de Claude o del calendario pide permiso la primera vez. Fuera de Claude estas funciones no aparecen.
 
@@ -64,7 +65,7 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Archivo de tareas**: las tareas completadas hace más de 7 días se archivan solas (un bloque por mes). Siguen apareciendo en «Hechas», cuentan para proyectos y estadísticas, y al desmarcarlas vuelven a la lista.
 - **Ajustes** (⚙): color de la app, medidor de espacio por apartado y de la copia en este dispositivo (avisa al pasar del 80 % y marca el botón ⚙) y copia de seguridad (descargar, copiar, restaurar desde archivo o texto pegado).
 
-**Atajos de teclado:** `Ctrl+O` abrir nota, `Ctrl+P` comandos, `Ctrl+N` nueva nota, `Ctrl+G` grafo, `Ctrl+E` editar/leer, `Alt+D` nota diaria, `1`–`8` secciones, `N` nueva tarea, `Espacio` inicia o pausa el Pomodoro, `Esc` cancela la edición, `?` muestra la ayuda.
+**Atajos de teclado:** `Ctrl+O` abrir nota, `Ctrl+J` Claude en la nota, `Ctrl+P` comandos, `Ctrl+N` nueva nota, `Ctrl+G` grafo, `Ctrl+E` editar/leer, `Alt+D` nota diaria, `1`–`8` secciones, `N` nueva tarea, `Espacio` inicia o pausa el Pomodoro, `Esc` cancela la edición, `?` muestra la ayuda.
 
 ## Uso
 

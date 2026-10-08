@@ -36,7 +36,7 @@ function slashSuggest(ta, before) {
   const m = before.match(/(^|[\s(])\/([\p{L}\p{N}]{0,20})$/u);
   if (!m) return hideSuggest();
   const q = fold(m[2]);
-  const items = SLASH_ITEMS.filter((it) => !q || fold(`${it.label} ${it.keys}`).split(/\s+/).some((w) => w.startsWith(q))).map((it) => ({
+  const items = SLASH_ITEMS.filter((it) => !it.when || it.when()).filter((it) => !q || fold(`${it.label} ${it.keys}`).split(/\s+/).some((w) => w.startsWith(q))).map((it) => ({
     icon: it.icon,
     label: it.label,
     detail: it.detail,

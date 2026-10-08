@@ -808,6 +808,7 @@ const noteText = (note) => (note.enc ? unlockedNotes.get(note.id) ?? null : note
 const NOTE_MENU_EXTRA = [];
 
 function renderNotePane(note) {
+  syncNoteAI(note);
   const text = noteText(note);
   const locked = text === null || (lockUI.mode === 'setup' && lockUI.noteId === note.id);
   $('#note-lock').hidden = !locked;
