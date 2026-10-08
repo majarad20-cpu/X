@@ -260,6 +260,8 @@ function taskItem(t, { draggable = false } = {}) {
       pc.addEventListener('click', () => openProject(project.id));
       chips.prepend(pc);
     }
+    // Tarea creada desde un correo: enlace para abrirlo en Gmail.
+    if (t.mail?.url && isGmailUrl(t.mail.url)) chips.prepend(el('a', { className: 'tag mail-tag', href: t.mail.url, target: '_blank', rel: 'noopener noreferrer', title: 'Abrir el correo en Gmail' }, '📧 Correo'));
     if (chips.children.length) body.append(chips);
   }
 

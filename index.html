@@ -24,6 +24,7 @@
       <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
       <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
       <button class="rib" data-view="canvas" title="Lienzos" aria-label="Lienzos"><span class="ico" data-icon="canvas"></span><span class="rib-label">Lienzos</span></button>
+      <button class="rib" data-view="shared" title="Listas compartidas" aria-label="Listas compartidas"><span class="ico" data-icon="users"></span><span class="rib-label">Listas compartidas</span></button>
       <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
       <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar a tus notas</span></button>
       <span class="rib-spacer"></span>
@@ -223,11 +224,14 @@
         <div id="task-preview" class="parse-preview" aria-live="polite" hidden></div>
       </form>
 
+      <div class="tasks-bar">
       <div class="view-switch" role="group" aria-label="Vista">
         <button class="seg active" data-taskview="list" aria-pressed="true">Lista</button>
         <button class="seg" data-taskview="week" aria-pressed="false">Semana</button>
         <button class="seg" data-taskview="month" aria-pressed="false">Mes</button>
         <button class="seg" data-taskview="board" aria-pressed="false">Tablero</button>
+      </div>
+      <button id="tasks-mail" class="chip" hidden title="Convertir correos de Gmail en tareas">📧 Desde Gmail</button>
       </div>
 
       <div id="tag-filter" class="tag-filter" role="group" aria-label="Etiqueta" hidden></div>
@@ -583,6 +587,39 @@
       </div>
     </section>
 
+    <!-- Listas compartidas -->
+    <section id="view-shared" class="view">
+      <h2 class="section-title first">👥 Listas compartidas</h2>
+      <p id="shared-off" class="muted">Las listas compartidas funcionan al abrir la app desde Claude: las ven y editan en vivo las personas con quienes compartas la app.</p>
+      <div id="shared-on" hidden>
+        <p id="shared-error" class="lock-error" role="alert"></p>
+        <div id="shared-lists-pane">
+          <form id="shared-new" class="card row">
+            <input id="shared-new-title" type="text" placeholder="Nueva lista compartida (p. ej. Compra de la semana)" maxlength="80" aria-label="Nombre de la lista">
+            <button type="submit" class="primary">Crear lista</button>
+          </form>
+          <div id="shared-lists" class="map-grid"></div>
+          <p id="shared-empty" class="empty">Aún no hay listas compartidas.</p>
+          <p class="muted hint">Las ve cualquiera con quien compartas la app desde el botón «Compartir» de Claude; para marcar y añadir necesita permiso de edición. Tus notas, tareas y diario siguen siendo privados.</p>
+        </div>
+        <div id="shared-list-pane" hidden>
+          <div class="map-toolbar">
+            <button id="shared-back" class="link back-link">← Listas</button>
+            <h3 id="shared-title" class="shared-title"></h3>
+            <button id="shared-delete-list" class="link danger-link">Borrar lista</button>
+          </div>
+          <p id="shared-meta" class="muted"></p>
+          <form id="shared-add" class="row">
+            <input id="shared-item-text" type="text" placeholder="Añadir a la lista" maxlength="200" aria-label="Nuevo elemento">
+            <button type="submit" class="primary">Añadir</button>
+          </form>
+          <ul id="shared-items" class="shared-items"></ul>
+          <p id="shared-items-empty" class="empty">La lista está vacía.</p>
+          <button id="shared-clear" class="link">Quitar los marcados</button>
+        </div>
+      </div>
+    </section>
+
     <!-- Preguntar -->
     <section id="view-ask" class="view">
       <div class="ask-wrap">
@@ -766,11 +803,56 @@
     </div>
     <div id="draw-wrap" class="draw-wrap"><canvas id="draw-canvas" class="draw-canvas"></canvas></div>
   </div>
+  <div id="mail" class="modal-back" hidden>
+    <div class="modal mail-modal" role="dialog" aria-modal="true" aria-labelledby="mail-title">
+      <header class="modal-head">
+        <h3 id="mail-title">📧 Tareas desde Gmail</h3>
+        <button id="mail-close" class="iv-close modal-x" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="mail-body">
+        <div class="filters" role="group" aria-label="Correos">
+          <button class="chip active" data-mailfilter="starred" aria-pressed="true">Destacados</button>
+          <button class="chip" data-mailfilter="important" aria-pressed="false">Importantes sin leer</button>
+          <button class="chip" data-mailfilter="inbox" aria-pressed="false">Últimos 7 días</button>
+        </div>
+        <form id="mail-form" class="row">
+          <input id="mail-search" type="search" placeholder="Buscar en Gmail (p. ej. from:ana factura)" aria-label="Buscar en Gmail">
+          <button type="submit">Buscar</button>
+        </form>
+        <p id="mail-status" class="muted" role="status"></p>
+        <ul id="mail-list" class="mail-list"></ul>
+      </div>
+    </div>
+  </div>
+  <div id="voice" class="modal-back" hidden>
+    <div class="modal voice-modal" role="dialog" aria-modal="true" aria-labelledby="voice-title">
+      <header class="modal-head"><h3 id="voice-title">🎤 Nota de voz</h3></header>
+      <div class="voice-body">
+        <div class="voice-dot" aria-hidden="true"></div>
+        <p id="voice-time" class="voice-time" aria-live="off">0:00</p>
+        <p id="voice-status" class="muted" role="status">Pidiendo el micrófono…</p>
+        <div class="voice-level"><span id="voice-level"></span></div>
+        <div id="voice-transcript-wrap" class="voice-transcript-wrap">
+          <span class="muted">Transcripción</span>
+          <p id="voice-transcript" class="voice-transcript" aria-live="polite"></p>
+        </div>
+        <p id="voice-error" class="lock-error" role="alert"></p>
+        <div class="row voice-actions">
+          <button id="voice-cancel">Cancelar</button>
+          <button id="voice-stop" class="primary" disabled>Detener y guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <input id="note-ocr-input" type="file" accept="image/*" hidden>
   <input id="note-image-input" type="file" accept="image/*" multiple hidden>
   <div id="image-viewer" class="image-viewer" role="dialog" aria-modal="true" aria-label="Imagen" hidden>
     <button id="image-viewer-close" class="iv-close" aria-label="Cerrar">✕</button>
     <img id="image-viewer-img" alt="">
-    <button id="image-viewer-edit" class="primary" hidden>✏️ Editar dibujo</button>
+    <div class="iv-actions">
+      <button id="image-viewer-edit" class="primary" hidden>✏️ Editar dibujo</button>
+      <button id="image-viewer-ocr" class="primary" hidden>📝 Sacar texto (Claude)</button>
+    </div>
     <p id="image-viewer-caption" class="iv-caption"></p>
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
@@ -805,6 +887,10 @@
   <script src="js/31-dibujo.js"></script>
   <script src="js/32-lienzos.js"></script>
   <script src="js/33-claude-nota.js"></script>
+  <script src="js/34-texto-imagen.js"></script>
+  <script src="js/35-voz.js"></script>
+  <script src="js/36-correo.js"></script>
+  <script src="js/37-listas-compartidas.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

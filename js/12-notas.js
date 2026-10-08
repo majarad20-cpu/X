@@ -14,6 +14,7 @@ const ICONS = {
   bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>',
   timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/>',
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.4-2.3-5.6-4-7.4-.3 2.2-1.3 3.3-2.4 3.8C13 8.7 11.6 5 9 2c0 4-4 6.6-4 11.4C5 19.3 8 22 12 22z"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2a5 5 0 0 1 5.5 5.3"/>',
   canvas: '<rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6h4M17.5 9v6"/>',
   sparkle: '<path d="M12 3l1.8 4.9L19 9.7l-5.2 1.8L12 16.5l-1.8-5L5 9.7l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   review: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/>',
@@ -263,8 +264,8 @@ function deleteNote(note) {
 
 // ---------- Pestañas del espacio de trabajo ----------
 const TABS_KEY = 'enfoque:tabs';
-const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', canvas: 'Lienzos', settings: 'Ajustes' };
-const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', canvas: 'canvas', settings: 'gear' };
+const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', canvas: 'Lienzos', shared: 'Listas compartidas', settings: 'Ajustes' };
+const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', canvas: 'canvas', shared: 'users', settings: 'gear' };
 const noteMode = new Map(); // id -> 'edit' | 'read'
 let ws = { tabs: [{ type: 'view', view: 'today' }], active: 0 };
 try {
@@ -1486,6 +1487,7 @@ const VIEW_RENDER = {
   habits: () => renderHabits(),
   progress: () => renderProgress(),
   review: () => renderReviewStep(),
+  shared: () => renderShared(),
   canvas: () => {
     renderCanvasView();
     if (cv.id) requestAnimationFrame(applyView);

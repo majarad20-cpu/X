@@ -23,5 +23,6 @@ function boot() {
   startSync();
   startAI();
   startCalendar();
+  startShared();
   document.documentElement.dataset.ready = '1';
 }

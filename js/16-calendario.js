@@ -24,6 +24,7 @@ async function startCalendar() {
   } catch {
     cal.mcp = null;
   }
+  renderMailButton();
   renderCalendarSettings();
   if (cal.mcp && state.settings.calendar) loadCalendar();
 }

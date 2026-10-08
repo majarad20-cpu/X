@@ -29,6 +29,8 @@ function inlineMd(text) {
     .replace(/!?\[\[([^\]\n]+?)\]\]/g, (_, inner) => hold(wikiLinkHtml(inner)))
     // Imagen guardada en la app: ![descripción](img:ID). Se carga después (26-imagenes.js).
     .replace(/!\[([^\]\n]*)\]\(img:([a-z0-9]+)\)/gi, (_, alt, id) => hold(`<img class="note-img" data-img="${escHtml(id)}" alt="${escHtml(alt)}" loading="lazy">`))
+    // Nota de voz: ![🎤 Nota de voz · 0:42](audio:ID).
+    .replace(/!\[([^\]\n]*)\]\(audio:([a-z0-9]+)\)/gi, (_, label, id) => hold(`<span class="note-audio"><span class="na-label">${escHtml(label || '🎤 Nota de voz')}</span><audio controls preload="metadata" data-audio="${escHtml(id)}"></audio></span>`))
     .replace(/!?\[([^\]\n]*)\]\((\S+?)\)/g, (m, label, url) =>
       /^(https?:|mailto:)/i.test(url) ? hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">${escHtml(label || url)}</a>`) : m)
     .replace(/(^|[\s(])(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g, (_, pre, url) => pre + hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">${escHtml(url)}</a>`))

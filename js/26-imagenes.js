@@ -12,9 +12,12 @@ function fileStore(mode) {
 }
 
 const isImageData = (d) => typeof d === 'string' && /^data:image\/(webp|jpeg|png|gif);base64,/.test(d);
+// También las notas de voz (35-voz.js) se guardan aquí.
+const isAudioData = (d) => typeof d === 'string' && /^data:audio\/(webm|ogg|mp4|mpeg|wav|x-m4a|aac)(;[\w=.-]+)*;base64,/.test(d);
+const isMediaData = (d) => isImageData(d) || isAudioData(d);
 
 function putFile(rec) {
-  if (!rec?.id || !isImageData(rec.data)) return Promise.resolve(false);
+  if (!rec?.id || !isMediaData(rec.data)) return Promise.resolve(false);
   files.cache.set(rec.id, rec.data);
   if (!idb.ok) {
     files.memory.set(rec.id, rec);
@@ -110,7 +113,8 @@ async function insertImages(list, at = null) {
   const ta = $('#note-editor');
   const note = activeNote();
   const images = [...list].filter((f) => f.type.startsWith('image/'));
-  if (!note || !ta || !images.length) return;
+  const ids = [];
+  if (!note || !ta || !images.length) return ids;
   showToastMessage(images.length > 1 ? `Añadiendo ${images.length} imágenes…` : 'Añadiendo imagen…');
   let pos = at ?? (document.activeElement === ta || !ta.dataset.caret ? ta.selectionStart : Number(ta.dataset.caret));
   for (const file of images) {
@@ -122,14 +126,16 @@ async function insertImages(list, at = null) {
       const text = `${before && !before.endsWith('\n') ? '\n' : ''}![${rec.name}](img:${rec.id})\n`;
       ta.setRangeText(text, pos, pos, 'end');
       pos += text.length;
+      ids.push(rec.id);
       ta.dispatchEvent(new Event('input'));
       scheduleFilesSync();
     } catch {
       showToastMessage(`No se pudo añadir «${file.name || 'la imagen'}»: formato no compatible o imagen demasiado grande.`);
-      return;
+      return ids;
     }
   }
   showToastMessage(images.length > 1 ? `${images.length} imágenes añadidas` : 'Imagen añadida');
+  return ids;
 }
 
 function pickImageForNote() {
@@ -158,7 +164,8 @@ $('#note-editor').addEventListener('drop', (e) => {
 
 // Cualquier <img data-img> que aparezca en la página se rellena con su imagen guardada.
 async function hydrateImage(img) {
-  const id = img.dataset.img;
+  const audio = img.tagName === 'AUDIO';
+  const id = audio ? img.dataset.audio : img.dataset.img;
   if (img.dataset.loaded === id) return;
   img.dataset.loaded = id;
   let data = files.cache.get(id);
@@ -167,27 +174,28 @@ async function hydrateImage(img) {
     data = rec?.data;
     if (data) files.cache.set(id, data);
   }
-  if (isImageData(data)) {
+  if (audio ? isAudioData(data) : isImageData(data)) {
     img.src = data;
     img.classList.remove('missing');
-    img.title = img.alt;
+    if (!audio) img.title = img.alt;
   } else {
     img.classList.add('missing');
-    img.title = 'Esta imagen aún no está en este dispositivo (llegará al sincronizar).';
+    img.title = `${audio ? 'Esta grabación' : 'Esta imagen'} aún no está en este dispositivo (llegará al sincronizar).`;
     delete img.dataset.loaded;
   }
 }
 
+const MEDIA_SEL = 'img[data-img], audio[data-audio]';
 function hydrateImages(root = document) {
-  root.querySelectorAll('img[data-img]').forEach(hydrateImage);
+  root.querySelectorAll(MEDIA_SEL).forEach(hydrateImage);
 }
 
 new MutationObserver((records) => {
   for (const r of records) {
     r.addedNodes.forEach((n) => {
       if (n.nodeType !== 1) return;
-      if (n.matches?.('img[data-img]')) hydrateImage(n);
-      else if (n.querySelector?.('img[data-img]')) hydrateImages(n);
+      if (n.matches?.(MEDIA_SEL)) hydrateImage(n);
+      else if (n.querySelector?.(MEDIA_SEL)) hydrateImages(n);
     });
   }
 }).observe(document.body, { childList: true, subtree: true });
@@ -241,20 +249,20 @@ async function pushFiles() {
 function receiveFile(name, body) {
   const f = body?.file;
   const sent = (state.syncMeta.files ||= {});
-  if (!f?.id || !isImageData(f.data)) return;
+  if (!f?.id || !isMediaData(f.data)) return;
   const known = sent[f.id];
   sent[f.id] = 1;
   if (known && files.cache.has(f.id)) return;
   getFile(f.id).then((rec) => {
     if (rec) return;
-    putFile(f).then(() => document.querySelectorAll(`img[data-img="${CSS.escape(f.id)}"]`).forEach(hydrateImage));
+    putFile(f).then(() => document.querySelectorAll(`img[data-img="${CSS.escape(f.id)}"], audio[data-audio="${CSS.escape(f.id)}"]`).forEach(hydrateImage));
   });
 }
 
 // ---------- Copia de seguridad ----------
 async function backupFiles() {
   const used = new Set();
-  state.notes.forEach((n) => n.body.replace(/\(img:([a-z0-9]+)\)/gi, (_, id) => used.add(id)));
+  state.notes.forEach((n) => n.body.replace(/\((?:img|audio):([a-z0-9]+)\)/gi, (_, id) => used.add(id)));
   return (await allFiles()).filter((f) => used.has(f.id));
 }
 
@@ -262,7 +270,7 @@ async function restoreFiles(list) {
   if (!Array.isArray(list)) return 0;
   let n = 0;
   for (const f of list) {
-    if (f?.id && isImageData(f.data)) {
+    if (f?.id && isMediaData(f.data)) {
       await putFile(f);
       n++;
     }
