@@ -5,14 +5,35 @@
 // las notas, esquinas, densidad y animaciones, con estilos rápidos que combinan varias opciones.
 // Se guarda en state.settings.look (así se sincroniza entre dispositivos) y se aplica al momento.
 const THEMES = {
-  system: { label: 'Según el sistema', colors: ['#f6f7f9', '#111317'] },
-  light: { label: 'Claro', colors: ['#f6f7f9', '#ffffff'] },
-  dark: { label: 'Oscuro', colors: ['#111317', '#1b1e24'] },
-  sepia: { label: 'Sepia', colors: ['#f4ecd8', '#fbf6ea'] },
-  midnight: { label: 'Medianoche', colors: ['#000000', '#0d0d0f'] },
-  nord: { label: 'Nórdico', colors: ['#2e3440', '#3b4252'] },
-  contrast: { label: 'Alto contraste', colors: ['#ffffff', '#000000'] },
+  system: { label: 'Según el sistema', group: 'basic', colors: ['#f6f7f9', '#111317', '#6b7280'] },
+  light: { label: 'Claro', group: 'basic', tone: 'light', colors: ['#f6f7f9', '#ffffff', '#1c1f24'] },
+  dark: { label: 'Oscuro', group: 'basic', tone: 'dark', colors: ['#111317', '#1b1e24', '#e8eaee'] },
+  contrast: { label: 'Alto contraste', group: 'basic', tone: 'light', colors: ['#ffffff', '#000000', '#000000'] },
+  sepia: { label: 'Sepia', group: 'warm', tone: 'light', accent: 'orange', colors: ['#f4ecd8', '#fbf6ea', '#3b3024'] },
+  midnight: { label: 'Medianoche', group: 'dark', tone: 'dark', accent: 'teal', colors: ['#000000', '#0d0d0f', '#e6e6e6'] },
+  nord: { label: 'Nórdico', group: 'blue', tone: 'dark', accent: 'blue', colors: ['#2e3440', '#3b4252', '#eceff4'] },
+  cream: { label: 'Crema', group: 'soft', tone: 'light', accent: 'orange', colors: ['#faf6ef', '#fffdf8', '#3a3229'] },
+  rose: { label: 'Rosa empolvado', group: 'soft', tone: 'light', accent: 'fuchsia', colors: ['#faf1f3', '#fffafb', '#3d2a30'] },
+  lavender: { label: 'Lavanda', group: 'soft', tone: 'light', accent: 'indigo', colors: ['#f4f2fb', '#fbfaff', '#2e2a3d'] },
+  mint: { label: 'Menta', group: 'soft', tone: 'light', accent: 'teal', colors: ['#eff7f3', '#f9fdfb', '#21372d'] },
+  sage: { label: 'Salvia', group: 'soft', tone: 'light', accent: 'teal', colors: ['#eef1ea', '#f8faf5', '#2c3327'] },
+  fog: { label: 'Niebla', group: 'soft', tone: 'light', accent: 'slate', colors: ['#eef0f3', '#f8f9fb', '#2a2f38'] },
+  sand: { label: 'Arena', group: 'warm', tone: 'light', accent: 'orange', colors: ['#f3ebe0', '#faf5ee', '#3d3226'] },
+  peach: { label: 'Melocotón', group: 'warm', tone: 'light', accent: 'orange', colors: ['#fdf1ea', '#fffaf6', '#40302a'] },
+  solarlight: { label: 'Solarizado claro', group: 'warm', tone: 'light', accent: 'blue', colors: ['#fdf6e3', '#fffbef', '#3f5259'] },
+  dusk: { label: 'Atardecer', group: 'warm', tone: 'dark', accent: 'orange', colors: ['#1f1a17', '#29221e', '#f1e6dc'] },
+  coffee: { label: 'Café', group: 'warm', tone: 'dark', accent: 'orange', colors: ['#1c1714', '#262019', '#eee2d3'] },
+  gruvbox: { label: 'Gruvbox', group: 'warm', tone: 'dark', accent: 'orange', colors: ['#282828', '#32302f', '#ebdbb2'] },
+  sky: { label: 'Cielo', group: 'blue', tone: 'light', accent: 'blue', colors: ['#eef5fc', '#f9fcff', '#1d2f45'] },
+  ocean: { label: 'Océano', group: 'blue', tone: 'light', accent: 'blue', colors: ['#e6eef8', '#f5f8fd', '#132840'] },
+  navy: { label: 'Azul marino', group: 'blue', tone: 'dark', accent: 'blue', colors: ['#0f1a2b', '#16233a', '#e3ebf6'] },
+  deepsea: { label: 'Mar profundo', group: 'blue', tone: 'dark', accent: 'teal', colors: ['#0b1f2a', '#102a38', '#dceef5'] },
+  solardark: { label: 'Solarizado oscuro', group: 'blue', tone: 'dark', accent: 'teal', colors: ['#002b36', '#073642', '#d3dcdc'] },
+  plum: { label: 'Ciruela', group: 'dark', tone: 'dark', accent: 'fuchsia', colors: ['#1e1724', '#281f30', '#ece4f3'] },
+  forest: { label: 'Bosque', group: 'dark', tone: 'dark', accent: 'teal', colors: ['#121b16', '#18241d', '#e2eee6'] },
+  dracula: { label: 'Drácula', group: 'dark', tone: 'dark', accent: 'fuchsia', colors: ['#282a36', '#303341', '#f8f8f2'] },
 };
+const THEME_GROUPS = { basic: 'Básicos', soft: 'Suaves', warm: 'Cálidos', blue: 'Azules y fríos', dark: 'Oscuros' };
 
 // Fuentes del sistema (no se descargan nada) y algunas de Google Fonts, que se cargan solo al elegirlas.
 const FONTS = {
@@ -41,6 +62,12 @@ const LOOK_PRESETS = {
   focus: { label: 'Lectura cómoda', look: { theme: 'system', uiFont: 'atkinson', noteFont: 'atkinson', scale: 110, noteSize: 18, lineHeight: 'relaxed' }, accent: 'blue' },
   night: { label: 'Noche', look: { theme: 'midnight', uiFont: 'system', noteFont: 'system', radius: 'soft' }, accent: 'teal' },
   nord: { label: 'Nórdico', look: { theme: 'nord', uiFont: 'inter', noteFont: 'inter', radius: 'soft' }, accent: 'blue' },
+  warm: { label: 'Cálido', look: { theme: 'peach', uiFont: 'nunito', noteFont: 'lora', lineHeight: 'relaxed' }, accent: 'orange' },
+  pastel: { label: 'Pastel', look: { theme: 'lavender', uiFont: 'nunito', noteFont: 'nunito', radius: 'round' }, accent: 'fuchsia' },
+  ocean: { label: 'Océano', look: { theme: 'ocean', uiFont: 'inter', noteFont: 'inter' }, accent: 'blue' },
+  calm: { label: 'Calma', look: { theme: 'sage', uiFont: 'atkinson', noteFont: 'atkinson', lineHeight: 'relaxed' }, accent: 'teal' },
+  ember: { label: 'Brasas', look: { theme: 'dusk', uiFont: 'system', noteFont: 'merriweather', radius: 'soft' }, accent: 'orange' },
+  abyss: { label: 'Abismo', look: { theme: 'navy', uiFont: 'inter', noteFont: 'inter', radius: 'soft' }, accent: 'teal' },
 };
 
 const look = () => ({ ...LOOK_DEFAULTS, ...(state.settings.look || {}) });
@@ -58,6 +85,10 @@ function applyLook() {
   const root = document.documentElement;
   if (L.theme === 'system' || !THEMES[L.theme]) delete root.dataset.theme;
   else root.dataset.theme = L.theme;
+  // Tono del tema (claro u oscuro): lo comparten todos los temas de cada tipo (colores de estado, mapas, ideas…).
+  const tone = THEMES[L.theme]?.tone;
+  if (tone) root.dataset.tone = tone;
+  else delete root.dataset.tone;
   ensureFont(L.uiFont);
   ensureFont(L.noteFont);
   const set = (k, v) => root.style.setProperty(k, v);
@@ -81,6 +112,17 @@ function applyLook() {
   }
   // El grafo y los lienzos leen los colores al dibujar.
   if (typeof globalGraph !== 'undefined' && globalGraph) globalGraph.draw?.();
+}
+
+// Al cambiar de tema, el acento acompaña (naranja en los cálidos, azul en los azules…), salvo que
+// se haya elegido otro a mano o un color propio.
+function chooseTheme(k) {
+  const L = look();
+  const before = THEMES[L.theme]?.accent || 'indigo';
+  if (!L.customAccent && (state.settings.accent || 'indigo') === before) state.settings.accent = THEMES[k]?.accent || 'indigo';
+  setLook({ theme: k });
+  applySettings();
+  renderAccents?.();
 }
 
 function setLook(patch) {
@@ -123,17 +165,22 @@ function renderAppearance() {
   };
   const row = (label, control, hint) => el('div', { className: 'ap-row' }, [el('div', { className: 'ap-label' }, [el('span', {}, label), hint ? el('small', { className: 'muted' }, hint) : '']), control]);
 
-  const themes = el('div', { className: 'ap-themes', role: 'radiogroup', ariaLabel: 'Tema' }, Object.entries(THEMES).map(([k, t]) => {
+  const themeButton = ([k, t]) => {
     const on = L.theme === k;
-    const b = el('button', { className: `ap-theme${on ? ' on' : ''}`, role: 'radio', ariaChecked: String(on) }, [
-      el('span', { className: 'ap-theme-preview', ariaHidden: 'true' }, [el('span', {}), el('span', {})]),
-      t.label,
-    ]);
-    const [a, c] = t.colors;
+    const b = el('button', { className: `ap-theme${on ? ' on' : ''}`, role: 'radio', ariaChecked: String(on) }, [el('span', { className: 'ap-theme-preview', ariaHidden: 'true' }, el('i')), t.label]);
+    const [a, c, ink] = t.colors;
     b.querySelector('.ap-theme-preview').style.background = `linear-gradient(135deg, ${a} 50%, ${c} 50%)`;
-    b.addEventListener('click', () => setLook({ theme: k }));
+    b.querySelector('.ap-theme-preview i').style.background = ink;
+    b.addEventListener('click', () => chooseTheme(k));
     return b;
-  }));
+  };
+  const themes = el(
+    'div',
+    { role: 'radiogroup', ariaLabel: 'Tema' },
+    Object.entries(THEME_GROUPS).map(([g, title]) =>
+      el('div', { className: 'ap-theme-group' }, [el('h4', {}, title), el('div', { className: 'ap-themes' }, Object.entries(THEMES).filter(([, t]) => t.group === g).map(themeButton))])
+    )
+  );
 
   const presets = el('div', { className: 'ap-presets' }, Object.entries(LOOK_PRESETS).map(([k, p]) => {
     const b = el('button', { className: 'chip' }, p.label);
