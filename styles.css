@@ -1458,3 +1458,57 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 @media (max-width: 899px) {
   .side.left { width: min(300px, calc(100vw - var(--ribbon-m, 56px))); }
 }
+
+/* Edición con vista previa al lado */
+.note-scroll { container-type: size; container-name: notescroll; }
+.note-inner.split { max-width: min(1500px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+.note-inner.split > .note-title, .note-inner.split > .note-lock { grid-column: 1 / -1; }
+.note-inner.split > .note-editor { grid-column: 1; }
+.note-inner.split > .note-reading {
+  grid-column: 2; position: sticky; top: 8px; max-height: calc(100cqh - 16px); overflow: auto; overscroll-behavior: contain;
+  border-left: 1px solid var(--border); padding: 0 4px 40px 24px;
+}
+.note-inner.split > .note-reading [data-line] { cursor: text; }
+@container notescroll (max-width: 600px) {
+  .note-inner.split { grid-template-columns: minmax(0, 1fr); }
+  .note-inner.split > .note-reading { grid-column: 1; position: static; max-height: none; border-left: 0; border-top: 1px dashed var(--border); padding: 16px 0 0; margin-top: 16px; }
+}
+#note-split[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+
+/* Sintaxis de Obsidian */
+.md .math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; color: var(--muted); }
+.md .math.rendered { font-family: inherit; font-size: 1em; color: inherit; }
+.md .math.display { display: block; text-align: center; margin: .6em 0; overflow-x: auto; overflow-y: hidden; }
+.md .math.rendered mjx-container { margin: 0 !important; }
+.md .math-block { margin: 0 0 1em; }
+.md .mermaid-box { margin: 0 0 1em; }
+.md .mermaid-box.rendered { display: flex; justify-content: center; overflow-x: auto; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--side); }
+.md .mermaid-box.rendered svg { max-width: 100%; height: auto; }
+.md .mermaid-box.failed pre { border-color: var(--high); }
+.md .fn-ref { font-size: .72em; line-height: 0; }
+.md .fn-ref a { text-decoration: none; padding: 0 2px; color: var(--accent); }
+.md .footnotes { margin-top: 2em; padding-top: .6em; border-top: 1px solid var(--border); font-size: .88rem; color: var(--muted); }
+.md .footnotes ol { padding-left: 1.4em; }
+.md .fn-back { text-decoration: none; margin-left: 4px; }
+.md .flash { animation: md-flash 1.4s ease-out; border-radius: 4px; }
+@keyframes md-flash { from { background: var(--accent-soft); } to { background: transparent; } }
+.md [data-block]:target, .md [data-block].flash { background: var(--accent-soft); }
+.md .block-anchor { display: block; height: 0; }
+.md .prop-chip { display: inline-block; padding: 0 8px; border-radius: 999px; background: var(--accent-soft); font-size: .92em; margin: 1px 2px 1px 0; }
+.md .note-img.ext { max-width: 100%; }
+.md kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82em; padding: 1px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; background: var(--side); }
+.md li.task-item .task-glyph { flex: none; width: 16px; text-align: center; font-weight: 700; color: var(--muted); }
+.md li.task-cancelled > span:last-child { text-decoration: line-through; color: var(--muted); }
+.md li.task-important .task-glyph { color: var(--high); }
+.md li.task-question .task-glyph { color: var(--mid); }
+.md li.task-star .task-glyph, .md li.task-forwarded .task-glyph { color: var(--accent); }
+details.callout > summary.callout-title { cursor: pointer; list-style: none; margin-bottom: 0; }
+details.callout > summary.callout-title::-webkit-details-marker { display: none; }
+details.callout > summary.callout-title::after { content: '▸'; float: right; transition: transform .15s; }
+details.callout[open] > summary.callout-title { margin-bottom: 4px; }
+details.callout[open] > summary.callout-title::after { transform: rotate(90deg); }
+.callout-abstract, .callout-todo, .callout-tip { --co: var(--accent); }
+.callout-question { --co: var(--mid); }
+.callout-failure, .callout-bug { --co: var(--high); }
+.callout-example { --co: #8b5cf6; }
+.callout-quote { --co: var(--muted); }
