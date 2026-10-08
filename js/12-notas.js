@@ -14,6 +14,7 @@ const ICONS = {
   bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>',
   timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/>',
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.4-2.3-5.6-4-7.4-.3 2.2-1.3 3.3-2.4 3.8C13 8.7 11.6 5 9 2c0 4-4 6.6-4 11.4C5 19.3 8 22 12 22z"/>',
+  canvas: '<rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6h4M17.5 9v6"/>',
   sparkle: '<path d="M12 3l1.8 4.9L19 9.7l-5.2 1.8L12 16.5l-1.8-5L5 9.7l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   review: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/>',
   chart: '<path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-9"/>',
@@ -262,8 +263,8 @@ function deleteNote(note) {
 
 // ---------- Pestañas del espacio de trabajo ----------
 const TABS_KEY = 'enfoque:tabs';
-const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', settings: 'Ajustes' };
-const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', settings: 'gear' };
+const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', canvas: 'Lienzos', settings: 'Ajustes' };
+const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', canvas: 'canvas', settings: 'gear' };
 const noteMode = new Map(); // id -> 'edit' | 'read'
 let ws = { tabs: [{ type: 'view', view: 'today' }], active: 0 };
 try {
@@ -502,6 +503,7 @@ function renderTree() {
           e.stopPropagation();
           showMenu(more, [
             { label: 'Nueva nota aquí', action: () => createNote({ folder: f }) },
+            { label: 'Ver como tabla', action: () => openFolderTable(f) },
             { label: 'Nueva subcarpeta', action: () => promptText({ placeholder: 'Nombre de la subcarpeta', action: 'Crear carpeta', onSubmit: (v) => createFolder(joinPath(f, v)) }) },
             { label: 'Renombrar', action: () => promptText({ placeholder: 'Nuevo nombre', initial: baseName(f), action: 'Renombrar', onSubmit: (v) => renameFolder(f, v) }) },
             { label: 'Eliminar carpeta', danger: true, action: () => deleteFolder(f) },
@@ -749,8 +751,31 @@ function autosize(ta) {
   ta.style.height = `${ta.scrollHeight + 4}px`;
 }
 
+// Texto de una nota. Las notas con contraseña (27-notas-protegidas.js) guardan en `body` solo un
+// aviso; su texto real vive cifrado en `enc` y, una vez desbloqueadas, en memoria (unlockedNotes).
+const unlockedNotes = new Map();
+const noteText = (note) => (note.enc ? unlockedNotes.get(note.id) ?? null : note.body);
+
+// Opciones extra del menú ⋯ de la nota (las añaden otros módulos): (nota) => opción | null.
+const NOTE_MENU_EXTRA = [];
+
 function renderNotePane(note) {
-  const mode = noteMode.get(note.id) || (note.body.trim() ? 'read' : 'edit');
+  const text = noteText(note);
+  const locked = text === null || (lockUI.mode === 'setup' && lockUI.noteId === note.id);
+  $('#note-lock').hidden = !locked;
+  if (locked) {
+    // Nota protegida y bloqueada: se pide la contraseña.
+    const folder = folderOf(note.path);
+    $('#note-crumbs').replaceChildren(...(folder ? folder.split('/').flatMap((f) => [el('span', {}, f), el('span', { className: 'sep' }, '/')]) : []), el('span', { className: 'crumb-name' }, `🔒 ${baseName(note.path)}`));
+    if (document.activeElement !== $('#note-title')) $('#note-title').value = baseName(note.path);
+    $('#note-editor').hidden = true;
+    $('#note-reading').hidden = true;
+    renderLockPanel(note);
+    $('#status-note').textContent = text === null ? 'Nota protegida con contraseña' : '';
+    return;
+  }
+  ensureBaseline(note);
+  const mode = noteMode.get(note.id) || (text.trim() ? 'read' : 'edit');
   noteMode.set(note.id, mode);
   const folder = folderOf(note.path);
   $('#note-crumbs').replaceChildren(...(folder ? folder.split('/').flatMap((f) => [el('span', {}, f), el('span', { className: 'sep' }, '/')]) : []), el('span', { className: 'crumb-name' }, baseName(note.path)));
@@ -766,19 +791,19 @@ function renderNotePane(note) {
   btn.ariaLabel = btn.title;
   paintIcons(btn);
   if (mode === 'edit') {
-    if (ta.dataset.note !== note.id || (document.activeElement !== ta && ta.value !== note.body)) {
-      ta.value = note.body;
+    if (ta.dataset.note !== note.id || (document.activeElement !== ta && ta.value !== text)) {
+      ta.value = text;
       ta.dataset.note = note.id;
     }
     autosize(ta);
   } else {
     reading.dataset.note = note.id;
-    reading.innerHTML = note.body.trim() ? renderMd(note.body, { noteId: note.id }) : '<p class="muted">Nota vacía. Haz doble clic o pulsa Ctrl+E para escribir.</p>';
+    reading.innerHTML = text.trim() ? renderMd(text, { noteId: note.id, noTasks: !!note.enc }) : '<p class="muted">Nota vacía. Haz doble clic o pulsa Ctrl+E para escribir.</p>';
     hydrateQueries(reading, note.id);
   }
-  const words = note.body.split(/\s+/).filter(Boolean).length;
+  const words = text.split(/\s+/).filter(Boolean).length;
   const { linked } = backlinksOf(note);
-  $('#status-note').textContent = `${plural(words, 'palabra', 'palabras')} · ${plural(note.body.length, 'carácter', 'caracteres')} · ${plural(linked.length, 'enlace entrante', 'enlaces entrantes')}`;
+  $('#status-note').textContent = `${note.enc ? '🔒 ' : ''}${plural(words, 'palabra', 'palabras')} · ${plural(text.length, 'carácter', 'caracteres')} · ${plural(linked.length, 'enlace entrante', 'enlaces entrantes')}`;
 }
 
 function setNoteMode(note, mode) {
@@ -816,7 +841,12 @@ $('#note-reading').addEventListener('dblclick', (e) => {
 $('#note-editor').addEventListener('input', (e) => {
   const note = activeNote();
   if (!note) return;
-  note.body = e.target.value;
+  if (note.enc) {
+    // Nota protegida: el texto se queda en memoria y se vuelve a cifrar (nunca se guarda en claro).
+    if (!unlockedNotes.has(note.id)) return;
+    unlockedNotes.set(note.id, e.target.value);
+    scheduleEncrypt(note);
+  } else note.body = e.target.value;
   note.updatedAt = Date.now();
   dataRev++;
   autosize(e.target);
@@ -824,10 +854,12 @@ $('#note-editor').addEventListener('input', (e) => {
   noteSaveTimer = setTimeout(() => {
     noteSaveTimer = null;
     save();
+    snapshotNote(note);
     renderSidePanes();
     renderRightPanel();
-    const words = note.body.split(/\s+/).filter(Boolean).length;
-    $('#status-note').textContent = `${plural(words, 'palabra', 'palabras')} · ${plural(note.body.length, 'carácter', 'caracteres')}`;
+    const text = noteText(note) ?? '';
+    const words = text.split(/\s+/).filter(Boolean).length;
+    $('#status-note').textContent = `${note.enc ? '🔒 ' : ''}${plural(words, 'palabra', 'palabras')} · ${plural(text.length, 'carácter', 'caracteres')}`;
   }, 500);
   updateSuggest();
 });
@@ -945,7 +977,8 @@ $('#note-more').addEventListener('click', () => {
       if (isNarrow()) toggleSide('right');
       renderRightPanel();
     } },
-    { label: 'Duplicar', action: () => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false }) },
+    ...NOTE_MENU_EXTRA.map((f) => f(note)).filter(Boolean),
+    ...(note.enc ? [] : [{ label: 'Duplicar', action: () => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false }) }]),
     { label: 'Eliminar nota', danger: true, action: () => deleteNote(note) },
   ]);
 });
@@ -1265,6 +1298,10 @@ function commands() {
       if (aiReady()) generateSummary();
     } },
     { label: 'Preguntar a tus notas (Claude)', action: ({ newTab }) => showView('ask', { newTab }) },
+    { label: 'Nuevo lienzo', action: () => {
+      showView('canvas');
+      $('#canvas-title').focus();
+    } },
     { label: 'Hacer la revisión semanal', action: ({ newTab }) => showView('review', { newTab }) },
     { label: 'Abrir vista de grafo', kbd: 'Ctrl+G', action: ({ newTab }) => openTab({ type: 'graph' }, { newTab }) },
     { label: 'Mostrar u ocultar el panel izquierdo', action: () => toggleSide('left') },
@@ -1400,6 +1437,10 @@ const VIEW_RENDER = {
   habits: () => renderHabits(),
   progress: () => renderProgress(),
   review: () => renderReviewStep(),
+  canvas: () => {
+    renderCanvasView();
+    if (cv.id) requestAnimationFrame(applyView);
+  },
   ask: () => {
     renderAsk();
     if (aiReady()) $('#ask-input').focus();

@@ -23,6 +23,7 @@
       <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
       <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
       <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
+      <button class="rib" data-view="canvas" title="Lienzos" aria-label="Lienzos"><span class="ico" data-icon="canvas"></span><span class="rib-label">Lienzos</span></button>
       <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
       <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar a tus notas</span></button>
       <span class="rib-spacer"></span>
@@ -72,7 +73,8 @@
           <div class="note-inner">
             <input id="note-title" class="note-title" type="text" maxlength="120" aria-label="Título de la nota" spellcheck="false">
             <textarea id="note-editor" class="note-editor" spellcheck="true" aria-label="Contenido de la nota" hidden></textarea>
-            <div id="note-reading" class="note-reading md" hidden></div>
+            <div id="note-lock" class="note-lock" hidden></div>
+          <div id="note-reading" class="note-reading md" hidden></div>
           </div>
         </div>
       </div>
@@ -508,6 +510,42 @@
       <p id="habit-progress-empty" class="empty">Crea hábitos para ver tu constancia.</p>
     </section>
 
+    <!-- Lienzos -->
+    <section id="view-canvas" class="view">
+      <div id="canvas-list-pane">
+        <form id="canvas-form" class="card row">
+          <input id="canvas-title" type="text" placeholder="Nombre del lienzo nuevo (p. ej. Plan del proyecto)" required maxlength="80">
+          <button type="submit" class="primary">Crear lienzo</button>
+        </form>
+        <div id="canvas-list" class="map-grid"></div>
+        <p id="canvas-empty" class="empty">Un lienzo es un espacio sin bordes para ordenar ideas: pon tarjetas de texto o notas enteras y únelas con flechas.</p>
+      </div>
+      <div id="canvas-editor" hidden>
+        <div class="map-toolbar cv-toolbar">
+          <button id="canvas-back" class="link back-link">← Lienzos</button>
+          <input id="canvas-name" class="map-name" type="text" maxlength="80" aria-label="Nombre del lienzo">
+          <button id="cv-add-text" class="chip">+ Texto</button>
+          <button id="cv-add-note" class="chip">+ Nota</button>
+          <span id="cv-selection" class="cv-selection" hidden>
+            <button id="cv-color" class="chip" title="Color de la tarjeta">🎨</button>
+            <button id="cv-open-note" class="chip" hidden>Abrir nota</button>
+            <button id="cv-delete" class="chip" title="Borrar (Supr)">🗑️</button>
+          </span>
+          <span class="cv-zoom-tools">
+            <button id="cv-zoom-out" class="chip" aria-label="Alejar">−</button>
+            <span id="cv-zoom" class="muted cv-zoom">100 %</span>
+            <button id="cv-zoom-in" class="chip" aria-label="Acercar">+</button>
+            <button id="cv-fit" class="chip">Ajustar</button>
+            <button id="cv-delete-canvas" class="link danger-link">Borrar lienzo</button>
+          </span>
+        </div>
+        <div id="cv-viewport" class="cv-viewport" tabindex="0" aria-label="Lienzo: arrastra el fondo para moverte, Ctrl+rueda o pellizca para ampliar">
+          <div id="cv-world" class="cv-world"><svg id="cv-edges" class="cv-edges" aria-hidden="true"></svg></div>
+          <p id="cv-hint" class="cv-hint muted">Doble clic en el fondo: tarjeta nueva · arrastra desde un punto de una tarjeta: flecha (o tarjeta nueva unida) · doble clic en una tarjeta: editar · Supr: borrar</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Preguntar -->
     <section id="view-ask" class="view">
       <div class="ask-wrap">
@@ -658,10 +696,43 @@
   </div>
   <div id="note-menu" class="menu" role="menu" hidden></div>
   <ul id="link-suggest" class="suggest" role="listbox" hidden></ul>
+  <div id="history" class="modal-back" hidden>
+    <div class="modal history-modal" role="dialog" aria-modal="true" aria-labelledby="history-title">
+      <header class="modal-head">
+        <h3 id="history-title">Historial</h3>
+        <button id="history-close" class="iv-close modal-x" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="history-body">
+        <nav id="history-list" class="history-list" aria-label="Versiones"></nav>
+        <section class="history-view">
+          <p id="history-legend" class="muted"></p>
+          <div id="history-diff" class="history-diff"></div>
+          <div class="row"><button id="history-restore" class="primary">Restaurar esta versión</button></div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div id="draw" class="draw-back" role="dialog" aria-modal="true" aria-label="Dibujo" hidden>
+    <div class="draw-tools" role="toolbar" aria-label="Herramientas de dibujo">
+      <button data-tool="pen" class="active" aria-pressed="true" title="Lápiz">✏️ <span>Lápiz</span></button>
+      <button data-tool="marker" aria-pressed="false" title="Marcador">🖍️ <span>Marcador</span></button>
+      <button data-tool="eraser" aria-pressed="false" title="Borrador de trazos">🧽 <span>Borrador</span></button>
+      <div id="draw-colors" class="draw-colors" role="group" aria-label="Color"></div>
+      <label class="draw-size" title="Grosor"><span class="sr-only">Grosor</span><input id="draw-size" type="range" min="1" max="12" value="3" aria-label="Grosor"></label>
+      <button id="draw-undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
+      <button id="draw-redo" title="Rehacer (Ctrl+Mayús+Z)" aria-label="Rehacer">↷</button>
+      <button id="draw-clear" title="Borrar todo">🗑️</button>
+      <span class="draw-spacer"></span>
+      <button id="draw-cancel">Cancelar</button>
+      <button id="draw-save" class="primary">Guardar</button>
+    </div>
+    <div id="draw-wrap" class="draw-wrap"><canvas id="draw-canvas" class="draw-canvas"></canvas></div>
+  </div>
   <input id="note-image-input" type="file" accept="image/*" multiple hidden>
   <div id="image-viewer" class="image-viewer" role="dialog" aria-modal="true" aria-label="Imagen" hidden>
     <button id="image-viewer-close" class="iv-close" aria-label="Cerrar">✕</button>
     <img id="image-viewer-img" alt="">
+    <button id="image-viewer-edit" class="primary" hidden>✏️ Editar dibujo</button>
     <p id="image-viewer-caption" class="iv-caption"></p>
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
@@ -690,6 +761,11 @@
   <script src="js/24-tablero-mes-sugerencias.js"></script>
   <script src="js/25-comando-barra.js"></script>
   <script src="js/26-imagenes.js"></script>
-  <script src="js/29-inicio.js"></script>
+  <script src="js/27-notas-protegidas.js"></script>
+  <script src="js/28-historial.js"></script>
+  <script src="js/30-tablas.js"></script>
+  <script src="js/31-dibujo.js"></script>
+  <script src="js/32-lienzos.js"></script>
+  <script src="js/99-inicio.js"></script>
 </body>
 </html>

@@ -14,6 +14,7 @@ const defaults = () => ({
   journal: [], // entradas del diario
   ideas: [], // notas de ideas
   maps: [], // mapas mentales
+  canvases: [], // lienzos: tarjetas y flechas en un espacio infinito
   archive: [], // tareas completadas hace más de una semana
   log: [], // bitácora: hitos de cada día
   notes: [], // notas en Markdown: { id, path: 'Carpeta/Título', body }
@@ -24,7 +25,7 @@ const defaults = () => ({
 
 // Datos del usuario (lo que se sincroniza, se exporta y se puede deshacer).
 const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'projects', 'folders'];
-const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes'];
+const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes', 'canvases'];
 
 // Datos guardados → estado completo, con los valores por defecto de lo que falte.
 function normalize(data) {
@@ -62,12 +63,13 @@ function idbOpen() {
     // Si el navegador no responde, se sigue sin IndexedDB (con localStorage) en vez de esperar.
     setTimeout(() => resolve(null), 3000);
     try {
-      // Versión 2: almacén «files» para las imágenes de las notas.
-      const req = indexedDB.open('enfoque', 2);
+      // Versión 2: almacén «files» (imágenes de las notas); 3: «history» (versiones de las notas).
+      const req = indexedDB.open('enfoque', 3);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
         if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'noteId' });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);

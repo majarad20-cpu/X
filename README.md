@@ -15,12 +15,17 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Tareas en las notas**: cualquier `- [ ] texto` de una nota aparece en Tareas, Hoy y Semana con un distintivo 📝 que lleva a su nota. Admite `- [/]` para «en curso», `📅 2026-10-08` o `📅 mañana`, `⏰ 17:30`, `!alta`, `#etiqueta` y `+proyecto`; en una nota diaria, las tareas sin fecha son de ese día. Al completarlas se añade `✅ fecha` a la línea y cuentan en estadísticas y bitácora.
 - **Nota de proyecto**: cada proyecto puede tener su nota (`Proyectos/Nombre`); sus casillas cuentan para el avance.
 - **Pasar a notas** (Ajustes): copia el diario (en la nota diaria de cada día), las ideas (`Ideas/`) y los mapas mentales (como esquema en `Mapas/`). Los originales se conservan y al repetir solo se copia lo nuevo.
+- **Lienzos** (barra de iconos): un espacio infinito con tarjetas de texto (en Markdown, con imágenes y enlaces) o notas enteras, unidas con flechas, como el Canvas de Obsidian. Doble clic en el fondo crea una tarjeta; desde los puntos de una tarjeta se arrastra una flecha (si se suelta en el vacío, crea una tarjeta nueva unida); las tarjetas se mueven, se redimensionan y se colorean; la vista se mueve arrastrando el fondo y se amplía con Ctrl+rueda o pellizcando. Teclado: flechas mueven la tarjeta elegida, Enter la edita, Supr la borra (con deshacer).
+- **Dibujo a mano** (`/dibujo` o menú ⋯): lápiz con presión, marcador, borrador de trazos, colores, grosor, deshacer y rehacer; con lápiz se ignora la palma. Se guarda como imagen de la nota y se puede volver a editar desde el visor.
+- **Historial de versiones** (menú ⋯): cada nota guarda en el dispositivo hasta 60 versiones; se ven las diferencias con la actual y se restaura cualquiera (lo actual queda también como versión).
+- **Notas con contraseña** (menú ⋯): el texto se cifra en el dispositivo (AES-GCM, clave derivada con PBKDF2) y solo se guarda y sincroniza cifrado. Se vuelve a bloquear al cerrar la app o tras 5 minutos fuera. Sin la contraseña no se puede recuperar.
+- **Tablas de notas**: un bloque ```` ```tabla ```` (`carpeta: Libros`, `#etiqueta`, `columnas: autor, nota`, `orden: nota desc`) muestra las notas como filas y sus propiedades (`---` `clave: valor` `---`) como columnas, como las bases de datos de Notion. Las celdas se editan con un toque, las cabeceras ordenan y hay botones para añadir filas (notas nuevas) y columnas. En el menú de una carpeta, «Ver como tabla».
 - **Vista de grafo** (Ctrl+G): cada nota es un punto y cada enlace una línea, con colores por carpeta. Se puede mover, ampliar (rueda o pellizco), arrastrar puntos y abrir una nota al tocarla (una nota «sin crear» se crea al tocarla). Filtros: buscar, etiquetas, notas sin crear y notas sin enlaces.
 - **Grafo local** (panel derecho › Grafo): las conexiones de la nota abierta, a 1, 2 o 3 saltos.
 - **Mapa mental desde una nota** (menú ⋯ o paleta): los títulos y listas de la nota se convierten en ramas; el mapa se puede actualizar cuando cambie la nota y lleva a su nota de origen.
 - **Plantillas**: las notas de la carpeta `Plantillas` son plantillas (se crean 4 de ejemplo la primera vez). «Nueva nota desde plantilla» e «Insertar plantilla» (Ctrl+P o menú ⋯). Variables `{{fecha}}`, `{{fecha_larga}}`, `{{hora}}`, `{{título}}` y `{{semana}}`. Si existe `Plantillas/Nota diaria`, se usa para las notas diarias.
 - **Consultas**: un bloque de código ```` ```tareas ```` (filtros `#etiqueta`, `+proyecto`, `pendientes`/`hechas`/`todas`, `hoy`/`vencidas`/`semana`/`sin fecha`, `carpeta: X`, `límite: N`) o ```` ```notas ```` (`#etiqueta`, `carpeta: X`, `enlaza: Nota`) muestra una lista que se actualiza sola; las tareas se pueden marcar ahí mismo.
-- Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso, Revisión semanal y Preguntar) se abren como pestañas desde la barra de iconos.
+- Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso, Lienzos, Revisión semanal y Preguntar) se abren como pestañas desde la barra de iconos.
 
 ## Dentro de Claude
 
@@ -73,6 +78,6 @@ python3 -m http.server 8000
 ## Desarrollo
 
 - `index.html` y `styles.css`: estructura y estilos.
-- `js/`: el código, en módulos que se cargan en orden (`01-nucleo.js` … `29-inicio.js`; `29-inicio.js` va siempre el último). Son scripts normales que comparten el ámbito global, así que no hace falta compilar nada.
+- `js/`: el código, en módulos que se cargan en orden (`01-nucleo.js` … `99-inicio.js`; `99-inicio.js` va siempre el último). Son scripts normales que comparten el ámbito global, así que no hace falta compilar nada.
 - `python3 tools/build.py`: junta todo en `dist/enfoque.html`, el archivo único que se publica en Claude.
 - `node tests/run.js [filtro]`: lanza las pruebas de `tests/` (Playwright + Chromium) contra `index.html` y resume el resultado. Las capturas quedan en `tests/out/`. Las pruebas simulan Claude (también sus herramientas), Google Calendar y la sincronización.

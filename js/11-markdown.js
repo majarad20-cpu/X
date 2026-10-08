@@ -80,8 +80,9 @@ function renderMd(src, ctx = {}) {
       while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
       i++;
       const lang = fence[1].toLowerCase();
-      if (['tareas', 'tasks', 'notas', 'notes'].includes(lang)) {
-        html += `<div class="query" data-kind="${lang.startsWith('t') ? 'tareas' : 'notas'}" data-src="${encodeURIComponent(body.join('\n'))}"></div>`;
+      if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table'].includes(lang)) {
+        const kind = lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
+        html += `<div class="query" data-kind="${kind}" data-src="${encodeURIComponent(body.join('\n'))}"></div>`;
         continue;
       }
       html += `<pre class="code"><code${fence[1] ? ` data-lang="${escHtml(fence[1])}"` : ''}>${escHtml(body.join('\n'))}</code></pre>`;

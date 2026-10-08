@@ -223,7 +223,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.target.closest?.('#map-canvas')) return;
+  if (e.target.closest?.('#map-canvas, #cv-viewport')) return;
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
