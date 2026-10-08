@@ -277,7 +277,7 @@ $('#draw-save').addEventListener('click', async () => {
       save();
       renderAll();
     } else {
-      if (noteMode.get(note.id) !== 'edit') setNoteMode(note, 'edit');
+      if (!isEditing(note.id)) setNoteMode(note, preferredEditMode());
       const ta = $('#note-editor');
       const pos = draw.caret ?? ta.value.length;
       const before = ta.value.slice(0, pos);

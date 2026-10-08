@@ -26,7 +26,7 @@
       <button class="rib" data-view="canvas" title="Lienzos" aria-label="Lienzos"><span class="ico" data-icon="canvas"></span><span class="rib-label">Lienzos</span></button>
       <button class="rib" data-view="shared" title="Listas compartidas" aria-label="Listas compartidas"><span class="ico" data-icon="users"></span><span class="rib-label">Listas compartidas</span></button>
       <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
-      <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar a tus notas</span></button>
+      <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar</span></button>
       <span class="rib-spacer"></span>
       <button class="rib" id="open-settings" title="Ajustes" aria-label="Ajustes"><span class="ico" data-icon="gear"></span><span class="rib-label">Ajustes</span></button>
     </nav>
@@ -69,6 +69,7 @@
         <div class="note-toolbar">
           <span id="note-crumbs" class="note-crumbs"></span>
           <button id="note-ai-btn" class="side-btn" title="Claude en esta nota (Ctrl+J)" aria-label="Claude en esta nota" hidden><span class="ico" data-icon="sparkle"></span></button>
+          <button id="note-split" class="side-btn" hidden aria-pressed="false" title="Editar con vista previa al lado (Ctrl+Mayús+E)" aria-label="Editar con vista previa al lado"><span class="ico" data-icon="columns"></span></button>
           <button id="note-mode" class="side-btn" title="Alternar edición / lectura (Ctrl+E)"><span class="ico" data-icon="pencil"></span></button>
           <button id="note-more" class="side-btn" title="Más opciones" aria-label="Más opciones" aria-haspopup="menu"><span class="ico" data-icon="more"></span></button>
         </div>
@@ -706,6 +707,18 @@
         <textarea id="restore-text" rows="4" placeholder="Pega aquí el texto de tu copia" hidden aria-label="Texto de la copia a restaurar"></textarea>
         <p id="backup-message" class="muted" role="status"></p>
       </div>
+
+      <h2 class="section-title">Obsidian</h2>
+      <div class="card backup" id="vault-card">
+        <p>Trae tu bóveda de Obsidian con sus carpetas e imágenes, o llévate tus notas como bóveda. Las notas se escriben igual que en Obsidian: abre la guía para ver toda la sintaxis.</p>
+        <div class="row">
+          <label class="file-btn primary">Importar carpeta<input id="vault-folder" type="file" webkitdirectory multiple></label>
+          <label class="file-btn">Importar .zip o archivos .md<input id="vault-files" type="file" multiple accept=".md,.markdown,.zip,image/*"></label>
+          <button id="vault-export">Exportar como bóveda (.zip)</button>
+          <button id="vault-guide">Guía de sintaxis</button>
+        </div>
+        <p id="vault-message" class="muted" role="status"></p>
+      </div>
     </section>
     </main>
       <footer class="footer">
@@ -893,6 +906,8 @@
   <script src="js/36-correo.js"></script>
   <script src="js/37-listas-compartidas.js"></script>
   <script src="js/38-apariencia.js"></script>
+  <script src="js/39-obsidian.js"></script>
+  <script src="js/40-edicion-bloques.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

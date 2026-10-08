@@ -202,7 +202,7 @@ async function applyNoteAI(mode) {
   save();
   await snapshotNote(note, { force: true });
   closeNoteAI();
-  if (noteMode.get(note.id) === 'edit') {
+  if (isEditing(note.id)) {
     const ta = $('#note-editor');
     ta.value = note.body;
     autosize(ta);

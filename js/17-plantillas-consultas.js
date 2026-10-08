@@ -52,7 +52,7 @@ function insertTemplate() {
   if (!note) return newNoteFromTemplate();
   pickTemplate((tpl) => {
     const text = fillTemplate(tpl.body, baseName(note.path));
-    if (noteMode.get(note.id) !== 'edit') noteMode.set(note.id, 'edit');
+    if (!isEditing(note.id)) noteMode.set(note.id, preferredEditMode());
     renderNotePane(note);
     const ta = $('#note-editor');
     const at = ta.dataset.caret ? Number(ta.dataset.caret) : ta.value.length;

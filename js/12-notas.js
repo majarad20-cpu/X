@@ -29,6 +29,7 @@ const ICONS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/>',
+  columns: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
   read: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
@@ -91,8 +92,16 @@ function findNoteByName(name) {
   // Los enlaces se repiten mucho (grafo, enlaces entrantes): cada texto se resuelve una vez por versión.
   if (idx.resolved.has(name)) return idx.resolved.get(name);
   const found = resolveNoteName(name, idx);
+  // Los alias (propiedad «aliases») se buscan sin caché: cambian al editar la nota.
+  if (!found) return noteByAlias(name);
   idx.resolved.set(name, found);
   return found;
+}
+
+function noteByAlias(name) {
+  const n = name.trim().toLowerCase();
+  if (!n) return null;
+  return state.notes.find((x) => x.body?.startsWith('---') && noteAliases(x.body).some((a) => a.toLowerCase() === n)) || null;
 }
 
 function resolveNoteName(name, idx) {
@@ -266,7 +275,10 @@ function deleteNote(note) {
 const TABS_KEY = 'enfoque:tabs';
 const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', canvas: 'Lienzos', shared: 'Listas compartidas', settings: 'Ajustes' };
 const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', canvas: 'canvas', shared: 'users', settings: 'gear' };
-const noteMode = new Map(); // id -> 'edit' | 'read'
+const noteMode = new Map(); // id -> 'edit' | 'read' | 'split' (edición con vista previa al lado)
+const isEditing = (id) => noteMode.get(id) === 'edit' || noteMode.get(id) === 'split';
+// Modo de edición preferido (con o sin vista previa), recordado en la apariencia.
+const preferredEditMode = () => (state.settings.look?.editMode === 'split' ? 'split' : 'edit');
 let ws = { tabs: [{ type: 'view', view: 'today' }], active: 0 };
 try {
   const saved = JSON.parse(localStorage.getItem(TABS_KEY));
@@ -778,9 +790,12 @@ function renderRightPanel() {
 }
 
 function scrollToHeading(note, heading) {
-  const h = headingsIn(note.body).find((x) => x.text.toLowerCase() === heading.toLowerCase());
+  // [[Nota#^id]] apunta a un bloque concreto, no a un título.
+  const block = heading.startsWith('^') ? heading.slice(1) : null;
+  const bl = block ? blockLine(note.body, block) : -1;
+  const h = block ? (bl < 0 ? null : { line: bl, id: `b-${block}` }) : headingsIn(note.body).find((x) => x.text.toLowerCase() === heading.toLowerCase());
   if (!h) return;
-  if (noteMode.get(note.id) === 'edit') {
+  if (isEditing(note.id)) {
     const ta = $('#note-editor');
     const pos = note.body.split('\n').slice(0, h.line).join('\n').length + (h.line ? 1 : 0);
     ta.focus({ preventScroll: true });
@@ -807,8 +822,13 @@ const noteText = (note) => (note.enc ? unlockedNotes.get(note.id) ?? null : note
 
 // Opciones extra del menú ⋯ de la nota (las añaden otros módulos): (nota) => opción | null.
 const NOTE_MENU_EXTRA = [];
+// Comandos que añaden otros módulos a la paleta: (nota activa) => [comandos].
+const COMMANDS_EXTRA = [];
 
 function renderNotePane(note) {
+  // Mientras se edita un bloque en la vista de lectura no se redibuja (se perdería el cursor);
+  // si se dibuja otra cosa, el bloque se cierra antes.
+  if (blockEditKeeps(note)) return;
   syncNoteAI(note);
   const text = noteText(note);
   const locked = text === null || (lockUI.mode === 'setup' && lockUI.noteId === note.id);
@@ -825,41 +845,83 @@ function renderNotePane(note) {
     return;
   }
   ensureBaseline(note);
-  const mode = noteMode.get(note.id) || (text.trim() ? 'read' : 'edit');
+  const mode = noteMode.get(note.id) || (text.trim() ? 'read' : preferredEditMode());
   noteMode.set(note.id, mode);
+  const editing = mode === 'edit' || mode === 'split';
   const folder = folderOf(note.path);
   $('#note-crumbs').replaceChildren(...(folder ? folder.split('/').flatMap((f) => [el('span', {}, f), el('span', { className: 'sep' }, '/')]) : []), el('span', { className: 'crumb-name' }, baseName(note.path)));
   const title = $('#note-title');
   if (document.activeElement !== title) title.value = baseName(note.path);
   const ta = $('#note-editor');
   const reading = $('#note-reading');
-  ta.hidden = mode !== 'edit';
-  reading.hidden = mode !== 'read';
+  ta.hidden = !editing;
+  reading.hidden = mode === 'edit';
+  $('.note-inner').classList.toggle('split', mode === 'split');
   const btn = $('#note-mode');
-  btn.querySelector('.ico').dataset.icon = mode === 'edit' ? 'read' : 'pencil';
-  btn.title = mode === 'edit' ? 'Ver en modo lectura (Ctrl+E)' : 'Editar (Ctrl+E)';
+  btn.querySelector('.ico').dataset.icon = editing ? 'read' : 'pencil';
+  btn.title = editing ? 'Ver en modo lectura (Ctrl+E)' : 'Editar (Ctrl+E)';
   btn.ariaLabel = btn.title;
   paintIcons(btn);
-  if (mode === 'edit') {
+  const split = $('#note-split');
+  split.classList.toggle('on', mode === 'split');
+  split.ariaPressed = String(mode === 'split');
+  split.title = mode === 'split' ? 'Quitar la vista previa (Ctrl+Mayús+E)' : 'Editar con vista previa al lado (Ctrl+Mayús+E)';
+  if (editing) {
     if (ta.dataset.note !== note.id || (document.activeElement !== ta && ta.value !== text)) {
       ta.value = text;
       ta.dataset.note = note.id;
     }
     autosize(ta);
-  } else {
-    reading.dataset.note = note.id;
-    reading.innerHTML = text.trim() ? renderMd(text, { noteId: note.id, noTasks: !!note.enc }) : '<p class="muted">Nota vacía. Haz doble clic o pulsa Ctrl+E para escribir.</p>';
-    hydrateQueries(reading, note.id);
   }
+  if (mode !== 'edit') renderReading(note, mode === 'split' && ta.dataset.note === note.id ? ta.value : text);
   const words = text.split(/\s+/).filter(Boolean).length;
   const { linked } = backlinksOf(note);
   $('#status-note').textContent = `${note.enc ? '🔒 ' : ''}${plural(words, 'palabra', 'palabras')} · ${plural(text.length, 'carácter', 'caracteres')} · ${plural(linked.length, 'enlace entrante', 'enlaces entrantes')}`;
 }
 
+function renderReading(note, text) {
+  const reading = $('#note-reading');
+  reading.dataset.note = note.id;
+  endBlockEdit();
+  reading.innerHTML = text.trim() ? renderMd(text, { noteId: note.id, noTasks: !!note.enc, blocks: true }) : '<p class="muted note-empty">Nota vacía. Haz doble clic aquí para escribir.</p>';
+  hydrateQueries(reading, note.id);
+}
+
+// En la vista dividida, la vista previa se actualiza poco después de cada cambio.
+let splitTimer = null;
+function scheduleSplitPreview(note) {
+  clearTimeout(splitTimer);
+  splitTimer = setTimeout(() => {
+    if (activeNote()?.id !== note.id || noteMode.get(note.id) !== 'split') return;
+    const reading = $('#note-reading');
+    const keep = reading.scrollTop;
+    renderReading(note, $('#note-editor').value);
+    reading.scrollTop = keep;
+    followCaret();
+  }, 150);
+}
+
+// La vista previa acompaña al cursor: muestra el bloque de la línea que se está escribiendo.
+function followCaret() {
+  const ta = $('#note-editor');
+  const reading = $('#note-reading');
+  if (reading.hidden || document.activeElement !== ta) return;
+  const line = ta.value.slice(0, ta.selectionStart).split('\n').length - 1;
+  let target = null;
+  for (const n of reading.querySelectorAll(':scope > [data-line], :scope > ul [data-line], :scope > ol [data-line]')) {
+    if (Number(n.dataset.line) > line) break;
+    target = n;
+  }
+  if (!target) return;
+  const top = target.getBoundingClientRect().top - reading.getBoundingClientRect().top;
+  if (top < 0 || top > reading.clientHeight - 40) reading.scrollTop += top - reading.clientHeight / 3;
+}
+
 function setNoteMode(note, mode) {
+  endBlockEdit();
   noteMode.set(note.id, mode);
   renderNotePane(note);
-  if (mode === 'edit') {
+  if (mode === 'edit' || mode === 'split') {
     const ta = $('#note-editor');
     ta.focus({ preventScroll: true });
   }
@@ -869,7 +931,18 @@ function toggleNoteMode() {
   const note = activeNote();
   if (!note) return;
   flushNoteSave();
-  setNoteMode(note, noteMode.get(note.id) === 'edit' ? 'read' : 'edit');
+  setNoteMode(note, isEditing(note.id) ? 'read' : preferredEditMode());
+}
+
+// Alterna la vista previa al lado del editor y recuerda la preferencia.
+function toggleSplit() {
+  const note = activeNote();
+  if (!note || note.enc && !unlockedNotes.has(note.id)) return;
+  flushNoteSave();
+  const next = noteMode.get(note.id) === 'split' ? 'edit' : 'split';
+  state.settings.look = { ...(state.settings.look || {}), editMode: next };
+  save();
+  setNoteMode(note, next);
 }
 
 function flushNoteSave() {
@@ -882,10 +955,18 @@ function flushNoteSave() {
 }
 
 $('#note-mode').addEventListener('click', toggleNoteMode);
-$('#note-reading').addEventListener('dblclick', (e) => {
-  if (e.target.closest('a, input, button, .embed, .query')) return;
+$('#note-split').addEventListener('click', toggleSplit);
+// En la vista dividida, tocar algo en la vista previa lleva el cursor a esa línea del texto.
+$('#note-reading').addEventListener('click', (e) => {
   const note = activeNote();
-  if (note) setNoteMode(note, 'edit');
+  if (!note || noteMode.get(note.id) !== 'split' || e.target.closest('a, input, button, .query, audio')) return;
+  const at = e.target.closest('[data-line]');
+  if (!at) return;
+  const ta = $('#note-editor');
+  const line = Number(at.dataset.line);
+  const pos = ta.value.split('\n').slice(0, line).join('\n').length + (line ? 1 : 0);
+  ta.focus({ preventScroll: true });
+  ta.setSelectionRange(pos, pos);
 });
 
 $('#note-editor').addEventListener('input', (e) => {
@@ -894,9 +975,17 @@ $('#note-editor').addEventListener('input', (e) => {
   if (note.enc) {
     // Nota protegida: el texto se queda en memoria y se vuelve a cifrar (nunca se guarda en claro).
     if (!unlockedNotes.has(note.id)) return;
-    unlockedNotes.set(note.id, e.target.value);
+    const full = blockEditBody(note, e.target.value);
+    if (full === null) return;
+    unlockedNotes.set(note.id, full);
     scheduleEncrypt(note);
-  } else note.body = e.target.value;
+  } else {
+    // Editando un solo bloque, el editor tiene solo ese trozo: se recompone la nota entera.
+    const full = blockEditBody(note, e.target.value);
+    if (full === null) return;
+    note.body = full;
+  }
+  if (noteMode.get(note.id) === 'split') scheduleSplitPreview(note);
   note.updatedAt = Date.now();
   dataRev++;
   autosize(e.target);
@@ -1359,7 +1448,8 @@ function commands() {
   ];
   if (note) {
     list.push(
-      { label: noteMode.get(note.id) === 'edit' ? 'Cambiar a modo lectura' : 'Cambiar a modo edición', kbd: 'Ctrl+E', action: toggleNoteMode },
+      { label: isEditing(note.id) ? 'Cambiar a modo lectura' : 'Cambiar a modo edición', kbd: 'Ctrl+E', action: toggleNoteMode },
+      { label: noteMode.get(note.id) === 'split' ? 'Quitar la vista previa al editar' : 'Editar con vista previa al lado', kbd: 'Ctrl+Mayús+E', action: toggleSplit },
       { label: 'Renombrar la nota', action: () => $('#note-title').select() },
       { label: 'Mover la nota a otra carpeta', action: () => pickFolder(note) },
       { label: 'Copiar enlace a la nota', action: () => copyText(`[[${baseName(note.path)}]]`, 'Enlace copiado') },
@@ -1375,6 +1465,7 @@ function commands() {
       } }
     );
   }
+  COMMANDS_EXTRA.forEach((f) => list.push(...(f(note) || [])));
   list.push({ label: 'Cerrar la pestaña actual', action: () => closeTab(ws.active) });
   Object.entries(VIEW_TITLES).forEach(([v, t]) => list.push({ label: `Ir a ${t}`, action: ({ newTab }) => showView(v, { newTab }) }));
   return list;

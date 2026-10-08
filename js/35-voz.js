@@ -183,7 +183,7 @@ async function finishRecording() {
   note.body = `${before}${before && !before.endsWith('\n') ? '\n' : ''}${block}\n${note.body.slice(at)}`;
   note.updatedAt = Date.now();
   save();
-  if (noteMode.get(note.id) === 'edit') {
+  if (isEditing(note.id)) {
     $('#note-editor').value = note.body;
     autosize($('#note-editor'));
   }

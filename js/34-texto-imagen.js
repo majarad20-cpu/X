@@ -59,7 +59,7 @@ async function extractImageText(id) {
   note.updatedAt = Date.now();
   save();
   await snapshotNote(note, { force: true });
-  if (noteMode.get(note.id) === 'edit') {
+  if (isEditing(note.id)) {
     $('#note-editor').value = note.body;
     autosize($('#note-editor'));
   }

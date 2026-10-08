@@ -209,6 +209,11 @@ document.addEventListener('keydown', (e) => {
     else if (k === 'e') toggleNoteMode();
     return;
   }
+  if (mod && e.shiftKey && !e.altKey && k === 'e') {
+    e.preventDefault();
+    toggleSplit();
+    return;
+  }
   if (e.altKey && !mod && k === 'd') {
     e.preventDefault();
     openDailyNote();
