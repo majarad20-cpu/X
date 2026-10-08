@@ -31,7 +31,7 @@ const NOTE_WIDTHS = { narrow: ['Estrecho', '620px'], normal: ['Normal', '720px']
 const LINE_HEIGHTS = { compact: ['Compacto', '1.5'], normal: ['Normal', '1.75'], relaxed: ['Amplio', '2'] };
 const RADII = { round: ['Redondeadas', '12px'], soft: ['Suaves', '7px'], square: ['Rectas', '2px'] };
 
-const LOOK_DEFAULTS = { theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'normal', radius: 'round', density: 'comfortable', motion: 'normal' };
+const LOOK_DEFAULTS = { ribbonLabels: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'normal', radius: 'round', density: 'comfortable', motion: 'normal' };
 
 const LOOK_PRESETS = {
   original: { label: 'Original', look: {}, accent: 'indigo' },
@@ -70,6 +70,7 @@ function applyLook() {
   set('--radius', (RADII[L.radius] || RADII.round)[1]);
   root.dataset.density = L.density === 'compact' ? 'compact' : 'comfortable';
   root.dataset.motion = L.motion === 'reduce' ? 'reduce' : 'normal';
+  root.dataset.riblabels = L.ribbonLabels === 'off' ? 'off' : 'on';
   // Color propio: un tono para temas claros y otro más luminoso para los oscuros.
   if (/^#[0-9a-f]{6}$/i.test(L.customAccent || '')) {
     set('--accent-l', L.customAccent);
@@ -138,7 +139,8 @@ function renderAppearance() {
     const b = el('button', { className: 'chip' }, p.label);
     b.addEventListener('click', () => {
       state.settings.accent = p.accent;
-      state.settings.look = { ...LOOK_DEFAULTS, ...p.look };
+      // El estilo no cambia si la barra muestra nombres: eso lo decide cada persona.
+      state.settings.look = { ...LOOK_DEFAULTS, ribbonLabels: look().ribbonLabels, ...p.look };
       save();
       applySettings();
       applyLook();
@@ -169,6 +171,7 @@ function renderAppearance() {
     row('Tamaño del texto de las notas', range('noteSize', 13, 24, 1, (v) => `${v} px`, 'Tamaño del texto de las notas')),
     row('Interlineado de las notas', seg('lineHeight', LINE_HEIGHTS, 'Interlineado')),
     el('h3', { className: 'ap-sub' }, 'Diseño'),
+    row('Barra de la izquierda', seg('ribbonLabels', { on: ['Iconos y nombres'], off: ['Solo iconos'] }, 'Barra de la izquierda'), 'Muestra el nombre de cada sección junto a su icono'),
     row('Ancho de las notas', seg('noteWidth', NOTE_WIDTHS, 'Ancho de las notas')),
     row('Esquinas', seg('radius', RADII, 'Esquinas')),
     row('Densidad', seg('density', { comfortable: ['Cómoda'], compact: ['Compacta'] }, 'Densidad'), 'Compacta muestra más cosas a la vez'),
