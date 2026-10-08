@@ -5,6 +5,7 @@ const ACCENTS = { indigo: 'Índigo', blue: 'Azul', teal: 'Turquesa', fuchsia: 'F
 
 function applySettings() {
   document.documentElement.dataset.accent = ACCENTS[state.settings.accent] ? state.settings.accent : 'indigo';
+  applyLook();
   refreshSettingsInputs();
 }
 
@@ -19,9 +20,12 @@ function renderAccents() {
       btn.dataset.swatch = key;
       btn.addEventListener('click', () => {
         state.settings.accent = key;
+        // Elegir un color de la lista quita el color propio.
+        if (state.settings.look?.customAccent) state.settings.look = { ...state.settings.look, customAccent: '' };
         save();
         applySettings();
         renderAccents();
+        renderAppearance();
       });
       return btn;
     })
@@ -104,6 +108,7 @@ function restoreBackup(text) {
 $('#open-settings').addEventListener('click', () => {
   showView('settings');
   renderAccents();
+  renderAppearance();
   renderStorage();
 });
 $('#backup-export').addEventListener('click', exportBackup);

@@ -1498,6 +1498,7 @@ const VIEW_RENDER = {
   },
   settings: () => {
     renderAccents();
+    renderAppearance();
     renderStorage();
   },
 };

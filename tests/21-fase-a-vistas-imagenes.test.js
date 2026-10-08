@@ -127,7 +127,7 @@ const drag = async (p, from, to, dx = 40, dy = 30) => {
   // Ideas: casillas y color
   await p.evaluate(() => showView('ideas'));
   await p.click('.idea-check:has-text("Pan") input');
-  await p.click('.idea [aria-label^="Color"]'); await p.click('.idea .swatch[aria-label="Amarillo"]');
+  await p.click('.idea [aria-label^="Color"]'); await p.click('.idea .color-dot[aria-label="Amarillo"]');
   console.log('idea:', await p.evaluate(() => [state.ideas[0].text.split('\n')[1], state.ideas[0].color]));
   console.log('errors:', errs); await b.close();
 })();

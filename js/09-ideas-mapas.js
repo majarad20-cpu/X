@@ -158,7 +158,7 @@ function ideaCard(idea) {
   ]);
   if (paletteFor === idea.id) {
     card.append(el('div', { className: 'idea-palette', role: 'group', ariaLabel: 'Color' }, IDEA_COLORS.map(([c, label]) => {
-      const sw = el('button', { className: `swatch${c ? ` ic-${c}` : ''}${(idea.color || '') === c ? ' on' : ''}`, title: label, ariaLabel: label, ariaPressed: String((idea.color || '') === c) });
+      const sw = el('button', { className: `color-dot${c ? ` ic-${c}` : ''}${(idea.color || '') === c ? ' on' : ''}`, title: label, ariaLabel: label, ariaPressed: String((idea.color || '') === c) });
       sw.addEventListener('click', () => {
         if (c) idea.color = c;
         else delete idea.color;
@@ -211,7 +211,7 @@ function renderIdeas() {
   if (ideaColor && !colors.some(([c]) => c === ideaColor)) ideaColor = null;
   $('#idea-colors').replaceChildren(
     ...colors.map(([c, label]) => {
-      const b = el('button', { className: `swatch ic-${c}${ideaColor === c ? ' on' : ''}`, title: `Solo ${label.toLowerCase()}`, ariaLabel: `Filtrar por ${label.toLowerCase()}`, ariaPressed: String(ideaColor === c) });
+      const b = el('button', { className: `color-dot ic-${c}${ideaColor === c ? ' on' : ''}`, title: `Solo ${label.toLowerCase()}`, ariaLabel: `Filtrar por ${label.toLowerCase()}`, ariaPressed: String(ideaColor === c) });
       b.addEventListener('click', () => {
         ideaColor = ideaColor === c ? null : c;
         renderIdeas();
