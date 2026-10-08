@@ -8,6 +8,7 @@ const OBS_LIBS = {
   mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js',
   mermaid: 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js',
   jszip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+  lzstring: 'https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js',
 };
 const obsLoads = {};
 
@@ -168,6 +169,7 @@ const vaultMessage = (text, isError = false) => {
 // ---------- Importar una bóveda ----------
 const VAULT_IMG = /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i;
 const VAULT_SKIP = /(^|\/)(\.[^/]*|node_modules)(\/|$)/; // .obsidian, .trash, .git…
+const VAULT_DRAW = /\.excalidraw(\.md)?$/i; // dibujos del complemento Excalidraw
 
 // Convierte la lista de archivos (de una carpeta, un .zip o sueltos) en notas e imágenes.
 // entries: [{ path: 'Carpeta/Nota.md', text?: () => Promise<string>, blob?: () => Promise<Blob> }]
@@ -179,9 +181,10 @@ async function importVaultEntries(entries) {
     const cut = [...firsts][0].length + 1;
     entries.forEach((e) => (e.path = e.path.slice(cut)));
   }
-  const notes = entries.filter((e) => /\.md$/i.test(e.path));
+  const drawings = entries.filter((e) => VAULT_DRAW.test(e.path));
+  const notes = entries.filter((e) => /\.md$/i.test(e.path) && !VAULT_DRAW.test(e.path));
   const images = entries.filter((e) => VAULT_IMG.test(e.path));
-  if (!notes.length && !images.length) return vaultMessage('No hay notas (.md) ni imágenes para importar.', true);
+  if (!notes.length && !images.length && !drawings.length) return vaultMessage('No hay notas (.md), imágenes ni dibujos para importar.', true);
   vaultMessage(`Importando ${plural(notes.length, 'nota', 'notas')}${images.length ? ` y ${plural(images.length, 'imagen', 'imágenes')}` : ''}…`);
 
   // Imágenes: se guardan como las pegadas en una nota y se recuerdan por nombre y por ruta.
@@ -211,21 +214,52 @@ async function importVaultEntries(entries) {
     return imgIds.get(r) || imgIds.get(r.split('/').pop());
   };
 
+  // Dibujos de Excalidraw: se convierten en dibujos de la app (imagen + escena editable) y cada uno
+  // queda en una nota con su nombre; ![[Dibujo.excalidraw]] en otras notas pasa a mostrarlo.
+  const drawingNotes = [];
+  let failedDrawings = 0;
+  for (const e of drawings) {
+    try {
+      const text = await e.text();
+      const json = await xdParseScene(text);
+      const embedded = new Map([...text.matchAll(/^([0-9a-f]{6,}):\s*\[\[([^\]|]+)/gim)].map((m) => [m[1], m[2]]));
+      const els = await xdSceneToElements(json, (fid) => embedded.has(fid) && imageId(embedded.get(fid)));
+      await xdLoadFont();
+      const bg = json.appState?.viewBackgroundColor || '#ffffff';
+      const blob = await xdWithScene(els, () => {
+        xdRefitTexts();
+        return xdRenderBlob(els, bg);
+      });
+      if (!blob) continue;
+      const { data, type, width, height } = await compressImage(new File([blob], 'dibujo.png', { type: 'image/png' }));
+      const scene = { type: 'excalidraw', version: 2, elements: els, appState: { viewBackgroundColor: bg, gridSize: null } };
+      const name = e.path.split('/').pop().replace(VAULT_DRAW, '');
+      const rec = { id: uid(), name, type, data, width, height, createdAt: Date.now(), drawing: JSON.stringify(scene).length < 600 * 1024 ? scene : null };
+      await putFile(rec);
+      xdDrawingIds.add(rec.id);
+      const lower = e.path.toLowerCase();
+      for (const k of [lower, lower.replace(/\.md$/, ''), lower.split('/').pop(), lower.split('/').pop().replace(/\.md$/, '')]) imgIds.set(k, rec.id);
+      drawingNotes.push({ path: e.path.replace(VAULT_DRAW, ''), body: `![${name}](img:${rec.id})\n`, modified: e.modified });
+    } catch {
+      failedDrawings++;
+    }
+  }
+
   let added = 0;
   let renamed = 0;
-  for (const e of notes) {
+  for (const e of [...notes, ...drawingNotes.map((d) => ({ ...d, text: async () => d.body, drawing: true }))]) {
     let body = (await e.text()).replace(/\r\n?/g, '\n');
     // ![[foto.png|300]] y ![texto](carpeta/foto.png) -> imagen guardada en la app.
     body = body
       .replace(/!\[\[([^\]|#]+?)(?:\|([^\]]*))?\]\]/g, (m, ref, size) => {
-        const id = VAULT_IMG.test(ref) && imageId(ref);
-        return id ? `![${ref.split('/').pop().replace(/\.[^.]+$/, '')}${size ? `|${size}` : ''}](img:${id})` : m;
+        const id = (VAULT_IMG.test(ref) || VAULT_DRAW.test(ref)) && imageId(ref);
+        return id ? `![${ref.split('/').pop().replace(VAULT_DRAW, '').replace(/\.[^.]+$/, '')}${size ? `|${size}` : ''}](img:${id})` : m;
       })
       .replace(/!\[([^\]\n]*)\]\(<?([^)\s>]+)>?\)/g, (m, alt, ref) => {
         const id = !/^(https?:|img:|audio:|data:)/i.test(ref) && VAULT_IMG.test(ref) && imageId(ref);
         return id ? `![${alt}](img:${id})` : m;
       });
-    const path = e.path.replace(/\.md$/i, '').split('/').map((p) => cleanName(p) || 'Sin título').join('/');
+    const path = (e.drawing ? e.path : e.path.replace(/\.md$/i, '')).split('/').map((p) => cleanName(p) || 'Sin título').join('/');
     const existing = state.notes.find((n) => n.path.toLowerCase() === path.toLowerCase());
     if (existing && existing.body === body) continue;
     const folder = folderOf(path);
@@ -238,9 +272,11 @@ async function importVaultEntries(entries) {
   if (added) logEvent('note', `Importadas ${plural(added, 'nota', 'notas')} de Obsidian`);
   save();
   renderAll();
-  if (images.length) scheduleFilesSync();
+  if (images.length || drawings.length) scheduleFilesSync();
   const parts = [`${plural(added, 'nota importada', 'notas importadas')}`];
   if (images.length - failedImages) parts.push(plural(images.length - failedImages, 'imagen', 'imágenes'));
+  if (drawings.length - failedDrawings) parts.push(plural(drawings.length - failedDrawings, 'dibujo de Excalidraw', 'dibujos de Excalidraw'));
+  if (failedDrawings) parts.push(`${failedDrawings} ${failedDrawings === 1 ? 'dibujo no se pudo' : 'dibujos no se pudieron'} abrir`);
   if (renamed) parts.push(`${renamed} con otro nombre porque ya existían`);
   if (failedImages) parts.push(`${failedImages} ${failedImages === 1 ? 'imagen no se pudo' : 'imágenes no se pudieron'} leer`);
   vaultMessage(`Listo: ${parts.join(' · ')}.`);
@@ -300,6 +336,15 @@ async function exportVault() {
     const f = files.get(id);
     const ext = EXT[(f.type || '').split(';')[0]] || 'bin';
     zip.file(`adjuntos/${id}.${ext}`, f.data.split(',')[1], { base64: true });
+    // Los dibujos van también como .excalidraw, para abrirlos con Excalidraw en Obsidian.
+    if (f.drawing?.elements) {
+      const scene = { ...f.drawing, source: 'Enfoque', files: {} };
+      for (const im of f.drawing.elements.filter((x) => x.type === 'image' && files.get(x.fileId))) {
+        const r = files.get(im.fileId);
+        scene.files[im.fileId] = { mimeType: r.type, id: im.fileId, dataURL: r.data, created: r.createdAt || Date.now() };
+      }
+      zip.file(`Dibujos/${f.name && f.name !== 'Dibujo' ? f.name : id}.excalidraw`, JSON.stringify(scene, null, 2));
+    }
   }
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
   const ok = await offerDownload(`enfoque-boveda-${dateKey()}.zip`, blob, 'application/zip');

@@ -743,7 +743,7 @@
         <p>Trae tu bóveda de Obsidian con sus carpetas e imágenes, o llévate tus notas como bóveda. Las notas se escriben igual que en Obsidian: abre la guía para ver toda la sintaxis.</p>
         <div class="row">
           <label class="file-btn primary">Importar carpeta<input id="vault-folder" type="file" webkitdirectory multiple></label>
-          <label class="file-btn">Importar .zip o archivos .md<input id="vault-files" type="file" multiple accept=".md,.markdown,.zip,image/*"></label>
+          <label class="file-btn">Importar .zip o archivos .md<input id="vault-files" type="file" multiple accept=".md,.markdown,.zip,.excalidraw,image/*"></label>
           <button id="vault-export">Exportar como bóveda (.zip)</button>
           <button id="vault-guide">Guía de sintaxis</button>
         </div>
@@ -831,21 +831,59 @@
       </div>
     </div>
   </div>
-  <div id="draw" class="draw-back" role="dialog" aria-modal="true" aria-label="Dibujo" hidden>
-    <div class="draw-tools" role="toolbar" aria-label="Herramientas de dibujo">
-      <button data-tool="pen" class="active" aria-pressed="true" title="Lápiz">✏️ <span>Lápiz</span></button>
-      <button data-tool="marker" aria-pressed="false" title="Marcador">🖍️ <span>Marcador</span></button>
-      <button data-tool="eraser" aria-pressed="false" title="Borrador de trazos">🧽 <span>Borrador</span></button>
-      <div id="draw-colors" class="draw-colors" role="group" aria-label="Color"></div>
-      <label class="draw-size" title="Grosor"><span class="sr-only">Grosor</span><input id="draw-size" type="range" min="1" max="12" value="3" aria-label="Grosor"></label>
-      <button id="draw-undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
-      <button id="draw-redo" title="Rehacer (Ctrl+Mayús+Z)" aria-label="Rehacer">↷</button>
-      <button id="draw-clear" title="Borrar todo">🗑️</button>
-      <span class="draw-spacer"></span>
-      <button id="draw-cancel">Cancelar</button>
-      <button id="draw-save" class="primary">Guardar</button>
+  <div id="draw" class="draw-back xd" role="dialog" aria-modal="true" aria-label="Dibujo" hidden>
+    <div id="draw-wrap" class="draw-wrap">
+      <canvas id="draw-canvas" class="draw-canvas" tabindex="0" aria-label="Lienzo de dibujo"></canvas>
+      <textarea id="xd-text" class="xd-text" hidden spellcheck="false" aria-label="Texto del dibujo"></textarea>
     </div>
-    <div id="draw-wrap" class="draw-wrap"><canvas id="draw-canvas" class="draw-canvas"></canvas></div>
+    <div class="xd-top">
+      <div class="xd-left">
+        <button id="xd-menu-btn" class="xd-btn" title="Menú" aria-label="Menú del dibujo">☰</button>
+        <div id="xd-menu" class="xd-menu" role="menu" hidden></div>
+      </div>
+      <div id="xd-tools" class="xd-tools" role="toolbar" aria-label="Herramientas de dibujo"></div>
+      <div class="xd-right">
+        <button id="xd-help-btn" class="xd-btn" title="Atajos de teclado" aria-label="Atajos de teclado">?</button>
+        <button id="draw-cancel" class="xd-btn wide">Cancelar</button>
+        <button id="draw-save" class="primary">Guardar en la nota</button>
+      </div>
+    </div>
+    <div id="xd-props" class="xd-props" aria-label="Propiedades" hidden></div>
+    <div class="xd-bottom">
+      <div class="xd-group">
+        <button id="xd-zoom-out" class="xd-btn" title="Alejar (Ctrl+−)" aria-label="Alejar">−</button>
+        <button id="xd-zoom-reset" class="xd-btn wide" title="Zoom al 100 % (Ctrl+0)">100 %</button>
+        <button id="xd-zoom-in" class="xd-btn" title="Acercar (Ctrl++)" aria-label="Acercar">+</button>
+        <button id="xd-fit" class="xd-btn" title="Encajar todo (Mayús+1)" aria-label="Encajar todo">⤢</button>
+      </div>
+      <div class="xd-group">
+        <button id="draw-undo" class="xd-btn" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
+        <button id="draw-redo" class="xd-btn" title="Rehacer (Ctrl+Mayús+Z)" aria-label="Rehacer">↷</button>
+      </div>
+      <button id="xd-props-toggle" class="xd-btn xd-props-toggle" title="Estilo" aria-label="Mostrar u ocultar el estilo">🎨</button>
+      <p id="xd-hint" class="xd-hint" aria-live="polite"></p>
+    </div>
+    <div id="xd-help" class="xd-help" role="dialog" aria-label="Atajos de teclado" hidden>
+      <header><strong>Atajos del dibujo</strong><button id="xd-help-close" class="xd-btn" aria-label="Cerrar">✕</button></header>
+      <div class="xd-help-cols">
+        <dl>
+          <dt>V · 1</dt><dd>Seleccionar</dd><dt>R · 2</dt><dd>Rectángulo</dd><dt>D · 3</dt><dd>Rombo</dd><dt>O · 4</dt><dd>Elipse</dd>
+          <dt>A · 5</dt><dd>Flecha</dd><dt>L · 6</dt><dd>Línea</dd><dt>P · 7</dt><dd>Lápiz</dd><dt>T · 8</dt><dd>Texto</dd>
+          <dt>9</dt><dd>Imagen</dd><dt>E · 0</dt><dd>Goma</dd><dt>H</dt><dd>Mano</dd><dt>Q</dt><dd>Mantener la herramienta</dd>
+        </dl>
+        <dl>
+          <dt>Ctrl+Z · Ctrl+Mayús+Z</dt><dd>Deshacer · rehacer</dd><dt>Ctrl+C · X · V</dt><dd>Copiar · cortar · pegar</dd>
+          <dt>Ctrl+D · Alt+arrastrar</dt><dd>Duplicar</dd><dt>Ctrl+G · Ctrl+Mayús+G</dt><dd>Agrupar · desagrupar</dd>
+          <dt>Ctrl+[ · Ctrl+]</dt><dd>Atrás · adelante (con Mayús: al fondo · al frente)</dd><dt>Supr</dt><dd>Borrar</dd>
+          <dt>Flechas</dt><dd>Mover (con Mayús: más)</dd><dt>Doble clic · Enter</dt><dd>Escribir texto (también dentro de una figura)</dd>
+          <dt>Mayús</dt><dd>Proporciones fijas · ángulos de 15°</dd><dt>Alt</dt><dd>Dibujar desde el centro</dd>
+          <dt>Espacio + arrastrar · rueda</dt><dd>Moverse por el lienzo</dd><dt>Ctrl+rueda · pellizcar</dt><dd>Zoom</dd>
+          <dt>Mayús+1 · Ctrl+0</dt><dd>Encajar todo · zoom 100 %</dd><dt>Ctrl+'</dt><dd>Cuadrícula</dd>
+        </dl>
+      </div>
+    </div>
+    <input id="xd-image-input" type="file" accept="image/*" hidden>
+    <input id="xd-open-input" type="file" accept=".excalidraw,.json,.md,application/json" hidden>
   </div>
   <div id="mail" class="modal-back" hidden>
     <div class="modal mail-modal" role="dialog" aria-modal="true" aria-labelledby="mail-title">

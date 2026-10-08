@@ -238,7 +238,7 @@ $('#note-ai').addEventListener('keydown', (e) => {
   }
 });
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'j' && activeNote()) {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'j' && activeNote() && $('#draw').hidden) {
     e.preventDefault();
     openNoteAI();
   }
