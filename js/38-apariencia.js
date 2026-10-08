@@ -5,33 +5,33 @@
 // las notas, esquinas, densidad y animaciones, con estilos rápidos que combinan varias opciones.
 // Se guarda en state.settings.look (así se sincroniza entre dispositivos) y se aplica al momento.
 const THEMES = {
-  system: { label: 'Según el sistema', group: 'basic', colors: ['#f6f7f9', '#111317', '#6b7280'] },
-  light: { label: 'Claro', group: 'basic', tone: 'light', colors: ['#f6f7f9', '#ffffff', '#1c1f24'] },
-  dark: { label: 'Oscuro', group: 'basic', tone: 'dark', colors: ['#111317', '#1b1e24', '#e8eaee'] },
-  contrast: { label: 'Alto contraste', group: 'basic', tone: 'light', colors: ['#ffffff', '#000000', '#000000'] },
-  sepia: { label: 'Sepia', group: 'warm', tone: 'light', accent: 'orange', colors: ['#f4ecd8', '#fbf6ea', '#3b3024'] },
-  midnight: { label: 'Medianoche', group: 'dark', tone: 'dark', accent: 'teal', colors: ['#000000', '#0d0d0f', '#e6e6e6'] },
-  nord: { label: 'Nórdico', group: 'blue', tone: 'dark', accent: 'blue', colors: ['#2e3440', '#3b4252', '#eceff4'] },
-  cream: { label: 'Crema', group: 'soft', tone: 'light', accent: 'orange', colors: ['#faf6ef', '#fffdf8', '#3a3229'] },
-  rose: { label: 'Rosa empolvado', group: 'soft', tone: 'light', accent: 'fuchsia', colors: ['#faf1f3', '#fffafb', '#3d2a30'] },
-  lavender: { label: 'Lavanda', group: 'soft', tone: 'light', accent: 'indigo', colors: ['#f4f2fb', '#fbfaff', '#2e2a3d'] },
-  mint: { label: 'Menta', group: 'soft', tone: 'light', accent: 'teal', colors: ['#eff7f3', '#f9fdfb', '#21372d'] },
-  sage: { label: 'Salvia', group: 'soft', tone: 'light', accent: 'teal', colors: ['#eef1ea', '#f8faf5', '#2c3327'] },
-  fog: { label: 'Niebla', group: 'soft', tone: 'light', accent: 'slate', colors: ['#eef0f3', '#f8f9fb', '#2a2f38'] },
-  sand: { label: 'Arena', group: 'warm', tone: 'light', accent: 'orange', colors: ['#f3ebe0', '#faf5ee', '#3d3226'] },
-  peach: { label: 'Melocotón', group: 'warm', tone: 'light', accent: 'orange', colors: ['#fdf1ea', '#fffaf6', '#40302a'] },
-  solarlight: { label: 'Solarizado claro', group: 'warm', tone: 'light', accent: 'blue', colors: ['#fdf6e3', '#fffbef', '#3f5259'] },
-  dusk: { label: 'Atardecer', group: 'warm', tone: 'dark', accent: 'orange', colors: ['#1f1a17', '#29221e', '#f1e6dc'] },
-  coffee: { label: 'Café', group: 'warm', tone: 'dark', accent: 'orange', colors: ['#1c1714', '#262019', '#eee2d3'] },
-  gruvbox: { label: 'Gruvbox', group: 'warm', tone: 'dark', accent: 'orange', colors: ['#282828', '#32302f', '#ebdbb2'] },
-  sky: { label: 'Cielo', group: 'blue', tone: 'light', accent: 'blue', colors: ['#eef5fc', '#f9fcff', '#1d2f45'] },
-  ocean: { label: 'Océano', group: 'blue', tone: 'light', accent: 'blue', colors: ['#e6eef8', '#f5f8fd', '#132840'] },
-  navy: { label: 'Azul marino', group: 'blue', tone: 'dark', accent: 'blue', colors: ['#0f1a2b', '#16233a', '#e3ebf6'] },
-  deepsea: { label: 'Mar profundo', group: 'blue', tone: 'dark', accent: 'teal', colors: ['#0b1f2a', '#102a38', '#dceef5'] },
-  solardark: { label: 'Solarizado oscuro', group: 'blue', tone: 'dark', accent: 'teal', colors: ['#002b36', '#073642', '#d3dcdc'] },
-  plum: { label: 'Ciruela', group: 'dark', tone: 'dark', accent: 'fuchsia', colors: ['#1e1724', '#281f30', '#ece4f3'] },
-  forest: { label: 'Bosque', group: 'dark', tone: 'dark', accent: 'teal', colors: ['#121b16', '#18241d', '#e2eee6'] },
-  dracula: { label: 'Drácula', group: 'dark', tone: 'dark', accent: 'fuchsia', colors: ['#282a36', '#303341', '#f8f8f2'] },
+  system: { label: 'Según el sistema', group: 'basic', skin: 'classic', fonts: ['system', 'system'], colors: ['#f6f7f9', '#111317', '#6b7280'] },
+  light: { label: 'Claro', group: 'basic', skin: 'classic', fonts: ['system', 'system'], tone: 'light', colors: ['#f6f7f9', '#ffffff', '#1c1f24'] },
+  dark: { label: 'Oscuro', group: 'basic', skin: 'classic', fonts: ['system', 'system'], tone: 'dark', colors: ['#111317', '#1b1e24', '#e8eaee'] },
+  contrast: { label: 'Alto contraste', group: 'basic', skin: 'brutal', fonts: ['atkinson', 'atkinson'], tone: 'light', colors: ['#ffffff', '#000000', '#000000'] },
+  sepia: { label: 'Sepia', group: 'warm', skin: 'paper', fonts: ['serif', 'merriweather'], tone: 'light', accent: 'orange', colors: ['#f4ecd8', '#fbf6ea', '#3b3024'] },
+  midnight: { label: 'Medianoche', group: 'dark', skin: 'flat', fonts: ['inter', 'inter'], tone: 'dark', accent: 'teal', colors: ['#000000', '#0d0d0f', '#e6e6e6'] },
+  nord: { label: 'Nórdico', group: 'blue', skin: 'flat', fonts: ['inter', 'inter'], tone: 'dark', accent: 'blue', colors: ['#2e3440', '#3b4252', '#eceff4'] },
+  cream: { label: 'Crema', group: 'soft', skin: 'paper', fonts: ['system', 'lora'], tone: 'light', accent: 'orange', colors: ['#faf6ef', '#fffdf8', '#3a3229'] },
+  rose: { label: 'Rosa empolvado', group: 'soft', skin: 'soft', fonts: ['nunito', 'nunito'], tone: 'light', accent: 'fuchsia', colors: ['#faf1f3', '#fffafb', '#3d2a30'] },
+  lavender: { label: 'Lavanda', group: 'soft', skin: 'glass', fonts: ['inter', 'inter'], tone: 'light', accent: 'indigo', colors: ['#f4f2fb', '#fbfaff', '#2e2a3d'] },
+  mint: { label: 'Menta', group: 'soft', skin: 'soft', fonts: ['nunito', 'nunito'], tone: 'light', accent: 'teal', colors: ['#eff7f3', '#f9fdfb', '#21372d'] },
+  sage: { label: 'Salvia', group: 'soft', skin: 'flat', fonts: ['atkinson', 'atkinson'], tone: 'light', accent: 'teal', colors: ['#eef1ea', '#f8faf5', '#2c3327'] },
+  fog: { label: 'Niebla', group: 'soft', skin: 'flat', fonts: ['inter', 'inter'], tone: 'light', accent: 'slate', colors: ['#eef0f3', '#f8f9fb', '#2a2f38'] },
+  sand: { label: 'Arena', group: 'warm', skin: 'float', fonts: ['system', 'lora'], tone: 'light', accent: 'orange', colors: ['#f3ebe0', '#faf5ee', '#3d3226'] },
+  peach: { label: 'Melocotón', group: 'warm', skin: 'soft', fonts: ['nunito', 'lora'], tone: 'light', accent: 'orange', colors: ['#fdf1ea', '#fffaf6', '#40302a'] },
+  solarlight: { label: 'Solarizado claro', group: 'warm', skin: 'term', fonts: ['mono', 'mono'], tone: 'light', accent: 'blue', colors: ['#fdf6e3', '#fffbef', '#3f5259'] },
+  dusk: { label: 'Atardecer', group: 'warm', skin: 'float', fonts: ['inter', 'merriweather'], tone: 'dark', accent: 'orange', colors: ['#1f1a17', '#29221e', '#f1e6dc'] },
+  coffee: { label: 'Café', group: 'warm', skin: 'paper', fonts: ['serif', 'lora'], tone: 'dark', accent: 'orange', colors: ['#1c1714', '#262019', '#eee2d3'] },
+  gruvbox: { label: 'Gruvbox', group: 'warm', skin: 'term', fonts: ['mono', 'mono'], tone: 'dark', accent: 'orange', colors: ['#282828', '#32302f', '#ebdbb2'] },
+  sky: { label: 'Cielo', group: 'blue', skin: 'brutal', fonts: ['inter', 'inter'], tone: 'light', accent: 'blue', colors: ['#eef5fc', '#f9fcff', '#1d2f45'] },
+  ocean: { label: 'Océano', group: 'blue', skin: 'glass', fonts: ['inter', 'inter'], tone: 'light', accent: 'blue', colors: ['#e6eef8', '#f5f8fd', '#132840'] },
+  navy: { label: 'Azul marino', group: 'blue', skin: 'float', fonts: ['inter', 'inter'], tone: 'dark', accent: 'blue', colors: ['#0f1a2b', '#16233a', '#e3ebf6'] },
+  deepsea: { label: 'Mar profundo', group: 'blue', skin: 'glass', fonts: ['inter', 'inter'], tone: 'dark', accent: 'teal', colors: ['#0b1f2a', '#102a38', '#dceef5'] },
+  solardark: { label: 'Solarizado oscuro', group: 'blue', skin: 'term', fonts: ['mono', 'mono'], tone: 'dark', accent: 'teal', colors: ['#002b36', '#073642', '#d3dcdc'] },
+  plum: { label: 'Ciruela', group: 'dark', skin: 'glass', fonts: ['nunito', 'nunito'], tone: 'dark', accent: 'fuchsia', colors: ['#1e1724', '#281f30', '#ece4f3'] },
+  forest: { label: 'Bosque', group: 'dark', skin: 'float', fonts: ['atkinson', 'lora'], tone: 'dark', accent: 'teal', colors: ['#121b16', '#18241d', '#e2eee6'] },
+  dracula: { label: 'Drácula', group: 'dark', skin: 'float', fonts: ['inter', 'inter'], tone: 'dark', accent: 'fuchsia', colors: ['#282a36', '#303341', '#f8f8f2'] },
 };
 const THEME_GROUPS = { basic: 'Básicos', soft: 'Suaves', warm: 'Cálidos', blue: 'Azules y fríos', dark: 'Oscuros' };
 
@@ -50,24 +50,39 @@ const FONTS = {
 
 const NOTE_WIDTHS = { narrow: ['Estrecho', '620px'], normal: ['Normal', '720px'], wide: ['Ancho', '900px'], full: ['Todo el ancho', 'none'] };
 const LINE_HEIGHTS = { compact: ['Compacto', '1.5'], normal: ['Normal', '1.75'], relaxed: ['Amplio', '2'] };
-const RADII = { round: ['Redondeadas', '12px'], soft: ['Suaves', '7px'], square: ['Rectas', '2px'] };
+const RADII = { pill: ['Muy redondeadas', '20px'], round: ['Redondeadas', '12px'], soft: ['Suaves', '7px'], square: ['Rectas', '2px'] };
 
-const LOOK_DEFAULTS = { ribbonLabels: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'normal', radius: 'round', density: 'comfortable', motion: 'normal' };
+// Estilos de interfaz: cambian la forma de paneles, recuadros, bordes, pestañas, botones y títulos
+// (los colores siguen saliendo del tema). Cada tema trae uno, que se puede cambiar.
+const SKINS = {
+  classic: { label: 'Clásico', hint: 'Paneles unidos y bordes finos, como Obsidian', radius: 'round' },
+  float: { label: 'Flotante', hint: 'Paneles separados como tarjetas, con sombra', radius: 'round' },
+  flat: { label: 'Plano', hint: 'Sin cajas: líneas finas y pestañas subrayadas', radius: 'soft' },
+  paper: { label: 'Cuaderno', hint: 'Títulos con serif, hojas rayadas y líneas finas', radius: 'square' },
+  soft: { label: 'Redondeado', hint: 'Pastillas, mucho aire y paneles con color', radius: 'pill' },
+  glass: { label: 'Cristal', hint: 'Fondo con degradado y paneles translúcidos', radius: 'round' },
+  term: { label: 'Terminal', hint: 'Monoespaciada, bordes discontinuos, todo recto', radius: 'square' },
+  brutal: { label: 'Neobrutalista', hint: 'Bordes gruesos, sombras duras y negritas', radius: 'soft' },
+};
+
+const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'normal', radius: 'round', density: 'comfortable', motion: 'normal' };
 
 const LOOK_PRESETS = {
   original: { label: 'Original', look: {}, accent: 'indigo' },
-  obsidian: { label: 'Bóveda oscura', look: { theme: 'dark', uiFont: 'inter', noteFont: 'inter', radius: 'soft', density: 'compact', noteWidth: 'normal' }, accent: 'fuchsia' },
-  paper: { label: 'Papel', look: { theme: 'sepia', uiFont: 'system', noteFont: 'lora', noteSize: 18, lineHeight: 'relaxed', noteWidth: 'narrow' }, accent: 'orange' },
-  minimal: { label: 'Minimalista', look: { theme: 'light', uiFont: 'inter', noteFont: 'inter', radius: 'square', density: 'compact', motion: 'reduce' }, accent: 'slate' },
+  obsidian: { label: 'Bóveda oscura', look: { skin: 'flat', theme: 'dark', uiFont: 'inter', noteFont: 'inter', radius: 'soft', density: 'compact', noteWidth: 'normal' }, accent: 'fuchsia' },
+  paper: { label: 'Papel', look: { skin: 'paper', radius: 'square', theme: 'sepia', uiFont: 'system', noteFont: 'lora', noteSize: 18, lineHeight: 'relaxed', noteWidth: 'narrow' }, accent: 'orange' },
+  minimal: { label: 'Minimalista', look: { skin: 'flat', theme: 'light', uiFont: 'inter', noteFont: 'inter', radius: 'square', density: 'compact', motion: 'reduce' }, accent: 'slate' },
   focus: { label: 'Lectura cómoda', look: { theme: 'system', uiFont: 'atkinson', noteFont: 'atkinson', scale: 110, noteSize: 18, lineHeight: 'relaxed' }, accent: 'blue' },
-  night: { label: 'Noche', look: { theme: 'midnight', uiFont: 'system', noteFont: 'system', radius: 'soft' }, accent: 'teal' },
-  nord: { label: 'Nórdico', look: { theme: 'nord', uiFont: 'inter', noteFont: 'inter', radius: 'soft' }, accent: 'blue' },
-  warm: { label: 'Cálido', look: { theme: 'peach', uiFont: 'nunito', noteFont: 'lora', lineHeight: 'relaxed' }, accent: 'orange' },
-  pastel: { label: 'Pastel', look: { theme: 'lavender', uiFont: 'nunito', noteFont: 'nunito', radius: 'round' }, accent: 'fuchsia' },
-  ocean: { label: 'Océano', look: { theme: 'ocean', uiFont: 'inter', noteFont: 'inter' }, accent: 'blue' },
-  calm: { label: 'Calma', look: { theme: 'sage', uiFont: 'atkinson', noteFont: 'atkinson', lineHeight: 'relaxed' }, accent: 'teal' },
-  ember: { label: 'Brasas', look: { theme: 'dusk', uiFont: 'system', noteFont: 'merriweather', radius: 'soft' }, accent: 'orange' },
-  abyss: { label: 'Abismo', look: { theme: 'navy', uiFont: 'inter', noteFont: 'inter', radius: 'soft' }, accent: 'teal' },
+  night: { label: 'Noche', look: { skin: 'flat', theme: 'midnight', uiFont: 'system', noteFont: 'system', radius: 'soft' }, accent: 'teal' },
+  nord: { label: 'Nórdico', look: { skin: 'flat', theme: 'nord', uiFont: 'inter', noteFont: 'inter', radius: 'soft' }, accent: 'blue' },
+  warm: { label: 'Cálido', look: { skin: 'soft', radius: 'pill', theme: 'peach', uiFont: 'nunito', noteFont: 'lora', lineHeight: 'relaxed' }, accent: 'orange' },
+  pastel: { label: 'Pastel', look: { skin: 'glass', theme: 'lavender', uiFont: 'nunito', noteFont: 'nunito', radius: 'round' }, accent: 'fuchsia' },
+  ocean: { label: 'Océano', look: { skin: 'glass', theme: 'ocean', uiFont: 'inter', noteFont: 'inter' }, accent: 'blue' },
+  calm: { label: 'Calma', look: { skin: 'flat', theme: 'sage', uiFont: 'atkinson', noteFont: 'atkinson', lineHeight: 'relaxed' }, accent: 'teal' },
+  ember: { label: 'Brasas', look: { skin: 'float', theme: 'dusk', uiFont: 'system', noteFont: 'merriweather', radius: 'soft' }, accent: 'orange' },
+  retro: { label: 'Terminal', look: { skin: 'term', radius: 'square', theme: 'gruvbox', uiFont: 'mono', noteFont: 'mono', density: 'compact' }, accent: 'orange' },
+  pop: { label: 'Neobrutal', look: { skin: 'brutal', radius: 'soft', theme: 'sky', uiFont: 'inter', noteFont: 'inter' }, accent: 'fuchsia' },
+  abyss: { label: 'Abismo', look: { skin: 'float', theme: 'navy', uiFont: 'inter', noteFont: 'inter', radius: 'soft' }, accent: 'teal' },
 };
 
 const look = () => ({ ...LOOK_DEFAULTS, ...(state.settings.look || {}) });
@@ -102,6 +117,9 @@ function applyLook() {
   root.dataset.density = L.density === 'compact' ? 'compact' : 'comfortable';
   root.dataset.motion = L.motion === 'reduce' ? 'reduce' : 'normal';
   root.dataset.riblabels = L.ribbonLabels === 'off' ? 'off' : 'on';
+  if (SKINS[L.skin] && L.skin !== 'classic') root.dataset.skin = L.skin;
+  else delete root.dataset.skin;
+  if (L.skin === 'term') ensureFont('mono');
   // Color propio: un tono para temas claros y otro más luminoso para los oscuros.
   if (/^#[0-9a-f]{6}$/i.test(L.customAccent || '')) {
     set('--accent-l', L.customAccent);
@@ -120,7 +138,10 @@ function chooseTheme(k) {
   const L = look();
   const before = THEMES[L.theme]?.accent || 'indigo';
   if (!L.customAccent && (state.settings.accent || 'indigo') === before) state.settings.accent = THEMES[k]?.accent || 'indigo';
-  setLook({ theme: k });
+  const t = THEMES[k] || {};
+  // El tema trae también su estilo de interfaz y sus letras (salvo que se haya desactivado).
+  const extra = L.themeStyle === 'off' || !t.skin ? {} : { skin: t.skin, radius: SKINS[t.skin].radius, uiFont: t.fonts[0], noteFont: t.fonts[1] };
+  setLook({ theme: k, ...extra });
   applySettings();
   renderAccents?.();
 }
@@ -174,6 +195,20 @@ function renderAppearance() {
     b.addEventListener('click', () => chooseTheme(k));
     return b;
   };
+  const skins = el(
+    'div',
+    { className: 'ap-skins', role: 'radiogroup', ariaLabel: 'Estilo de la interfaz' },
+    Object.entries(SKINS).map(([k, sk]) => {
+      const on = (L.skin || 'classic') === k;
+      const b = el('button', { className: `ap-skin${on ? ' on' : ''}`, role: 'radio', ariaChecked: String(on) }, [
+        el('span', { className: `sk-prev ${k}`, ariaHidden: 'true' }, [el('i'), el('i'), el('b', {}, [el('span'), el('span'), el('span')])]),
+        el('span', {}, sk.label),
+        el('small', {}, sk.hint),
+      ]);
+      b.addEventListener('click', () => setLook({ skin: k, radius: SKINS[k].radius }));
+      return b;
+    })
+  );
   const themes = el(
     'div',
     { role: 'radiogroup', ariaLabel: 'Tema' },
@@ -206,7 +241,10 @@ function renderAppearance() {
   box.replaceChildren(
     el('h3', { className: 'ap-sub' }, 'Estilos rápidos'),
     presets,
+    el('h3', { className: 'ap-sub' }, 'Estilo de la interfaz'),
+    skins,
     el('h3', { className: 'ap-sub' }, 'Tema'),
+    row('Al elegir un tema', seg('themeStyle', { on: ['Cambiar también estilo y letras'], off: ['Solo los colores'] }, 'Al elegir un tema'), 'Cada tema trae su estilo de interfaz y sus letras'),
     themes,
     el('h3', { className: 'ap-sub' }, 'Color de acento'),
     $('#accent-picker'),
