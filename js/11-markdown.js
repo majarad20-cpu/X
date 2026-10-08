@@ -219,7 +219,7 @@ function renderBlocks(src, ctx) {
   // Propiedades al principio (--- clave: valor ---).
   const fm = parseFrontmatter(lines);
   if (fm) {
-    if (fm.props.length) html += `<dl class="props">${fm.props.map(([k, v]) => `<dt>${escHtml(k)}</dt><dd>${propValueHtml(k, v)}</dd>`).join('')}</dl>`;
+    if (fm.props.length) html += `<dl class="props"${ctx.blocks ? ` data-src="${offset}-${fm.end + offset}"` : ''}>${fm.props.map(([k, v]) => `<dt>${escHtml(k)}</dt><dd>${propValueHtml(k, v)}</dd>`).join('')}</dl>`;
     i = fm.end + 1;
   }
 
@@ -238,17 +238,19 @@ function renderBlocks(src, ctx) {
     mdNotes.defs.set(m[1], text);
   }
 
-  while (i < lines.length) {
+  // Cada bloque de primer nivel guarda de qué líneas sale (data-src="desde-hasta"), para poder
+  // editar solo ese bloque desde la vista de lectura (40-edicion-bloques.js).
+  const block = () => {
     const line = lines[i];
     if (!line.trim()) {
       i++;
-      continue;
+      return;
     }
     // Identificador de bloque suelto en su propia línea (tras una tabla o una cita).
     if (/^\^[A-Za-z0-9-]+\s*$/.test(line)) {
       html += `<span class="block-anchor" id="b-${line.trim().slice(1)}" data-block="${line.trim().slice(1)}"></span>`;
       i++;
-      continue;
+      return;
     }
     // Fórmula en bloque: $$ … $$
     if (/^\s*\$\$/.test(line)) {
@@ -262,7 +264,7 @@ function renderBlocks(src, ctx) {
       }
       i++;
       html += `<div class="math-block" data-line="${start + offset}">${mathHtml(tex, true)}</div>`;
-      continue;
+      return;
     }
     // Bloque de código
     const fence = line.match(/^```\s*([\w-]*)/);
@@ -274,19 +276,19 @@ function renderBlocks(src, ctx) {
       const lang = fence[1].toLowerCase();
       if (lang === 'math' || lang === 'latex') {
         html += `<div class="math-block">${mathHtml(body.join('\n'), true)}</div>`;
-        continue;
+        return;
       }
       if (lang === 'mermaid') {
         html += `<div class="mermaid-box" data-src="${encodeURIComponent(body.join('\n'))}"><pre class="code"><code data-lang="mermaid">${escHtml(body.join('\n'))}</code></pre></div>`;
-        continue;
+        return;
       }
       if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table'].includes(lang)) {
         const kind = lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
         html += `<div class="query" data-kind="${kind}" data-src="${encodeURIComponent(body.join('\n'))}"></div>`;
-        continue;
+        return;
       }
       html += `<pre class="code"><code${fence[1] ? ` data-lang="${escHtml(fence[1])}"` : ''}>${escHtml(body.join('\n'))}</code></pre>`;
-      continue;
+      return;
     }
     // Título
     const h = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/);
@@ -298,20 +300,20 @@ function renderBlocks(src, ctx) {
       if (n) id += `-${n}`;
       html += `<h${h[1].length} id="${id}" data-line="${i + offset}">${inlineMd(text)}</h${h[1].length}>`;
       i++;
-      continue;
+      return;
     }
     // Línea horizontal
     if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
       html += '<hr>';
       i++;
-      continue;
+      return;
     }
     // Nota incrustada ![[Nota]] o ![[Nota#Sección]]
     const emb = line.match(/^!\[\[([^\]]+)\]\]\s*$/);
     if (emb) {
       html += embedHtml(emb[1], depth);
       i++;
-      continue;
+      return;
     }
     // Cita o aviso (> [!tip] Título)
     if (line.startsWith('>')) {
@@ -331,7 +333,7 @@ function renderBlocks(src, ctx) {
       } else {
         html += `<blockquote>${renderMd(body.join('\n'), { depth, noTasks: true })}</blockquote>`;
       }
-      continue;
+      return;
     }
     // Tabla
     if (line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {
@@ -341,7 +343,7 @@ function renderBlocks(src, ctx) {
       const rows = [];
       while (i < lines.length && lines[i].includes('|') && lines[i].trim()) rows.push(cells(lines[i++]));
       html += `<div class="table-wrap"><table><thead><tr>${head.map((c) => `<th>${inlineMd(c)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${head.map((_, k) => `<td>${inlineMd(r[k] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-      continue;
+      return;
     }
     // Lista (con casillas y anidación por sangría)
     const LIST_RE = /^(\s*)([-*+]|\d+[.)])\s+(?:\[([ xX/\-<>!?*])\]\s+)?(.*)$/;
@@ -382,7 +384,7 @@ function renderBlocks(src, ctx) {
         }
       }
       while (stack.length) html += `</li></${stack.pop().type}>`;
-      continue;
+      return;
     }
     // Párrafo: un salto de línea simple se respeta.
     const para = [];
@@ -394,9 +396,15 @@ function renderBlocks(src, ctx) {
     const { text, attr } = blockAttr(para.join('\n'));
     if (!text.trim() && attr) {
       html += `<span class="block-anchor"${attr}></span>`;
-      continue;
+      return;
     }
     html += `<p data-line="${start + offset}"${attr}>${text.split('\n').map(inlineMd).join('<br>')}</p>`;
+  };
+  while (i < lines.length) {
+    const from = i;
+    const mark = html.length;
+    block();
+    if (ctx.blocks && html.length > mark) html = html.slice(0, mark) + html.slice(mark).replace(/^<([a-z][\w-]*)/, `<$1 data-src="${from + offset}-${i - 1 + offset}"`);
   }
   return html;
 }

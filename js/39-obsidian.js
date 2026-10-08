@@ -390,7 +390,27 @@ const SYNTAX_GUIDE = `---
 tags: [guía, markdown]
 aliases: [Sintaxis, Markdown]
 ---
-Enfoque entiende la misma forma de escribir que Obsidian. Pulsa **Ctrl+Mayús+E** para ver el texto y el resultado a la vez, y **Ctrl+E** para cambiar entre edición y lectura.
+Enfoque entiende la misma forma de escribir que Obsidian.
+
+## Cómo editar
+
+- **Doble clic** sobre un párrafo, una estrofa, una lista o un título: solo ese trozo se vuelve texto editable y el resto sigue viéndose normal. **Esc**, **Ctrl+Enter** o un clic fuera lo cierran (se guarda solo).
+- Doble clic debajo del final de la nota: escribes un bloque nuevo al final.
+- **Ctrl+E** edita la nota entera de una vez.
+
+Al escribir:
+
+| Atajo | Hace |
+| --- | --- |
+| \`[[\` | Abre la lista de notas para enlazar (se cierra sola con \`]]\`). Si la nota no existe, se crea al abrir el enlace |
+| Ctrl+B · Ctrl+I · Ctrl+U | **Negrita** · *cursiva* · <u>subrayado</u> |
+| Ctrl+Mayús+X · Ctrl+Mayús+H | ~~Tachado~~ · ==resaltado== |
+| Ctrl+Mayús+C · Ctrl+Mayús+M | \`código\` · fórmula $x$ |
+| Ctrl+K · Ctrl+L | Enlace web · casilla de tarea (otra vez: marcada) |
+| Seleccionar y escribir \`*\` \`=\` \`~\` \`[\` | Envuelve la selección (dos veces: \`**…**\`, \`[[…]]\`) |
+| \`/\` al empezar una línea | Menú de bloques: títulos, tareas, tablas, imágenes… |
+
+Al seleccionar texto aparece también una barra con estos formatos.
 
 ## Texto
 

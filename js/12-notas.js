@@ -826,6 +826,9 @@ const NOTE_MENU_EXTRA = [];
 const COMMANDS_EXTRA = [];
 
 function renderNotePane(note) {
+  // Mientras se edita un bloque en la vista de lectura no se redibuja (se perdería el cursor);
+  // si se dibuja otra cosa, el bloque se cierra antes.
+  if (blockEditKeeps(note)) return;
   syncNoteAI(note);
   const text = noteText(note);
   const locked = text === null || (lockUI.mode === 'setup' && lockUI.noteId === note.id);
@@ -879,7 +882,8 @@ function renderNotePane(note) {
 function renderReading(note, text) {
   const reading = $('#note-reading');
   reading.dataset.note = note.id;
-  reading.innerHTML = text.trim() ? renderMd(text, { noteId: note.id, noTasks: !!note.enc }) : '<p class="muted">Nota vacía. Haz doble clic o pulsa Ctrl+E para escribir.</p>';
+  endBlockEdit();
+  reading.innerHTML = text.trim() ? renderMd(text, { noteId: note.id, noTasks: !!note.enc, blocks: true }) : '<p class="muted note-empty">Nota vacía. Haz doble clic aquí para escribir.</p>';
   hydrateQueries(reading, note.id);
 }
 
@@ -914,6 +918,7 @@ function followCaret() {
 }
 
 function setNoteMode(note, mode) {
+  endBlockEdit();
   noteMode.set(note.id, mode);
   renderNotePane(note);
   if (mode === 'edit' || mode === 'split') {
@@ -963,11 +968,6 @@ $('#note-reading').addEventListener('click', (e) => {
   ta.focus({ preventScroll: true });
   ta.setSelectionRange(pos, pos);
 });
-$('#note-reading').addEventListener('dblclick', (e) => {
-  if (e.target.closest('a, input, button, .embed, .query')) return;
-  const note = activeNote();
-  if (note) setNoteMode(note, 'edit');
-});
 
 $('#note-editor').addEventListener('input', (e) => {
   const note = activeNote();
@@ -975,9 +975,16 @@ $('#note-editor').addEventListener('input', (e) => {
   if (note.enc) {
     // Nota protegida: el texto se queda en memoria y se vuelve a cifrar (nunca se guarda en claro).
     if (!unlockedNotes.has(note.id)) return;
-    unlockedNotes.set(note.id, e.target.value);
+    const full = blockEditBody(note, e.target.value);
+    if (full === null) return;
+    unlockedNotes.set(note.id, full);
     scheduleEncrypt(note);
-  } else note.body = e.target.value;
+  } else {
+    // Editando un solo bloque, el editor tiene solo ese trozo: se recompone la nota entera.
+    const full = blockEditBody(note, e.target.value);
+    if (full === null) return;
+    note.body = full;
+  }
   if (noteMode.get(note.id) === 'split') scheduleSplitPreview(note);
   note.updatedAt = Date.now();
   dataRev++;

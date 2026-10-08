@@ -1512,3 +1512,21 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
 .callout-failure, .callout-bug { --co: var(--high); }
 .callout-example { --co: #8b5cf6; }
 .callout-quote { --co: var(--muted); }
+
+/* Editar un bloque en la vista de lectura */
+.note-reading [data-src] { border-radius: 6px; }
+.note-reading .note-editor.block-editing {
+  min-height: 1.75em; margin: -6px -10px .9em; padding: 6px 10px; width: calc(100% + 20px);
+  border-radius: 8px; background: color-mix(in srgb, var(--accent) 6%, var(--editor));
+  box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.note-reading .note-editor.block-editing::placeholder { color: var(--muted); }
+.note-empty { cursor: text; padding: 8px 0; }
+
+/* Barra de formato al seleccionar */
+.fmt-bar { position: fixed; z-index: 60; display: flex; gap: 2px; padding: 4px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.fmt-bar[hidden] { display: none; }
+.fmt-bar button { min-width: 30px; height: 30px; padding: 0 7px; border: 0; border-radius: 7px; background: none; color: var(--text); font-size: .85rem; cursor: pointer; white-space: nowrap; }
+.fmt-bar button:hover, .fmt-bar button:focus-visible { background: var(--accent-soft); color: var(--accent); }
+.fmt-bar .fb-b { font-weight: 800; } .fmt-bar .fb-i { font-style: italic; font-family: Georgia, serif; } .fmt-bar .fb-u { text-decoration: underline; } .fmt-bar .fb-s { text-decoration: line-through; }
+.fmt-bar .fb-h { color: #d97706; }
