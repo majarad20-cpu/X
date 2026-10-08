@@ -23,6 +23,8 @@
       <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
       <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
       <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
+      <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
+      <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar a tus notas</span></button>
       <span class="rib-spacer"></span>
       <button class="rib" id="open-settings" title="Ajustes" aria-label="Ajustes"><span class="ico" data-icon="gear"></span><span class="rib-label">Ajustes</span></button>
     </nav>
@@ -125,6 +127,11 @@
       <button id="today-journal" class="journal-nudge" hidden>
         <span class="jn-icon" aria-hidden="true">✍️</span>
         <span><strong>Aún no has escrito hoy.</strong> Un vaciado mental de 5 minutos despeja la cabeza.</span>
+      </button>
+
+      <button id="today-review" class="journal-nudge" hidden>
+        <span class="jn-icon" aria-hidden="true">🗓️</span>
+        <span><strong>Cierra la semana.</strong> Una revisión de 15 minutos: vencidas, proyectos, próxima semana y tus 3 prioridades.</span>
       </button>
 
       <h2 class="section-title">Hábitos de hoy <span id="today-habits-count" class="muted"></span></h2>
@@ -467,6 +474,54 @@
       <p id="habit-progress-empty" class="empty">Crea hábitos para ver tu constancia.</p>
     </section>
 
+    <!-- Preguntar -->
+    <section id="view-ask" class="view">
+      <div class="ask-wrap">
+        <div class="ask-head">
+          <h2 class="section-title first">✨ Pregúntale a tus notas</h2>
+          <div class="row">
+            <button id="ask-save" class="chip" hidden>Guardar como nota</button>
+            <button id="ask-clear" class="chip" hidden>Nueva conversación</button>
+          </div>
+        </div>
+        <p class="muted ai-off-note">Al abrir la app desde Claude puedes hacer preguntas sobre tus notas, tareas y diario; Claude busca lo necesario y responde citando las notas con [[enlaces]].</p>
+        <div id="ask-empty" class="ask-empty ai-only" hidden>
+          <p class="muted">Claude busca en tus notas, tareas y diario y responde citando de dónde lo saca. Prueba con:</p>
+          <div class="ask-examples">
+            <button class="chip ask-example" type="button">¿Qué tengo pendiente esta semana?</button>
+            <button class="chip ask-example" type="button">¿Qué decidí en mis últimas reuniones?</button>
+            <button class="chip ask-example" type="button">¿Cómo me he sentido últimamente según mi diario?</button>
+            <button class="chip ask-example" type="button">Resume mis ideas sobre proyectos nuevos</button>
+          </div>
+        </div>
+        <div id="ask-messages" class="ask-messages" aria-live="polite"></div>
+        <p id="ask-progress" class="muted ask-progress" role="status"></p>
+        <form id="ask-form" class="ask-form ai-only" hidden>
+          <textarea id="ask-input" class="notes" rows="2" maxlength="2000" placeholder="Pregunta algo sobre tus notas…" title="Enter envía; Mayús+Enter añade un salto de línea" aria-label="Pregunta"></textarea>
+          <div class="ask-buttons">
+            <button id="ask-send" type="submit" class="primary">Preguntar</button>
+            <button id="ask-stop" type="button" hidden>Detener</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Revisión semanal -->
+    <section id="view-review" class="view">
+      <h2 class="section-title first">🗓️ Revisión semanal</h2>
+      <nav id="review-steps" class="rv-steps" aria-label="Pasos de la revisión"></nav>
+      <div class="card rv-card">
+        <h3 id="review-title" class="rv-heading"></h3>
+        <p id="review-hint" class="muted"></p>
+        <div id="review-body" class="rv-body-wrap"></div>
+      </div>
+      <div class="row rv-nav">
+        <button id="review-prev">‹ Anterior</button>
+        <button id="review-next" class="primary">Siguiente ›</button>
+        <button id="review-finish" class="primary" hidden>Terminar y guardar</button>
+      </div>
+    </section>
+
     <!-- Ajustes -->
     <section id="view-settings" class="view">
       <h2 class="section-title first">Color de la app</h2>
@@ -590,6 +645,8 @@
   <script src="js/17-plantillas-consultas.js"></script>
   <script src="js/18-recordatorios-espacio-atajos.js"></script>
   <script src="js/19-sincronizacion.js"></script>
-  <script src="js/20-inicio.js"></script>
+  <script src="js/21-preguntar.js"></script>
+  <script src="js/22-revision.js"></script>
+  <script src="js/23-inicio.js"></script>
 </body>
 </html>

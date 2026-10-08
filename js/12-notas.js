@@ -14,6 +14,8 @@ const ICONS = {
   bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>',
   timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/>',
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.4-2.3-5.6-4-7.4-.3 2.2-1.3 3.3-2.4 3.8C13 8.7 11.6 5 9 2c0 4-4 6.6-4 11.4C5 19.3 8 22 12 22z"/>',
+  sparkle: '<path d="M12 3l1.8 4.9L19 9.7l-5.2 1.8L12 16.5l-1.8-5L5 9.7l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  review: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/>',
   chart: '<path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-9"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   'file-plus': '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M12 12v6M9 15h6"/>',
@@ -199,8 +201,8 @@ function deleteNote(note) {
 
 // ---------- Pestañas del espacio de trabajo ----------
 const TABS_KEY = 'enfoque:tabs';
-const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', settings: 'Ajustes' };
-const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', settings: 'gear' };
+const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', settings: 'Ajustes' };
+const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', settings: 'gear' };
 const noteMode = new Map(); // id -> 'edit' | 'read'
 let ws = { tabs: [{ type: 'view', view: 'today' }], active: 0 };
 try {
@@ -1159,6 +1161,8 @@ function commands() {
       showView('progress');
       if (aiReady()) generateSummary();
     } },
+    { label: 'Preguntar a tus notas (Claude)', action: ({ newTab }) => showView('ask', { newTab }) },
+    { label: 'Hacer la revisión semanal', action: ({ newTab }) => showView('review', { newTab }) },
     { label: 'Abrir vista de grafo', kbd: 'Ctrl+G', action: ({ newTab }) => openTab({ type: 'graph' }, { newTab }) },
     { label: 'Mostrar u ocultar el panel izquierdo', action: () => toggleSide('left') },
     { label: 'Mostrar u ocultar el panel derecho', action: () => toggleSide('right') },
@@ -1282,6 +1286,11 @@ const VIEW_RENDER = {
   timer: () => renderTimer(),
   habits: () => renderHabits(),
   progress: () => renderProgress(),
+  review: () => renderReviewStep(),
+  ask: () => {
+    renderAsk();
+    if (aiReady()) $('#ask-input').focus();
+  },
   settings: () => {
     renderAccents();
     renderStorage();

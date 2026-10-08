@@ -820,6 +820,7 @@ function renderToday() {
   $('#today-empty').hidden = dueToday.length > 0;
 
   $('#today-journal').hidden = state.journal.some((e) => e.date === today);
+  renderReviewNudge();
   renderTodayCalendar();
   $('#today-habits-count').textContent = state.habits.length ? `${habitsDone}/${state.habits.length}` : '';
   $('#today-habits').replaceChildren(

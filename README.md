@@ -18,12 +18,13 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 - **Mapa mental desde una nota** (menú ⋯ o paleta): los títulos y listas de la nota se convierten en ramas; el mapa se puede actualizar cuando cambie la nota y lleva a su nota de origen.
 - **Plantillas**: las notas de la carpeta `Plantillas` son plantillas (se crean 4 de ejemplo la primera vez). «Nueva nota desde plantilla» e «Insertar plantilla» (Ctrl+P o menú ⋯). Variables `{{fecha}}`, `{{fecha_larga}}`, `{{hora}}`, `{{título}}` y `{{semana}}`. Si existe `Plantillas/Nota diaria`, se usa para las notas diarias.
 - **Consultas**: un bloque de código ```` ```tareas ```` (filtros `#etiqueta`, `+proyecto`, `pendientes`/`hechas`/`todas`, `hoy`/`vencidas`/`semana`/`sin fecha`, `carpeta: X`, `límite: N`) o ```` ```notas ```` (`#etiqueta`, `carpeta: X`, `enlaza: Nota`) muestra una lista que se actualiza sola; las tareas se pueden marcar ahí mismo.
-- Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso) se abren como pestañas desde la barra de iconos.
+- Las secciones (Hoy, Tareas, Proyectos, Diario, Ideas, Pomodoro, Hábitos, Progreso, Revisión semanal y Preguntar) se abren como pestañas desde la barra de iconos.
 
 ## Dentro de Claude
 
 - **Claude ordena tu vaciado mental**: al guardar un vaciado mental, «✨ Ordenar con Claude» propone tareas con fecha, hora, prioridad, proyecto y etiquetas; se pueden editar y desmarcar antes de crearlas.
 - **Resumen semanal** (Progreso): Claude lee la bitácora, el diario, los hábitos, los proyectos y las tareas de la semana y escribe logros, en qué se fue el tiempo, ánimo, pendientes y 3 sugerencias. Se puede guardar como nota en `Revisiones/`.
+- **Pregúntale a tus notas** (✨ en la barra de iconos): un chat en el que Claude busca y lee tus notas, tareas y diario para responder, citando las notas con `[[enlaces]]` que se abren al tocarlos. La conversación se puede guardar como nota en `Preguntas/`.
 - **Google Calendar** (activar en Ajustes): tus eventos aparecen en Hoy y en Tareas › Semana, con enlace a Meet y a Calendar; una tarea con fecha y hora se puede añadir al calendario desde su panel ☰.
 - Cada uso de Claude o del calendario pide permiso la primera vez. Fuera de Claude estas funciones no aparecen.
 
@@ -46,6 +47,7 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
   - **Mapas mentales**: tema central y ramas que se ordenan solas a ambos lados, con color por rama. Teclado: Tab añade rama, Enter añade hermano, F2 edita, Supr borra (con deshacer), flechas para moverse. Ramas plegables, zoom, convertir un nodo en tarea y descargar el mapa como imagen PNG.
 - **Pomodoro**: enfoque / pausa corta / pausa larga (cada 4 pomodoros), duraciones configurables, aviso sonoro y notificación del navegador, contador diario. La pantalla se mantiene encendida mientras corre (si el navegador lo permite). Puedes asociar el pomodoro a una tarea y se suma a su contador 🍅.
 - **Hábitos**: marca los últimos 7 días y sigue tu racha 🔥. Cada hábito puede ser diario o tener un objetivo semanal (por ejemplo, 3 veces por semana); entonces la racha cuenta semanas cumplidas.
+- **Revisión semanal** (barra de iconos o paleta; de viernes a domingo, Hoy la recuerda): seis pasos guiados — tareas vencidas (hecha, mañana, próxima semana, algún día o borrar), tareas sin fecha, proyectos activos (abrir, pausar, completar), la próxima semana (tareas y eventos del calendario, con campo para añadir), hábitos y una reflexión con tus 3 prioridades. Al terminar guarda una nota en `Revisiones/` con los números de la semana y las decisiones, y crea las prioridades como tareas para el lunes. Funciona también fuera de Claude.
 - **Progreso**: pomodoros, tareas completadas y tiempo enfocado de los últimos 7 días (comparado con la semana anterior), gráfico por día y constancia de cada hábito en 30 días.
 - **Sincronización**: abierta desde Claude, la app guarda tus datos en un almacén privado y los sincroniza entre dispositivos, repartidos en bloques (núcleo, ideas, diario por meses y cada mapa) para no llegar al límite de tamaño. Fuera de Claude se guarda solo en el navegador.
 - **Archivo de tareas**: las tareas completadas hace más de 7 días se archivan solas (un bloque por mes). Siguen apareciendo en «Hechas», cuentan para proyectos y estadísticas, y al desmarcarlas vuelven a la lista.
@@ -65,6 +67,6 @@ python3 -m http.server 8000
 ## Desarrollo
 
 - `index.html` y `styles.css`: estructura y estilos.
-- `js/`: el código, en módulos que se cargan en orden (`01-nucleo.js` … `20-inicio.js`). Son scripts normales que comparten el ámbito global, así que no hace falta compilar nada.
+- `js/`: el código, en módulos que se cargan en orden (`01-nucleo.js` … `23-inicio.js`; `23-inicio.js` va siempre el último). Son scripts normales que comparten el ámbito global, así que no hace falta compilar nada.
 - `python3 tools/build.py`: junta todo en `dist/enfoque.html`, el archivo único que se publica en Claude.
-- `node tests/run.js [filtro]`: lanza las pruebas de `tests/` (Playwright + Chromium) contra `index.html` y resume el resultado. Las capturas quedan en `tests/out/`. Las pruebas simulan Claude, Google Calendar y la sincronización.
+- `node tests/run.js [filtro]`: lanza las pruebas de `tests/` (Playwright + Chromium) contra `index.html` y resume el resultado. Las capturas quedan en `tests/out/`. Las pruebas simulan Claude (también sus herramientas), Google Calendar y la sincronización.
