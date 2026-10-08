@@ -27,7 +27,7 @@ const mock = (initial) => {
   // 1) Dispositivo A con datos de la versión anterior + nube vieja casi vacía y más reciente.
   const legacy = { tasks: [{ id: 'a', title: 'Tarea antigua', priority: 2, done: false, createdAt: 1 }], habits: [], settings: { focus: 25, short: 5, long: 15 }, pomodoros: {} };
   const A = await open(legacy, { state: { tasks: [], habits: [], settings: { accent: 'teal' }, updatedAt: Date.now() } });
-  console.log('A keeps legacy:', await A.$$eval('#today-list .title, #task-list .title', n => n.map(x => x.textContent)), '| cloud state tasks:', (await dump(A)).state.tasks.map(t => t.title));
+  console.log('A keeps legacy:', await A.evaluate(() => state.tasks.map(t => t.title)), '| cloud state tasks:', (await dump(A)).state.tasks.map(t => t.title));
 
   // 2) A crea diario, idea y mapa.
   await A.evaluate(() => showView('journal')); await A.fill('#journal-fields textarea', 'Probando la sincronización'); await A.click('#journal-form button[type=submit]');
@@ -41,7 +41,7 @@ const mock = (initial) => {
 
   // 3) Dispositivo B vacío recibe todo.
   const B = await open(null, cloud);
-  const bState = await B.evaluate(() => { const s = JSON.parse(localStorage.getItem('enfoque:v1')); return [s.tasks.map(t => t.title), s.journal.map(e => e.text), s.ideas.map(i => i.text), s.maps.map(m => m.nodes.map(n => n.text))]; });
+  const bState = await B.evaluate(() => { const s = (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))); return [s.tasks.map(t => t.title), s.journal.map(e => e.text), s.ideas.map(i => i.text), s.maps.map(m => m.nodes.map(n => n.text))]; });
   console.log('B got:', JSON.stringify(bState), '| B writes on open:', await B.evaluate(() => window.__writes.length));
 
   // 4) B borra el mapa -> A lo pierde al recibir la nube sin ese documento.
@@ -50,7 +50,7 @@ const mock = (initial) => {
   console.log('cloud after B delete:', Object.keys(cloud2).sort());
   await A.evaluate((d) => { window.__docs.clear(); Object.entries(d).forEach(([k, v]) => window.__docs.set(k, v)); window.__emit(); }, cloud2);
   await A.waitForTimeout(300);
-  console.log('A maps after:', await A.evaluate(() => JSON.parse(localStorage.getItem('enfoque:v1')).maps.length));
+  console.log('A maps after:', await A.evaluate(() => (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))).maps.length));
 
   // 5) Cambio remoto en el diario llega a A en vivo; un cambio local sin subir no se pisa.
   const month = Object.keys(cloud2).find(k => k.startsWith('journal-'));

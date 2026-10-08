@@ -26,35 +26,150 @@ const defaults = () => ({
 const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'projects', 'folders'];
 const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes'];
 
+// Datos guardados → estado completo, con los valores por defecto de lo que falte.
+function normalize(data) {
+  // Datos de versiones anteriores: reconstruye el historial de completadas con lo que haya.
+  if (!data.completions) {
+    data.completions = {};
+    for (const t of data.tasks || []) {
+      if (t.done && t.completedAt) {
+        const key = dateKey(new Date(t.completedAt));
+        data.completions[key] = (data.completions[key] || 0) + 1;
+      }
+    }
+  }
+  const fresh = defaults();
+  return { ...fresh, ...data, settings: { ...fresh.settings, ...data.settings }, syncMeta: { ...fresh.syncMeta, ...data.syncMeta } };
+}
+
+// Primera carga, síncrona: la copia rápida del navegador (localStorage). La copia completa está
+// en IndexedDB, que no tiene el límite de unos 5 MB; se lee al arrancar (loadFromDB) y, si es
+// más reciente, sustituye a esta.
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (!raw) return defaults();
-    const data = JSON.parse(raw);
-    // Datos de versiones anteriores: reconstruye el historial de completadas con lo que haya.
-    if (!data.completions) {
-      data.completions = {};
-      for (const t of data.tasks || []) {
-        if (t.done && t.completedAt) {
-          const key = dateKey(new Date(t.completedAt));
-          data.completions[key] = (data.completions[key] || 0) + 1;
-        }
-      }
-    }
-    const fresh = defaults();
-    return { ...fresh, ...data, settings: { ...fresh.settings, ...data.settings }, syncMeta: { ...fresh.syncMeta, ...data.syncMeta } };
+    return raw ? normalize(JSON.parse(raw)) : defaults();
   } catch {
     return defaults();
   }
 }
 
-function saveLocal() {
+// ---------- IndexedDB ----------
+const idb = { db: null, ok: false, timer: null, dirty: false, quota: 0, usage: 0, persisted: false, lsFits: true };
+
+function idbOpen() {
+  return new Promise((resolve) => {
+    // Si el navegador no responde, se sigue sin IndexedDB (con localStorage) en vez de esperar.
+    setTimeout(() => resolve(null), 3000);
+    try {
+      const req = indexedDB.open('enfoque', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('kv');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function idbGet(key) {
+  return new Promise((resolve) => {
+    try {
+      const req = idb.db.transaction('kv').objectStore('kv').get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(undefined);
+    } catch {
+      resolve(undefined);
+    }
+  });
+}
+
+function idbPut(key, value) {
+  return new Promise((resolve) => {
+    try {
+      const tx = idb.db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = tx.onabort = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+// Al arrancar: abre IndexedDB y usa su copia si es más reciente que la de localStorage
+// (o si localStorage ya no podía guardarlo todo). Devuelve true si cambió el estado.
+async function loadFromDB() {
+  idb.db = await idbOpen();
+  idb.ok = !!idb.db;
+  if (!idb.ok) return false;
+  navigator.storage?.persist?.().then((p) => (idb.persisted = !!p)).catch(() => {});
+  updateQuota();
+  const stored = await idbGet('state');
+  if (stored && (stored.updatedAt || 0) > (state.updatedAt || 0)) {
+    const data = normalize(stored);
+    Object.keys(state).forEach((k) => delete state[k]);
+    Object.assign(state, data);
+    dataRev++;
+    return true;
+  }
+  // Primera vez con IndexedDB: se copia lo que había en localStorage.
+  if (!stored && state.updatedAt) await idbPut('state', state);
+  return false;
+}
+
+function updateQuota() {
+  navigator.storage
+    ?.estimate?.()
+    .then(({ quota, usage }) => {
+      idb.quota = quota || 0;
+      idb.usage = usage || 0;
+    })
+    .catch(() => {});
+}
+
+function writeLocalStorage() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    idb.lsFits = true;
   } catch {
-    // Almacenamiento no disponible (modo privado, cuota llena): la app sigue funcionando en memoria.
+    // Cuota llena: con IndexedDB se quita la copia vieja para que no se cargue al arrancar;
+    // sin IndexedDB, la app sigue funcionando en memoria.
+    idb.lsFits = false;
+    if (idb.ok) {
+      try {
+        localStorage.removeItem(STORE_KEY);
+      } catch {
+        // Nada más que hacer.
+      }
+    }
   }
 }
+
+// Con IndexedDB el guardado se agrupa (un cambio tras otro se escribe una sola vez) y se
+// completa al ocultar o cerrar la página.
+function saveLocal() {
+  if (!idb.ok) return writeLocalStorage();
+  idb.dirty = true;
+  clearTimeout(idb.timer);
+  idb.timer = setTimeout(flushLocal, 250);
+}
+
+function flushLocal() {
+  clearTimeout(idb.timer);
+  if (!idb.dirty || !idb.ok) return;
+  idb.dirty = false;
+  writeLocalStorage();
+  idbPut('state', state).then((ok) => {
+    if (!ok) idb.dirty = true;
+  });
+}
+
+window.addEventListener('pagehide', flushLocal);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushLocal();
+});
 
 // Sube con cada cambio; sirve para saber cuándo recalcular lo que se deriva de las notas.
 let dataRev = 0;
@@ -99,17 +214,13 @@ function bump(counter, key, n) {
   if (!counter[key]) delete counter[key];
 }
 
+// Solo se dibuja lo que se ve: el espacio de notas y la sección abierta. Las demás secciones
+// se dibujan al abrirlas (VIEW_RENDER), así que con miles de tareas o notas no se rehace todo.
 function renderAll() {
-  renderToday();
-  renderTasks();
-  renderTimer();
-  renderHabits();
-  renderProgress();
-  renderProjects();
-  renderJournal();
-  renderIdeas();
-  renderLog();
   renderNotesUI();
+  const tab = activeTab();
+  if (tab?.type === 'view') VIEW_RENDER[tab.view]?.();
+  if (tab?.view !== 'timer') renderTimer(); // el título de la ventana muestra el tiempo que queda
   checkReminders();
 }
 

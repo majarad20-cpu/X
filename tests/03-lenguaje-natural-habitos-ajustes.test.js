@@ -51,7 +51,7 @@ const url = process.argv[2], S = process.argv[3];
   // wipe a task, then restore via paste
   await p.keyboard.press('2'); await p.click('#task-list li:nth-child(1) .del'); await p.evaluate(() => document.getElementById('open-settings').click());
   await p.click('#backup-paste'); await p.fill('#restore-text', backup); await p.click('#backup-paste');
-  console.log('restore:', await p.textContent('#backup-message'), 'tasks now', await p.evaluate(() => JSON.parse(localStorage.getItem('enfoque:v1')).tasks.length));
+  console.log('restore:', await p.textContent('#backup-message'), 'tasks now', await p.evaluate(() => (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))).tasks.length));
   await p.click('#backup-paste'); await p.fill('#restore-text', '{"hola":1}'); await p.click('#backup-paste');
   console.log('bad restore:', await p.textContent('#backup-message'));
   await p.emulateMedia({ colorScheme: 'dark' }); await p.screenshot({ path: S + '/settings-dark.png', fullPage: true });

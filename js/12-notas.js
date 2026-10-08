@@ -61,13 +61,52 @@ const folderOf = (path) => path.split('/').slice(0, -1).join('/');
 const joinPath = (folder, name) => (folder ? `${folder}/${name}` : name);
 const cleanName = (s) => s.replace(/[\\/:*?"<>|[\]#^]/g, ' ').replace(/\s+/g, ' ').trim();
 
+// Índice de notas por ruta, por nombre y por id. Se rehace cuando cambian los datos (dataRev)
+// o la lista de notas; cada acierto se comprueba, así que un índice viejo nunca da una nota equivocada.
+const noteIndex = { key: '', list: null, byPath: new Map(), byName: new Map(), byId: new Map(), resolved: new Map() };
+
+function notesIndexed() {
+  const key = `${dataRev}:${state.notes.length}`;
+  if (noteIndex.key === key && noteIndex.list === state.notes) return noteIndex;
+  noteIndex.key = key;
+  noteIndex.list = state.notes;
+  noteIndex.byPath = new Map();
+  noteIndex.byName = new Map();
+  noteIndex.byId = new Map();
+  noteIndex.resolved = new Map();
+  for (const x of state.notes) {
+    const lower = x.path.toLowerCase();
+    if (!noteIndex.byPath.has(lower)) noteIndex.byPath.set(lower, x);
+    const name = baseName(lower);
+    if (!noteIndex.byName.has(name)) noteIndex.byName.set(name, x);
+    noteIndex.byId.set(x.id, x);
+  }
+  return noteIndex;
+}
+
 function findNoteByName(name) {
+  const idx = notesIndexed();
+  // Los enlaces se repiten mucho (grafo, enlaces entrantes): cada texto se resuelve una vez por versión.
+  if (idx.resolved.has(name)) return idx.resolved.get(name);
+  const found = resolveNoteName(name, idx);
+  idx.resolved.set(name, found);
+  return found;
+}
+
+function resolveNoteName(name, idx) {
   const n = name.trim().replace(/\.md$/i, '').toLowerCase();
   if (!n) return null;
+  const hit = idx.byPath.get(n) || idx.byName.get(n);
+  // Sin acierto, el índice (que se rehace al cambiar rutas) es fiable: no hay tal nota.
+  if (!hit) return null;
+  if (hit.path.toLowerCase() === n || baseName(hit.path).toLowerCase() === n) return hit;
   return state.notes.find((x) => x.path.toLowerCase() === n) || state.notes.find((x) => baseName(x.path).toLowerCase() === n) || null;
 }
 
-const noteById = (id) => state.notes.find((n) => n.id === id);
+function noteById(id) {
+  const hit = notesIndexed().byId.get(id);
+  return hit && hit.id === id ? hit : state.notes.find((n) => n.id === id);
+}
 
 function allFolders() {
   const set = new Set(state.folders);
@@ -86,7 +125,28 @@ function uniquePath(folder, name) {
 }
 
 // Enlaces [[...]] de un texto, sin contar los que están dentro de bloques de código.
+// Los resultados se recuerdan por texto: el grafo, los enlaces entrantes y las consultas
+// vuelven a pedir los mismos cuerpos de nota muchas veces.
+const parseMemo = { links: new Map(), tags: new Map() };
+function memoBy(map, body, fn) {
+  let v = map.get(body);
+  if (v === undefined) {
+    if (map.size > 8000) map.clear();
+    v = fn(body);
+    map.set(body, v);
+  }
+  return v;
+}
+
 function linksIn(body) {
+  return memoBy(parseMemo.links, body, parseLinks);
+}
+
+function tagsIn(body) {
+  return memoBy(parseMemo.tags, body, parseTags);
+}
+
+function parseLinks(body) {
   const out = [];
   let inCode = false;
   body.split('\n').forEach((line, idx) => {
@@ -99,7 +159,7 @@ function linksIn(body) {
   return out;
 }
 
-function tagsIn(body) {
+function parseTags(body) {
   const tags = new Set();
   let inCode = false;
   body.split('\n').forEach((line) => {
@@ -179,6 +239,7 @@ function movePath(note, newPath) {
   }
   const oldPath = note.path;
   note.path = newPath;
+  noteIndex.key = '';
   note.updatedAt = Date.now();
   const changed = relinkAll(oldPath, newPath);
   save();
@@ -375,6 +436,7 @@ function renameFolder(oldPath, newName) {
       const p = newPath + n.path.slice(oldPath.length);
       relinkAll(n.path, p);
       n.path = p;
+      noteIndex.key = '';
     }
   });
   state.folders = state.folders.map((f) => (f === oldPath || f.startsWith(prefix) ? newPath + f.slice(oldPath.length) : f));
@@ -395,16 +457,40 @@ function moveNoteToFolder(note, folder) {
   movePath(note, joinPath(folder, baseName(note.path)));
 }
 
+let treeKey = '';
+
 function renderTree() {
   const current = activeNote();
   const folders = allFolders();
+  // Si no cambió ninguna ruta, ni la nota activa, ni las carpetas plegadas, el árbol se deja como está.
+  const key = [[...collapsedFolders].join('|'), folders.join('|'), state.notes.map((n) => n.path).join('\n')].join('\u0000');
+  if (key === treeKey && $('#file-tree').childElementCount) {
+    // Solo cambió la nota abierta: se mueve el resaltado.
+    $$('#file-tree .tree-row.file.active').forEach((r) => r.classList.remove('active'));
+    if (current) $(`#file-tree .tree-row.file[data-id="${CSS.escape(current.id)}"]`)?.classList.add('active');
+    return;
+  }
+  treeKey = key;
+  // Notas agrupadas por carpeta y número de notas dentro de cada carpeta (subcarpetas incluidas).
+  const byFolder = new Map();
+  const counts = new Map();
+  for (const n of state.notes) {
+    const f = folderOf(n.path);
+    if (!byFolder.has(f)) byFolder.set(f, []);
+    byFolder.get(f).push(n);
+    for (let i = f.indexOf('/'); ; i = f.indexOf('/', i + 1)) {
+      const part = i < 0 ? f : f.slice(0, i);
+      if (part) counts.set(part, (counts.get(part) || 0) + 1);
+      if (i < 0) break;
+    }
+  }
   const build = (folder, depth) => {
     const nodes = [];
     folders
       .filter((f) => folderOf(f) === folder)
       .forEach((f) => {
         const open = !collapsedFolders.has(f);
-        const count = state.notes.filter((n) => n.path.startsWith(`${f}/`)).length;
+        const count = counts.get(f) || 0;
         const row = el('div', { className: 'tree-row folder', role: 'treeitem', ariaExpanded: String(open), title: f, tabIndex: 0 }, [
           el('span', { className: `chev${open ? ' open' : ''}` }, ico('chevron')),
           el('span', { className: 'tree-name' }, baseName(f)),
@@ -443,13 +529,14 @@ function renderTree() {
         nodes.push(row);
         if (open) nodes.push(...build(f, depth + 1));
       });
-    state.notes
-      .filter((n) => folderOf(n.path) === folder)
+    (byFolder.get(folder) || [])
+      .slice()
       .sort((a, b) => baseName(a.path).localeCompare(baseName(b.path), 'es', { numeric: true }))
       .forEach((n) => {
         const row = el('button', { className: `tree-row file${current && current.id === n.id ? ' active' : ''}`, role: 'treeitem', title: n.path, draggable: true }, [
           el('span', { className: 'tree-name' }, baseName(n.path)),
         ]);
+        row.dataset.id = n.id;
         row.style.paddingLeft = `${22 + depth * 14}px`;
         row.addEventListener('click', (e) => openNote(n, { newTab: e.ctrlKey || e.metaKey }));
         row.addEventListener('auxclick', (e) => {
@@ -1243,7 +1330,14 @@ function renderWorkspace() {
       return b;
     })
   );
-  $('#ws-tabs .ws-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  // Solo la barra de pestañas se desplaza (scrollIntoView movería también el resto de la página).
+  const activeEl = $('#ws-tabs .ws-tab.active');
+  const bar = $('#ws-tabs');
+  if (activeEl && bar.scrollWidth > bar.clientWidth) {
+    const l = activeEl.offsetLeft, r = l + activeEl.offsetWidth;
+    if (l < bar.scrollLeft) bar.scrollLeft = l;
+    else if (r > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = r - bar.clientWidth;
+  }
 
   const isNote = tab.type === 'note';
   const isGraph = tab.type === 'graph';
@@ -1283,7 +1377,10 @@ const VIEW_RENDER = {
   projects: () => renderProjects(),
   journal: () => renderJournal(),
   ideas: () => renderIdeas(),
-  timer: () => renderTimer(),
+  timer: () => {
+    renderTimer();
+    renderTimerTaskOptions();
+  },
   habits: () => renderHabits(),
   progress: () => renderProgress(),
   review: () => renderReviewStep(),

@@ -30,7 +30,7 @@ const mock = () => {
   const p = await c.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.clock.install({ time: new Date(now) });
   await p.goto(url); await p.waitForTimeout(2000);
-  const st = () => p.evaluate(() => { const s = JSON.parse(localStorage.getItem('enfoque:v1')); return { tasks: s.tasks.map(t => t.id).join(''), archive: s.archive.map(t => t.id).join('') }; });
+  const st = () => p.evaluate(() => { const s = (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))); return { tasks: s.tasks.map(t => t.id).join(''), archive: s.archive.map(t => t.id).join('') }; });
   console.log('after load:', await st());
   console.log('cloud docs:', await p.evaluate(() => [...window.__docs.keys()].sort()));
   console.log('sync status:', await p.textContent('#sync-status'), '| gear warn:', await p.$eval('#open-settings', x => x.classList.contains('warn')));
@@ -44,6 +44,6 @@ const mock = () => {
   console.log('meter:', await p.$$eval('.storage-row', n => n.map(x => x.innerText.replace(/\n/g, ' | '))));
   await p.screenshot({ path: S + '/storage.png', fullPage: true });
   // Al borrar ideas se libera espacio y la sincronización vuelve.
-  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('enfoque:v1')); }); 
+  await p.evaluate(() => { const s = (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))); }); 
   console.log('errors:', errs); await b.close();
 })();

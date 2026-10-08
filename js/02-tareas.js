@@ -104,6 +104,7 @@ $('#task-form').addEventListener('submit', (e) => {
 $$('[data-filter]').forEach((btn) =>
   btn.addEventListener('click', () => {
     taskFilter = btn.dataset.filter;
+    taskLimit = TASK_PAGE;
     $$('[data-filter]').forEach((b) => b.classList.toggle('active', b === btn));
     renderTasks();
   })
@@ -176,8 +177,11 @@ function formatDue(due) {
   const tomorrow = dateKey(addDays(new Date(), 1));
   if (due === today) return 'Hoy';
   if (due === tomorrow) return 'Mañana';
-  return parseKey(due).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
+  if (!DUE_TEXT.has(due)) DUE_TEXT.set(due, DUE_FORMAT.format(parseKey(due)));
+  return DUE_TEXT.get(due);
 }
+const DUE_FORMAT = new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short' });
+const DUE_TEXT = new Map();
 
 function toggleDone(t, done) {
   if (done && t.repeat) {
@@ -429,6 +433,9 @@ function renderTagFilter() {
   $('#tag-filter').hidden = !tags.length;
 }
 
+const TASK_PAGE = 150;
+let taskLimit = TASK_PAGE;
+
 function renderTasks() {
   renderTagFilter();
   $('#list-pane').hidden = taskView !== 'list';
@@ -436,7 +443,18 @@ function renderTasks() {
   if (taskView === 'week') renderWeek();
   $('#task-sort').value = state.settings.sort || 'priority';
   const tasks = visibleTasks();
-  $('#task-list').replaceChildren(...tasks.map((t) => taskItem(t, { draggable: manualSort() })));
+  // Con muchas tareas se dibujan por tandas; el resto aparece con «Mostrar más».
+  const shown = tasks.slice(0, taskLimit);
+  const items = shown.map((t) => taskItem(t, { draggable: manualSort() }));
+  if (tasks.length > shown.length) {
+    const more = el('button', { className: 'chip show-more' }, `Mostrar ${Math.min(TASK_PAGE, tasks.length - shown.length)} más (quedan ${tasks.length - shown.length})`);
+    more.addEventListener('click', () => {
+      taskLimit += TASK_PAGE;
+      renderTasks();
+    });
+    items.push(el('li', { className: 'more-row' }, more));
+  }
+  $('#task-list').replaceChildren(...items);
   $('#task-empty').hidden = tasks.length > 0;
   const done = state.tasks.filter((t) => t.done).length;
   $('#task-stats').textContent = state.tasks.length ? `${done}/${state.tasks.length} completadas` : '';
@@ -454,7 +472,7 @@ function dragHandle(t) {
     e.preventDefault();
     const li = handle.closest('li');
     const sibling = e.key === 'ArrowUp' ? li.previousElementSibling : li.nextElementSibling;
-    if (!sibling || sibling.classList.contains('done')) return;
+    if (!sibling || sibling.classList.contains('done') || sibling.classList.contains('more-row')) return;
     if (e.key === 'ArrowUp') sibling.before(li);
     else sibling.after(li);
     commitOrder(li.parentElement);
@@ -472,7 +490,7 @@ function startDrag(e, handle) {
   // Se escucha en la página: al mover el elemento en el DOM se pierde la captura del puntero.
   const onMove = (ev) => {
     ev.preventDefault();
-    const others = [...list.children].filter((c) => c !== li && !c.classList.contains('done'));
+    const others = [...list.children].filter((c) => c !== li && !c.classList.contains('done') && !c.classList.contains('more-row'));
     const before = others.find((c) => {
       const r = c.getBoundingClientRect();
       return ev.clientY < r.top + r.height / 2;

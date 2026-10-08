@@ -62,16 +62,30 @@ function noteTasks() {
   const stamp = `${dataRev}:${state.notes.length}:${state.projects.length}`;
   if (noteTaskCache.stamp === stamp) return noteTaskCache.list;
   const list = [];
+  // Cada nota se vuelve a leer solo si cambió su texto, su ruta, los proyectos o el día.
+  const ctx = `${state.projects.map((p) => `${p.id}=${p.name}`).join('|')}#${dateKey()}`;
+  const perNote = new Map();
   state.notes.forEach((note) => {
-    let inCode = false;
-    note.body.split('\n').forEach((line, idx) => {
-      if (/^\s*```/.test(line)) inCode = !inCode;
-      if (inCode) return;
-      const t = parseNoteTask(note, idx, line);
-      if (t) list.push(t);
-    });
+    const prev = noteTaskCache.perNote?.get(note.id);
+    if (prev && prev.body === note.body && prev.path === note.path && prev.ctx === ctx) {
+      perNote.set(note.id, prev);
+      list.push(...prev.tasks);
+      return;
+    }
+    const tasks = [];
+    if (note.body.includes('[')) {
+      let inCode = false;
+      note.body.split('\n').forEach((line, idx) => {
+        if (/^\s*```/.test(line)) inCode = !inCode;
+        if (inCode) return;
+        const t = parseNoteTask(note, idx, line);
+        if (t) tasks.push(t);
+      });
+    }
+    perNote.set(note.id, { body: note.body, path: note.path, ctx, tasks });
+    list.push(...tasks);
   });
-  noteTaskCache = { stamp, list };
+  noteTaskCache = { stamp, list, perNote };
   return list;
 }
 

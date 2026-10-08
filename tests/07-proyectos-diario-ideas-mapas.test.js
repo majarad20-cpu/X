@@ -42,7 +42,7 @@ const url = process.argv[2], S = process.argv[3];
   console.log('convert lines:', await p.$$eval('.dc-line', n => n.map(x => x.innerText.replace(/\n/g,' '))));
   await p.check('.dc-line:has-text("Llamar al banco") input'); await p.check('.dc-line:has-text("Comprar regalo") input');
   await p.click('#dump-convert button.primary');
-  console.log('tasks now:', await p.evaluate(() => JSON.parse(localStorage.getItem('enfoque:v1')).tasks.map(t => t.title + (t.due ? ' ' + t.due : '') + (t.time ? ' ' + t.time : ''))));
+  console.log('tasks now:', await p.evaluate(() => (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))).tasks.map(t => t.title + (t.due ? ' ' + t.due : '') + (t.time ? ' ' + t.time : ''))));
   await p.click('[data-jkind=gratitude]');
   const fields = await p.$$('#journal-fields textarea'); await fields[0].fill('El café con Marta'); await fields[1].fill('Que salió el sol');
   await p.click('#journal-form button[type=submit]');
@@ -91,7 +91,7 @@ const url = process.argv[2], S = process.argv[3];
   console.log('maps list:', await p.$$eval('.map-card', n => n.map(x => x.innerText.replace(/\n/g,' | '))));
   await p.screenshot({ path: S + '/maps.png', fullPage: true });
   await p.reload();
-  console.log('persisted:', await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('enfoque:v1')); return [s.projects.length, s.journal.length, s.ideas.length, s.maps.length, s.maps[0].nodes.length]; }));
+  console.log('persisted:', await p.evaluate(() => { const s = (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))); return [s.projects.length, s.journal.length, s.ideas.length, s.maps.length, s.maps[0].nodes.length]; }));
   // shortcuts 1-8
   const seen = []; for (const k of '12345678') { await p.keyboard.press(k); seen.push(await p.$eval('.view.active', v => v.id.slice(5))); } console.log('keys:', seen.join(','));
   console.log('errors:', errs); await b.close();

@@ -1034,3 +1034,6 @@ body { overflow: hidden; }
 .primary-chip { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .rv-tasks { font-weight: 400; font-size: .92rem; }
 .rv-nav { margin-top: 12px; justify-content: flex-end; }
+
+/* ---------- Listas largas ---------- */
+.more-row { list-style: none; display: flex; justify-content: center; padding: 8px 0; border: 0; background: none; }

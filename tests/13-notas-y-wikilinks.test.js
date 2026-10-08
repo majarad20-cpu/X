@@ -25,10 +25,10 @@ const url = process.argv[2], S = process.argv[3];
   console.log('backlinks:', await p.$eval('#rp-backlinks', d => d.innerText.replace(/\n/g, ' | ')));
   // Casilla en lectura
   await p.click('#note-reading input.task-check');
-  console.log('task toggled in source:', (await p.evaluate(() => JSON.parse(localStorage.getItem('enfoque:v1')).notes.find(n => n.path === 'Bienvenida').body)).includes('- [x] Marca esta casilla'));
+  console.log('task toggled in source:', (await p.evaluate(() => (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))).notes.find(n => n.path === 'Bienvenida').body)).includes('- [x] Marca esta casilla'));
   // Renombrar: los enlaces se actualizan
   await p.fill('#note-title', 'Inicio'); await p.press('#note-title', 'Enter');
-  console.log('renamed:', await p.evaluate(() => JSON.parse(localStorage.getItem('enfoque:v1')).notes.map(n => n.path + ' :: ' + (n.body.match(/\[\[[^\]]+\]\]/g) || []).join(','))));
+  console.log('renamed:', await p.evaluate(() => (flushLocal(), JSON.parse(localStorage.getItem('enfoque:v1'))).notes.map(n => n.path + ' :: ' + (n.body.match(/\[\[[^\]]+\]\]/g) || []).join(','))));
   // Buscador rápido
   await p.keyboard.press('Escape');
   await p.keyboard.press('Control+o'); await p.keyboard.type('ideas fin');

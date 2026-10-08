@@ -18,6 +18,100 @@ const saveGraphOpts = () => {
   }
 };
 
+// Repulsión entre todos los pares: exacta con pocos nodos.
+function repelExact(nodes, strength) {
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i];
+    for (let j = i + 1; j < nodes.length; j++) {
+      const b = nodes[j];
+      let dx = a.x - b.x;
+      let dy = a.y - b.y;
+      let d2 = dx * dx + dy * dy;
+      if (d2 < 1) {
+        dx = Math.random() - 0.5;
+        dy = Math.random() - 0.5;
+        d2 = 1;
+      }
+      if (d2 > 250000) continue;
+      const f = strength / d2;
+      const d = Math.sqrt(d2);
+      a.vx += (dx / d) * f;
+      a.vy += (dy / d) * f;
+      b.vx -= (dx / d) * f;
+      b.vy -= (dy / d) * f;
+    }
+  }
+}
+
+// Con muchos nodos, aproximación de Barnes-Hut: los grupos lejanos empujan como un solo punto
+// situado en su centro, así que cada paso cuesta n·log n en vez de n².
+function repelApprox(nodes, strength) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    if (n.x > maxX) maxX = n.x;
+    if (n.y > maxY) maxY = n.y;
+  }
+  const size = Math.max(maxX - minX, maxY - minY, 1) + 1;
+  const root = { x0: minX, y0: minY, size, mass: 0, cx: 0, cy: 0, body: null, kids: null };
+  const insert = (cell, n, depth) => {
+    for (;;) {
+      cell.cx = (cell.cx * cell.mass + n.x) / (cell.mass + 1);
+      cell.cy = (cell.cy * cell.mass + n.y) / (cell.mass + 1);
+      cell.mass++;
+      if (!cell.kids && !cell.body) {
+        cell.body = n;
+        return;
+      }
+      if (!cell.kids) {
+        if (depth > 40) return; // puntos casi iguales: se cuentan como masa, sin dividir más
+        const half = cell.size / 2;
+        cell.kids = [0, 1, 2, 3].map((q) => ({ x0: cell.x0 + (q & 1) * half, y0: cell.y0 + (q >> 1) * half, size: half, mass: 0, cx: 0, cy: 0, body: null, kids: null }));
+        const old = cell.body;
+        cell.body = null;
+        const qo = (old.x >= cell.x0 + half ? 1 : 0) + (old.y >= cell.y0 + half ? 2 : 0);
+        const k = cell.kids[qo];
+        k.cx = old.x;
+        k.cy = old.y;
+        k.mass = 1;
+        k.body = old;
+      }
+      const half = cell.size / 2;
+      cell = cell.kids[(n.x >= cell.x0 + half ? 1 : 0) + (n.y >= cell.y0 + half ? 2 : 0)];
+      depth++;
+    }
+  };
+  for (const n of nodes) insert(root, n, 0);
+  const THETA2 = 0.81;
+  const stack = [];
+  for (const a of nodes) {
+    stack.length = 0;
+    stack.push(root);
+    while (stack.length) {
+      const c = stack.pop();
+      if (!c.mass || c.body === a) continue;
+      let dx = a.x - c.cx;
+      let dy = a.y - c.cy;
+      let d2 = dx * dx + dy * dy;
+      if (c.kids && (c.size * c.size) / Math.max(d2, 1) > THETA2) {
+        for (const k of c.kids) stack.push(k);
+        continue;
+      }
+      if (d2 > 250000) continue;
+      if (d2 < 1) {
+        dx = Math.random() - 0.5;
+        dy = Math.random() - 0.5;
+        d2 = 1;
+      }
+      const f = (strength * c.mass) / d2;
+      const d = Math.sqrt(d2);
+      a.vx += (dx / d) * f;
+      a.vy += (dy / d) * f;
+    }
+  }
+}
+
 // Nodos y enlaces a partir de las notas. Con `center`, solo su vecindario hasta `depth` saltos.
 function buildGraphData({ center = null, depth = 1, tags = false, ghosts = true, orphans = true, filter = '' } = {}) {
   const nodes = new Map();
@@ -156,7 +250,7 @@ class GraphView {
   loop() {
     this.raf = null;
     if (!this.canvas.offsetParent) return; // oculto: se para hasta que vuelva a verse
-    for (let i = 0; i < 2; i++) this.step();
+    for (let i = 0; i < (this.nodes.length > 1500 ? 1 : 2); i++) this.step();
     if (this.pendingFit && this.alpha < 0.3) this.fit();
     // Al terminar de colocarse se vuelve a encuadrar, salvo que se haya movido o ampliado a mano.
     if (this.alpha <= 0.02 && this.autoFit) {
@@ -172,27 +266,8 @@ class GraphView {
     const k = this.alpha;
     const REPEL = this.local ? 900 : 1400;
     const LEN = this.local ? 60 : 80;
-    for (let i = 0; i < nodes.length; i++) {
-      const a = nodes[i];
-      for (let j = i + 1; j < nodes.length; j++) {
-        const b = nodes[j];
-        let dx = a.x - b.x;
-        let dy = a.y - b.y;
-        let d2 = dx * dx + dy * dy;
-        if (d2 < 1) {
-          dx = Math.random() - 0.5;
-          dy = Math.random() - 0.5;
-          d2 = 1;
-        }
-        if (d2 > 250000) continue;
-        const f = (REPEL / d2) * k;
-        const d = Math.sqrt(d2);
-        a.vx += (dx / d) * f;
-        a.vy += (dy / d) * f;
-        b.vx -= (dx / d) * f;
-        b.vy -= (dy / d) * f;
-      }
-    }
+    if (nodes.length > 1500) repelApprox(nodes, REPEL * k);
+    else repelExact(nodes, REPEL * k);
     this.links.forEach(({ a, b }) => {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
@@ -291,24 +366,35 @@ class GraphView {
     const near = focus ? this.neighbors.get(focus) || new Set() : null;
     const dim = (id) => focus && id !== focus && !near.has(id);
 
-    ctx.lineWidth = 1;
+    // Las líneas se dibujan por tandas (un solo trazo por estilo) y sin las que quedan fuera de la vista.
+    const W = this.w, H = this.h;
+    const off = (p, q) => (p.x < 0 && q.x < 0) || (p.y < 0 && q.y < 0) || (p.x > W && q.x > W) || (p.y > H && q.y > H);
+    const normal = new Path2D();
+    const hotPath = new Path2D();
     this.links.forEach(({ a, b }) => {
       const pa = this.toScreen(a);
       const pb = this.toScreen(b);
-      const hot = focus && (a.id === focus || b.id === focus);
-      ctx.strokeStyle = hot ? c.accent : c.border;
-      ctx.globalAlpha = focus && !hot ? 0.25 : hot ? 0.9 : 0.8;
-      ctx.lineWidth = hot ? 1.6 : 1;
-      ctx.beginPath();
-      ctx.moveTo(pa.x, pa.y);
-      ctx.lineTo(pb.x, pb.y);
-      ctx.stroke();
+      if (off(pa, pb)) return;
+      const path = focus && (a.id === focus || b.id === focus) ? hotPath : normal;
+      path.moveTo(pa.x, pa.y);
+      path.lineTo(pb.x, pb.y);
     });
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = c.border;
+    ctx.globalAlpha = focus ? 0.25 : 0.8;
+    ctx.stroke(normal);
+    if (focus) {
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = c.accent;
+      ctx.globalAlpha = 0.9;
+      ctx.stroke(hotPath);
+    }
     ctx.globalAlpha = 1;
 
     const showAll = this.scale > (this.local ? 0.6 : 1.1) || this.nodes.length < 25;
     this.nodes.forEach((n) => {
       const p = this.toScreen(n);
+      if (p.x < -60 || p.y < -30 || p.x > W + 60 || p.y > H + 30) return;
       const r = this.radius(n) * Math.max(0.6, Math.min(1.4, this.scale));
       const color = n.kind === 'ghost' ? c.muted : n.kind === 'tag' ? c.tag : n.group >= 0 ? c.b[n.group] : c.accent;
       ctx.globalAlpha = dim(n.id) ? 0.25 : 1;
