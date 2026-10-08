@@ -27,6 +27,8 @@ function inlineMd(text) {
   let s = text
     .replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${escHtml(c)}</code>`))
     .replace(/!?\[\[([^\]\n]+?)\]\]/g, (_, inner) => hold(wikiLinkHtml(inner)))
+    // Imagen guardada en la app: ![descripción](img:ID). Se carga después (26-imagenes.js).
+    .replace(/!\[([^\]\n]*)\]\(img:([a-z0-9]+)\)/gi, (_, alt, id) => hold(`<img class="note-img" data-img="${escHtml(id)}" alt="${escHtml(alt)}" loading="lazy">`))
     .replace(/!?\[([^\]\n]*)\]\((\S+?)\)/g, (m, label, url) =>
       /^(https?:|mailto:)/i.test(url) ? hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">${escHtml(label || url)}</a>`) : m)
     .replace(/(^|[\s(])(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g, (_, pre, url) => pre + hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">${escHtml(url)}</a>`))
@@ -134,7 +136,7 @@ function renderMd(src, ctx = {}) {
       continue;
     }
     // Lista (con casillas y anidación por sangría)
-    const LIST_RE = /^(\s*)([-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/;
+    const LIST_RE = /^(\s*)([-*+]|\d+[.)])\s+(?:\[([ xX/])\]\s+)?(.*)$/;
     if (LIST_RE.test(line)) {
       const items = [];
       while (i < lines.length) {
@@ -160,7 +162,8 @@ function renderMd(src, ctx = {}) {
         if (it.task !== undefined) {
           const done = it.task.toLowerCase() === 'x';
           const box = ctx.noTasks ? `<input type="checkbox" disabled${done ? ' checked' : ''}>` : `<input type="checkbox" class="task-check" data-line="${it.line}"${done ? ' checked' : ''} aria-label="Completar">`;
-          html += `<li class="task-item${done ? ' done' : ''}">${box}<span>${content}</span>`;
+          const doing = it.task === '/' ? ' doing' : '';
+          html += `<li class="task-item${done ? ' done' : ''}${doing}">${box}<span>${doing ? '<span class="doing-badge" title="En curso">◐</span> ' : ''}${content}</span>`;
         } else {
           html += `<li>${content}`;
         }

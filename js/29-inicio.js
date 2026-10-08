@@ -5,6 +5,7 @@
 loadFromDB().then(boot, boot);
 
 function boot() {
+  updateFileStats();
   backfillLog();
   archiveOldTasks();
   welcomeNote();

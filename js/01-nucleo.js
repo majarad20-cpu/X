@@ -62,8 +62,13 @@ function idbOpen() {
     // Si el navegador no responde, se sigue sin IndexedDB (con localStorage) en vez de esperar.
     setTimeout(() => resolve(null), 3000);
     try {
-      const req = indexedDB.open('enfoque', 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('kv');
+      // Versión 2: almacén «files» para las imágenes de las notas.
+      const req = indexedDB.open('enfoque', 2);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+        if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
+      };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
       req.onblocked = () => resolve(null);

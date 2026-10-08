@@ -36,7 +36,9 @@ function setBackupMessage(text, isError = false) {
 
 async function exportBackup() {
   const data = Object.fromEntries(DATA_KEYS.map((k) => [k, state[k]]));
-  const json = JSON.stringify({ app: 'enfoque', version: 1, exportedAt: new Date().toISOString(), data }, null, 2);
+  // Las imágenes de las notas viajan en la copia descargada (no en la copiada al portapapeles).
+  const images = await backupFiles();
+  const json = JSON.stringify({ app: 'enfoque', version: 1, exportedAt: new Date().toISOString(), data, files: images }, null, 2);
   const filename = `enfoque-copia-${dateKey()}.json`;
 
   // Dentro de Claude: el visor pide confirmación y guarda el archivo.
@@ -96,6 +98,7 @@ function restoreBackup(text) {
   applySettings();
   renderAccents();
   setBackupMessage(`Restauradas ${data.tasks.length} tareas y ${data.habits.length} hábitos.`);
+  restoreFiles(parsed?.files).then((n) => n && setBackupMessage(`Restauradas ${data.tasks.length} tareas, ${data.habits.length} hábitos y ${n} ${n === 1 ? 'imagen' : 'imágenes'}.`));
 }
 
 $('#open-settings').addEventListener('click', () => {

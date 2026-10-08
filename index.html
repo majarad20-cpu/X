@@ -124,6 +124,14 @@
       <ul id="today-list" class="list"></ul>
       <p id="today-empty" class="empty">Nada pendiente para hoy. 🎉</p>
 
+      <div id="today-suggest" class="card suggest-card" hidden>
+        <div class="suggest-head">
+          <h3 class="suggest-title">💡 Sugerencias para hoy</h3>
+          <button id="suggest-hide" class="link">Ocultar por hoy</button>
+        </div>
+        <ul id="suggest-list" class="suggest-list"></ul>
+      </div>
+
       <button id="today-journal" class="journal-nudge" hidden>
         <span class="jn-icon" aria-hidden="true">✍️</span>
         <span><strong>Aún no has escrito hoy.</strong> Un vaciado mental de 5 minutos despeja la cabeza.</span>
@@ -179,6 +187,8 @@
       <div class="view-switch" role="group" aria-label="Vista">
         <button class="seg active" data-taskview="list" aria-pressed="true">Lista</button>
         <button class="seg" data-taskview="week" aria-pressed="false">Semana</button>
+        <button class="seg" data-taskview="month" aria-pressed="false">Mes</button>
+        <button class="seg" data-taskview="board" aria-pressed="false">Tablero</button>
       </div>
 
       <div id="tag-filter" class="tag-filter" role="group" aria-label="Etiqueta" hidden></div>
@@ -216,6 +226,29 @@
         <div id="week-strip" class="week-strip"></div>
         <div id="week-days" class="week-days"></div>
         <button id="week-undated" class="link"></button>
+      </div>
+
+      <div id="month-pane" hidden>
+        <div class="week-head">
+          <button id="month-prev" class="nav-btn" aria-label="Mes anterior">‹</button>
+          <h3 id="month-title" class="week-title"></h3>
+          <button id="month-next" class="nav-btn" aria-label="Mes siguiente">›</button>
+          <button id="month-today" class="chip">Este mes</button>
+        </div>
+        <div id="month-grid" class="month-grid" role="grid" aria-label="Calendario del mes"></div>
+        <p class="muted hint">Toca un día para ver sus tareas y añadir más · arrastra una tarea a otro día para cambiar su fecha · con el teclado, flechas para moverse y Enter para abrir el día.</p>
+        <section id="month-day" class="card month-day" aria-live="polite"></section>
+      </div>
+
+      <div id="board-pane" hidden>
+        <div class="filters board-group" role="group" aria-label="Agrupar por">
+          <span class="muted">Agrupar por:</span>
+          <button class="chip active" data-boardgroup="status" aria-pressed="true">Estado</button>
+          <button class="chip" data-boardgroup="project" aria-pressed="false">Proyecto</button>
+          <button class="chip" data-boardgroup="priority" aria-pressed="false">Prioridad</button>
+        </div>
+        <div id="board" class="board"></div>
+        <p class="muted hint">Arrastra ⠿ a otra columna (o enfócalo y usa ← →) · en «Hecho» se ven las completadas en los últimos 7 días · en las notas, <code>- [/]</code> marca una tarea en curso.</p>
       </div>
     </section>
 
@@ -326,14 +359,15 @@
 
       <div id="ideas-notes-pane">
         <form id="idea-form" class="card idea-composer">
-          <textarea id="idea-text" class="notes" rows="2" placeholder="Apunta una idea antes de que se escape… (usa #etiquetas)" required maxlength="2000" aria-label="Nueva idea"></textarea>
+          <textarea id="idea-text" class="notes" rows="2" placeholder="Apunta una idea antes de que se escape… (usa #etiquetas; «- [ ]» para una lista)" required maxlength="2000" aria-label="Nueva idea"></textarea>
           <div class="row"><button type="submit" class="primary">Guardar idea</button><span class="muted">Ctrl + Enter para guardar</span></div>
         </form>
         <div class="row idea-tools">
           <input id="idea-search" type="search" placeholder="Buscar ideas" aria-label="Buscar ideas">
+          <div id="idea-colors" class="idea-colors" role="group" aria-label="Filtrar por color" hidden></div>
         </div>
         <div id="idea-tags" class="tag-filter" hidden></div>
-        <div id="idea-list" class="idea-grid"></div>
+        <div id="idea-list" class="idea-sections"></div>
         <p id="idea-empty" class="empty">Sin ideas todavía. Las buenas ideas llegan en cualquier momento: apúntalas aquí.</p>
       </div>
 
@@ -624,6 +658,12 @@
   </div>
   <div id="note-menu" class="menu" role="menu" hidden></div>
   <ul id="link-suggest" class="suggest" role="listbox" hidden></ul>
+  <input id="note-image-input" type="file" accept="image/*" multiple hidden>
+  <div id="image-viewer" class="image-viewer" role="dialog" aria-modal="true" aria-label="Imagen" hidden>
+    <button id="image-viewer-close" class="iv-close" aria-label="Cerrar">✕</button>
+    <img id="image-viewer-img" alt="">
+    <p id="image-viewer-caption" class="iv-caption"></p>
+  </div>
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="js/01-nucleo.js"></script>
@@ -647,6 +687,9 @@
   <script src="js/19-sincronizacion.js"></script>
   <script src="js/21-preguntar.js"></script>
   <script src="js/22-revision.js"></script>
-  <script src="js/23-inicio.js"></script>
+  <script src="js/24-tablero-mes-sugerencias.js"></script>
+  <script src="js/25-comando-barra.js"></script>
+  <script src="js/26-imagenes.js"></script>
+  <script src="js/29-inicio.js"></script>
 </body>
 </html>

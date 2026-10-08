@@ -5,6 +5,45 @@ let ideaView = 'notes';
 let ideaSearch = '';
 let ideaTag = null;
 let editingIdeaId = null;
+let ideaColor = null; // filtro por color
+let paletteFor = null; // idea con la paleta de colores abierta
+
+// Colores de las tarjetas, como en Google Keep.
+const IDEA_COLORS = [
+  ['', 'Sin color'],
+  ['red', 'Rojo'],
+  ['orange', 'Naranja'],
+  ['yellow', 'Amarillo'],
+  ['green', 'Verde'],
+  ['teal', 'Turquesa'],
+  ['blue', 'Azul'],
+  ['purple', 'Morado'],
+  ['gray', 'Gris'],
+];
+const colorLabel = (c) => IDEA_COLORS.find(([k]) => k === (c || ''))?.[1] || 'Sin color';
+
+// Texto de la idea: las líneas «- [ ]» son casillas que se marcan con un toque.
+function ideaBody(idea) {
+  const body = el('div', { className: 'idea-text' });
+  idea.text.split('\n').forEach((line, i) => {
+    const m = line.match(/^\s*[-*]\s+\[([ xX])\]\s*(.*)$/);
+    if (!m) {
+      body.append(el('div', { className: 'idea-line' }, line || '\u00a0'));
+      return;
+    }
+    const box = el('input', { type: 'checkbox', checked: m[1] !== ' ', ariaLabel: m[2] || 'Elemento' });
+    box.addEventListener('change', () => {
+      const lines = idea.text.split('\n');
+      lines[i] = lines[i].replace(/\[[ xX]\]/, box.checked ? '[x]' : '[ ]');
+      idea.text = lines.join('\n');
+      idea.updatedAt = Date.now();
+      save();
+      renderIdeas();
+    });
+    body.append(el('label', { className: `idea-check${box.checked ? ' done' : ''}` }, [box, el('span', {}, m[2])]));
+  });
+  return body;
+}
 
 // Saca las #etiquetas de un texto conservando los saltos de línea.
 function extractTags(text) {
@@ -77,6 +116,11 @@ function ideaCard(idea) {
   }
 
   const pin = el('button', { className: `icon-link${idea.pinned ? ' on' : ''}`, title: idea.pinned ? 'Desfijar' : 'Fijar arriba', ariaPressed: String(!!idea.pinned) }, '📌');
+  const paint = el('button', { className: 'icon-link', title: `Color: ${colorLabel(idea.color)}`, ariaLabel: `Color de la idea: ${colorLabel(idea.color)}`, ariaExpanded: String(paletteFor === idea.id) }, '🎨');
+  paint.addEventListener('click', () => {
+    paletteFor = paletteFor === idea.id ? null : idea.id;
+    renderIdeas();
+  });
   pin.addEventListener('click', () => {
     idea.pinned = !idea.pinned;
     save();
@@ -108,10 +152,24 @@ function ideaCard(idea) {
     })
   );
   const date = new Date(idea.createdAt).toLocaleDateString('es', { day: 'numeric', month: 'short' });
-  const card = el('article', { className: `card idea${idea.pinned ? ' pinned' : ''}` }, [
-    el('header', { className: 'idea-head' }, [el('span', { className: 'muted' }, date), pin]),
-    el('p', { className: 'idea-text' }, idea.text),
+  const card = el('article', { className: `card idea${idea.pinned ? ' pinned' : ''}${idea.color ? ` ic-${idea.color}` : ''}` }, [
+    el('header', { className: 'idea-head' }, [el('span', { className: 'muted' }, date), el('span', { className: 'idea-head-actions' }, [paint, pin])]),
+    ideaBody(idea),
   ]);
+  if (paletteFor === idea.id) {
+    card.append(el('div', { className: 'idea-palette', role: 'group', ariaLabel: 'Color' }, IDEA_COLORS.map(([c, label]) => {
+      const sw = el('button', { className: `swatch${c ? ` ic-${c}` : ''}${(idea.color || '') === c ? ' on' : ''}`, title: label, ariaLabel: label, ariaPressed: String((idea.color || '') === c) });
+      sw.addEventListener('click', () => {
+        if (c) idea.color = c;
+        else delete idea.color;
+        idea.updatedAt = Date.now();
+        paletteFor = null;
+        save();
+        renderIdeas();
+      });
+      return sw;
+    })));
+  }
   if (idea.tags.length) {
     card.append(el('div', { className: 'tags' }, idea.tags.map((t) => {
       const chip = el('button', { className: `tag${t === ideaTag ? ' active' : ''}` }, `#${t}`);
@@ -148,11 +206,33 @@ function renderIdeas() {
   })] : []));
   $('#idea-tags').hidden = !tags.length;
 
+  // Filtro por color: solo los colores que se usan.
+  const colors = IDEA_COLORS.filter(([c]) => c && state.ideas.some((i) => i.color === c));
+  if (ideaColor && !colors.some(([c]) => c === ideaColor)) ideaColor = null;
+  $('#idea-colors').replaceChildren(
+    ...colors.map(([c, label]) => {
+      const b = el('button', { className: `swatch ic-${c}${ideaColor === c ? ' on' : ''}`, title: `Solo ${label.toLowerCase()}`, ariaLabel: `Filtrar por ${label.toLowerCase()}`, ariaPressed: String(ideaColor === c) });
+      b.addEventListener('click', () => {
+        ideaColor = ideaColor === c ? null : c;
+        renderIdeas();
+      });
+      return b;
+    })
+  );
+  $('#idea-colors').hidden = !colors.length;
+
   const list = state.ideas
     .filter((i) => !ideaTag || i.tags.includes(ideaTag))
+    .filter((i) => !ideaColor || i.color === ideaColor)
     .filter((i) => !ideaSearch || `${i.text} ${i.tags.join(' ')}`.toLowerCase().includes(ideaSearch))
-    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.createdAt - a.createdAt);
-  $('#idea-list').replaceChildren(...list.map(ideaCard));
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const pinned = list.filter((i) => i.pinned);
+  const others = list.filter((i) => !i.pinned);
+  const section = (title, items) => el('section', { className: 'idea-section' }, [title ? el('h3', { className: 'idea-section-title' }, title) : '', el('div', { className: 'idea-grid' }, items.map(ideaCard))]);
+  $('#idea-list').replaceChildren(
+    ...(pinned.length ? [section('Fijadas', pinned)] : []),
+    ...(others.length ? [section(pinned.length ? 'Otras' : '', others)] : [])
+  );
   $('#idea-empty').hidden = list.length > 0;
   $('#idea-empty').textContent = state.ideas.length ? 'Ninguna idea coincide.' : 'Sin ideas todavía. Las buenas ideas llegan en cualquier momento: apúntalas aquí.';
 }

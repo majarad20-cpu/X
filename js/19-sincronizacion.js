@@ -142,6 +142,7 @@ async function pushState() {
         delete meta.times[name];
       }
     }
+    await pushFiles();
     saveLocal();
     setSyncStatus(tooBig ? 'full' : 'synced');
   } catch {
@@ -165,6 +166,11 @@ function receiveSnapshot(snap, first) {
   for (const doc of snap.docs) {
     const name = doc.id;
     remoteNames.add(name);
+    // Las imágenes van aparte: no cambian y no forman parte del estado (26-imagenes.js).
+    if (name.startsWith('file-')) {
+      receiveFile(name, doc.data());
+      continue;
+    }
     const body = JSON.parse(JSON.stringify(doc.data()));
     const remoteAt = body.updatedAt || 0;
     delete body.updatedAt;

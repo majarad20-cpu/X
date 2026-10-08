@@ -846,7 +846,7 @@ $('#note-editor').addEventListener('keydown', (e) => {
   const lineStart = value.lastIndexOf('\n', s - 1) + 1;
   const line = value.slice(lineStart, s);
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && s === end) {
-    const m = line.match(/^(\s*)([-*+]|(\d+)([.)]))\s+(\[[ xX]\]\s+)?/);
+    const m = line.match(/^(\s*)([-*+]|(\d+)([.)]))\s+(\[[ xX/]\]\s+)?/);
     if (!m) return;
     e.preventDefault();
     if (line.trim() === m[0].trim()) {
@@ -984,7 +984,8 @@ function updateSuggest() {
   const ta = $('#note-editor');
   const before = ta.value.slice(0, ta.selectionStart);
   const m = before.match(/\[\[([^\]\n|#]*)$/);
-  if (!m) return hideSuggest();
+  // Sin [[ abierto, quizá es un comando «/» (24-comando-barra.js).
+  if (!m) return slashSuggest(ta, before);
   const q = m[1].toLowerCase();
   const current = activeNote();
   const items = state.notes
@@ -994,11 +995,19 @@ function updateSuggest() {
     .map((n) => ({ label: baseName(n.path), detail: folderOf(n.path), insert: baseName(n.path) }));
   if (m[1].trim() && !findNoteByName(m[1])) items.push({ label: `Enlazar nota nueva «${m[1].trim()}»`, detail: 'se creará al abrir el enlace', insert: m[1].trim() });
   if (!items.length) return hideSuggest();
-  suggestState = { items, index: 0, start: ta.selectionStart - m[1].length };
+  showSuggestBox(ta, items, ta.selectionStart - m[1].length);
+}
+
+// Muestra la lista de sugerencias bajo el cursor. Cada elemento inserta texto o, con `run`, hace algo.
+function showSuggestBox(ta, items, start) {
+  suggestState = { items, index: 0, start };
   const box = $('#link-suggest');
   box.replaceChildren(
     ...items.map((it, i) => {
-      const li = el('li', { className: `sg-item${i === 0 ? ' active' : ''}`, role: 'option' }, [el('span', { className: 'sg-label' }, it.label), it.detail ? el('span', { className: 'sg-detail' }, it.detail) : '']);
+      const text = [el('span', { className: 'sg-label' }, it.label), it.detail ? el('span', { className: 'sg-detail' }, it.detail) : ''];
+      const li = it.icon
+        ? el('li', { className: `sg-item has-icon${i === 0 ? ' active' : ''}`, role: 'option' }, [el('span', { className: 'sg-icon', ariaHidden: 'true' }, it.icon), el('span', { className: 'sg-text' }, text)])
+        : el('li', { className: `sg-item${i === 0 ? ' active' : ''}`, role: 'option' }, text);
       li.addEventListener('mousedown', (e) => {
         e.preventDefault();
         acceptSuggest(i);
@@ -1021,6 +1030,12 @@ function hideSuggest() {
 function acceptSuggest(i) {
   const ta = $('#note-editor');
   const it = suggestState.items[i];
+  if (it.run) {
+    const start = suggestState.start;
+    hideSuggest();
+    it.run(ta, start, ta.selectionStart);
+    return;
+  }
   const after = ta.value.slice(ta.selectionStart);
   const close = after.startsWith(']]') ? '' : ']]';
   ta.setRangeText(`${it.insert}${close}`, suggestState.start, ta.selectionStart, 'end');
@@ -1037,6 +1052,7 @@ function suggestKey(e) {
     e.preventDefault();
     suggestState.index = (suggestState.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
     $$('#link-suggest .sg-item').forEach((li, i) => li.classList.toggle('active', i === suggestState.index));
+    $('#link-suggest .sg-item.active')?.scrollIntoView({ block: 'nearest' });
     return true;
   }
   if (e.key === 'Enter' || e.key === 'Tab') {

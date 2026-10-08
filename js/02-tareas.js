@@ -236,6 +236,7 @@ function taskItem(t, { draggable = false } = {}) {
   check.addEventListener('change', () => toggleDone(t, check.checked));
 
   const meta = el('div', { className: 'meta' }, PRIORITY_LABEL[t.priority]);
+  if (t.status === 'doing' && !t.done) meta.prepend(el('span', { className: 'doing-badge' }, '◐ En curso'), ' · ');
   if (t.due) {
     const overdue = !t.done && t.due < dateKey();
     meta.append(' · ', el('span', { className: overdue ? 'overdue' : '' }, (overdue ? 'Vencida: ' : '') + formatDue(t.due)));
@@ -440,7 +441,11 @@ function renderTasks() {
   renderTagFilter();
   $('#list-pane').hidden = taskView !== 'list';
   $('#week-pane').hidden = taskView !== 'week';
+  $('#month-pane').hidden = taskView !== 'month';
+  $('#board-pane').hidden = taskView !== 'board';
   if (taskView === 'week') renderWeek();
+  if (taskView === 'month') renderMonth();
+  if (taskView === 'board') renderBoard();
   $('#task-sort').value = state.settings.sort || 'priority';
   const tasks = visibleTasks();
   // Con muchas tareas se dibujan por tandas; el resto aparece con «Mostrar más».
@@ -839,6 +844,7 @@ function renderToday() {
 
   $('#today-journal').hidden = state.journal.some((e) => e.date === today);
   renderReviewNudge();
+  renderSuggestions();
   renderTodayCalendar();
   $('#today-habits-count').textContent = state.habits.length ? `${habitsDone}/${state.habits.length}` : '';
   $('#today-habits').replaceChildren(

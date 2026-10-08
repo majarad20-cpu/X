@@ -141,7 +141,8 @@ function storageReport() {
   if (idb.ok) {
     // IndexedDB: el límite lo pone el navegador (normalmente una parte grande del disco libre).
     const limit = Math.max(idb.quota || 0, local * 2, 50 * 1024 * 1024);
-    rows.push({ key: 'local', label: 'Copia en este dispositivo', detail: `Todo junto, en la base de datos del navegador${idb.persisted ? ' (protegida contra borrado automático)' : ''}`, b: local, limit, ratio: local / limit });
+    const imgs = files.count ? ` · más ${plural(files.count, 'imagen', 'imágenes')} (${formatBytes(files.bytes)})` : '';
+    rows.push({ key: 'local', label: 'Copia en este dispositivo', detail: `Todo junto, en la base de datos del navegador${idb.persisted ? ' (protegida contra borrado automático)' : ''}${imgs}`, b: local + files.bytes, limit, ratio: (local + files.bytes) / limit });
   } else rows.push({ key: 'local', label: 'Copia en este dispositivo', detail: 'Todo junto, guardado en el navegador', b: local, limit: LOCAL_LIMIT, ratio: local / LOCAL_LIMIT });
   return rows;
 }
