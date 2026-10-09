@@ -65,7 +65,7 @@ const SKINS = {
   brutal: { label: 'Neobrutalista', hint: 'Bordes gruesos, sombras duras y negritas', radius: 'soft' },
 };
 
-const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'normal', radius: 'round', density: 'comfortable', motion: 'normal' };
+const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal' };
 
 const LOOK_PRESETS = {
   original: { label: 'Original', look: {}, accent: 'indigo' },
@@ -96,6 +96,12 @@ function ensureFont(key) {
 }
 
 function applyLook() {
+  // Una vez: las notas pasan a usar todo el ancho (antes iban centradas a 720 px).
+  const saved = state.settings.look;
+  if (saved && !saved.wideV1) {
+    if (!saved.noteWidth || saved.noteWidth === 'normal') saved.noteWidth = 'full';
+    saved.wideV1 = true;
+  }
   const L = look();
   const root = document.documentElement;
   if (L.theme === 'system' || !THEMES[L.theme]) delete root.dataset.theme;
@@ -113,6 +119,7 @@ function applyLook() {
   set('--note-fs', `${Math.min(24, Math.max(13, Number(L.noteSize) || 16)) / 16}rem`);
   set('--note-lh', (LINE_HEIGHTS[L.lineHeight] || LINE_HEIGHTS.normal)[1]);
   set('--note-w', (NOTE_WIDTHS[L.noteWidth] || NOTE_WIDTHS.normal)[1]);
+  renderWidthButton(L);
   set('--radius', (RADII[L.radius] || RADII.round)[1]);
   root.dataset.density = L.density === 'compact' ? 'compact' : 'comfortable';
   root.dataset.motion = L.motion === 'reduce' ? 'reduce' : 'normal';
@@ -145,6 +152,25 @@ function chooseTheme(k) {
   applySettings();
   renderAccents?.();
 }
+
+// Botón de la barra de la nota: alterna entre todo el ancho y el ancho de lectura elegido antes.
+function renderWidthButton(L = look()) {
+  const b = $('#note-width');
+  if (!b) return;
+  const full = L.noteWidth === 'full';
+  b.ariaPressed = String(full);
+  b.title = full ? 'Ancho de lectura (texto centrado)' : 'Usar todo el ancho';
+  b.ariaLabel = b.title;
+  b.querySelector('.ico').dataset.icon = full ? 'narrow' : 'widen';
+  if (typeof paintIcons === 'function') paintIcons(b);
+}
+function toggleNoteWidth() {
+  const L = look();
+  if (L.noteWidth === 'full') setLook({ noteWidth: L.noteWidthPrev && L.noteWidthPrev !== 'full' ? L.noteWidthPrev : 'normal' });
+  else setLook({ noteWidth: 'full', noteWidthPrev: L.noteWidth });
+}
+$('#note-width')?.addEventListener('click', toggleNoteWidth);
+COMMANDS_EXTRA.push(() => [{ label: look().noteWidth === 'full' ? 'Notas con ancho de lectura' : 'Notas a todo el ancho', action: toggleNoteWidth }]);
 
 function setLook(patch) {
   state.settings.look = { ...look(), ...patch };

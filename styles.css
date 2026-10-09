@@ -1802,3 +1802,7 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
 .sk-prev.term, .sk-prev.term i, .sk-prev.term b, .sk-prev.term span { border-radius: 0 !important; }
 .sk-prev.term i, .sk-prev.term b { border: 1px dashed var(--muted); background: var(--bg); }
 .sk-prev.brutal i, .sk-prev.brutal b { border: 2px solid var(--text); box-shadow: 2px 2px 0 var(--text); border-radius: 3px; }
+
+/* Notas a todo el ancho: se aprovecha todo el espacio, con un margen cómodo. */
+.note-inner { padding-left: clamp(20px, 3vw, 48px); padding-right: clamp(20px, 3vw, 48px); }
+#note-width[aria-pressed="true"] { color: var(--accent); }
