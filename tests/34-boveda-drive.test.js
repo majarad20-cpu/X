@@ -24,6 +24,7 @@ const mock = () => {
         return { payload: { files: out.map(({ text, trashed, ...f }) => f) } };
       }
       if (tool === 'create_file') {
+        if (input.contentMimeType !== FOLDER && !input.textContent) throw { code: 'tool_error', message: 'Only the following first-party mimetypes are supported for empty files' };
         const f = { id: 'f' + files.length, title: input.title, mimeType: input.contentMimeType, parentId: input.parentId, modifiedTime: new Date().toISOString(), text: input.textContent };
         files.push(f);
         const { text, ...meta } = f;
@@ -52,6 +53,7 @@ const mock = () => {
     notes: [
       { id: 'a', path: 'Inicio', body: '# Inicio\nHola', createdAt: now, updatedAt: now },
       { id: 'b', path: 'Proyectos/Web/Plan', body: '- [ ] Diseño', createdAt: now, updatedAt: now },
+      { id: 'e', path: 'Sin título', body: '', createdAt: now, updatedAt: now },
       { id: 's', path: 'Secreto', body: '', enc: { salt: 'x', iv: 'y', ct: 'z' }, createdAt: now, updatedAt: now },
     ],
     updatedAt: 1,
@@ -61,6 +63,7 @@ const mock = () => {
   p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
   await p.clock.install({ time: new Date(now) });
   await p.goto(url); await p.clock.runFor(1500);
+  for (let i = 0; i < 20 && !(await p.evaluate(() => gAvailable())); i++) await p.clock.runFor(500);
   // Activar
   await p.evaluate(() => { const i = document.getElementById('gvault-on'); i.checked = true; i.dispatchEvent(new Event('change')); });
   await p.clock.runFor(2000);
