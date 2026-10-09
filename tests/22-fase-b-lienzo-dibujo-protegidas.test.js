@@ -67,9 +67,9 @@ async function fbMain(b) {
   allErrs.push(...errs); await c.close();
 }
 async function drawMain(b) {
-  
-  const c = await b.newContext({ viewport: { width: 1100, height: 800 } });
+  const c = await b.newContext({ viewport: { width: 1200, height: 800 } });
   await c.addInitScript(() => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify({ tasks: [], habits: [], settings: { notesWelcome: true }, notes: [{ id: 'a', path: 'Bocetos', body: 'Idea de logo:\n', createdAt: 1, updatedAt: 1 }], updatedAt: 1 })); });
+  await c.route(/fonts\.googleapis|fonts\.gstatic/, (r) => r.abort());
   const p = await c.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(url); await p.waitForFunction(() => document.documentElement.dataset.ready);
   await p.keyboard.press('Control+o'); await p.keyboard.type('Bocetos'); await p.keyboard.press('Enter');
@@ -77,39 +77,57 @@ async function drawMain(b) {
   await p.click('#note-editor'); await p.keyboard.press('Control+End'); await p.keyboard.type('/dib');
   console.log('slash:', await p.$$eval('#link-suggest .sg-label', n => n.map(x => x.textContent)));
   await p.keyboard.press('Enter'); await p.waitForTimeout(300);
-  console.log('pad open:', await p.isVisible('#draw'));
-  const box = await (await p.$('#draw-canvas')).boundingBox();
+  console.log('pad open:', await p.isVisible('#draw'), '| tool:', await p.evaluate(() => xd.tool));
+  const drag = async (x1, y1, x2, y2) => { await p.mouse.move(x1, y1); await p.mouse.down(); await p.mouse.move(x2, y2, { steps: 8 }); await p.mouse.up(); };
   // trazo con ratón: un círculo
-  await p.mouse.move(box.x + 300, box.y + 200); await p.mouse.down();
-  for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2; await p.mouse.move(box.x + 300 + Math.cos(a) * 80, box.y + 200 + Math.sin(a) * 80); }
+  await p.mouse.move(400, 300); await p.mouse.down();
+  for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2; await p.mouse.move(400 + Math.cos(a) * 80, 300 + Math.sin(a) * 80); }
   await p.mouse.up();
-  // trazo con lápiz y presión variable (eventos sintéticos)
-  await p.evaluate(({ x, y }) => {
+  // trazo con lápiz y presión variable; la palma (toque) no dibuja
+  await p.evaluate(() => {
     const cv = document.getElementById('draw-canvas');
-    const ev = (type, i, pressure) => cv.dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: 'pen', pressure, clientX: x + 450 + i * 6, clientY: y + 150 + Math.sin(i / 3) * 30, bubbles: true }));
+    const ev = (type, i, pressure) => cv.dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: 'pen', pressure, clientX: 600 + i * 6, clientY: 250 + Math.sin(i / 3) * 30, bubbles: true }));
     ev('pointerdown', 0, 0.2); for (let i = 1; i < 30; i++) ev('pointermove', i, i / 30); ev('pointerup', 30, 0);
-    // toque de la palma mientras hay lápiz: se ignora
-    cv.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 8, pointerType: 'touch', clientX: x + 100, clientY: y + 100, bubbles: true }));
+    cv.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 8, pointerType: 'touch', clientX: 200, clientY: 200, bubbles: true }));
     cv.dispatchEvent(new PointerEvent('pointerup', { pointerId: 8, pointerType: 'touch', bubbles: true }));
-  }, box);
-  console.log('strokes:', await p.evaluate(() => draw.strokes.map(s => `${s.tool}:${s.points.length}:${Math.min(...s.points.map(q => q[2]))}-${Math.max(...s.points.map(q => q[2]))}`)));
-  await p.click('#draw-undo'); console.log('after undo:', await p.evaluate(() => draw.strokes.length)); await p.click('#draw-redo');
-  await p.click('[data-tool=eraser]'); await p.mouse.move(box.x + 380, box.y + 200); await p.mouse.down(); await p.mouse.move(box.x + 382, box.y + 202); await p.mouse.up();
-  console.log('after erase:', await p.evaluate(() => draw.strokes.length)); await p.click('#draw-undo'); console.log('erase undone:', await p.evaluate(() => draw.strokes.length));
+  });
+  console.log('strokes:', await p.evaluate(() => xd.elements.map(e => `${e.type}:${e.points.length}:${e.simulatePressure ? 'sim' : Math.min(...e.pressures) + '-' + Math.max(...e.pressures)}`)));
+  // figuras, flecha enganchada y texto dentro
+  await p.keyboard.press('r'); await drag(300, 500, 460, 600);
+  await p.keyboard.press('o'); await drag(750, 480, 900, 600);
+  await p.keyboard.press('a'); await drag(380, 550, 820, 540);
+  console.log('arrow bound:', await p.evaluate(() => { const a = xd.elements.find(e => e.type === 'arrow'); return [!!a.startBinding, !!a.endBinding]; }));
+  await p.mouse.dblclick(380, 570); await p.keyboard.type('Logo'); await p.keyboard.press('Escape');
+  console.log('label:', await p.evaluate(() => { const t = xd.elements.find(e => e.type === 'text'); return [t.text, !!t.containerId]; }));
+  const ax = () => p.evaluate(() => { const a = xd.elements.find(e => e.type === 'arrow'); return Math.round(a.y); });
+  const before = await ax(); await drag(310, 505, 310, 405); console.log('arrow follows shape:', before - (await ax()) > 50);
+  await p.click('#draw-undo'); console.log('undo move:', (await ax()) === before); await p.click('#draw-redo');
+  // goma: borra el círculo; deshacer lo devuelve
+  const n = await p.evaluate(() => xd.elements.length);
+  await p.keyboard.press('e'); await drag(475, 295, 485, 305);
+  console.log('after erase:', n - (await p.evaluate(() => xd.elements.length))); await p.keyboard.press('Control+z'); console.log('erase undone:', (await p.evaluate(() => xd.elements.length)) === n);
+  // estilo: elegir la elipse y ponerle fondo
+  await p.keyboard.press('v'); await p.mouse.click(752, 540);
+  await p.click('#xd-props .xd-sw[title="#a5d8ff"]');
+  console.log('ellipse bg:', await p.evaluate(() => xd.elements.find(e => e.type === 'ellipse').backgroundColor));
   await p.screenshot({ path: S + '/draw.png' });
-  await p.click('#draw-save'); await p.waitForTimeout(800);
+  await p.click('#draw-save'); await p.waitForTimeout(1000);
   const body = await p.inputValue('#note-editor');
   console.log('note:', JSON.stringify(body.replace(/img:[a-z0-9]+/, 'img:ID')));
-  const rec = await p.evaluate(() => allFiles().then(l => l.map(f => [f.name, f.width, f.height, !!f.drawing, f.drawing?.strokes.length])));
+  const rec = await p.evaluate(() => allFiles().then(l => l.map(f => [f.name, f.width > 100, !!f.drawing, f.drawing?.elements.length])));
   console.log('file:', JSON.stringify(rec));
-  await p.keyboard.press('Control+e'); await p.waitForTimeout(300);
-  await p.click('#note-reading img.note-img'); await p.waitForTimeout(300);
-  console.log('edit button:', await p.isVisible('#image-viewer-edit'));
-  await p.click('#image-viewer-edit'); await p.waitForTimeout(300);
-  console.log('re-edit strokes:', await p.evaluate(() => draw.strokes.length));
-  await p.mouse.move(box.x + 200, box.y + 400); await p.mouse.down(); await p.mouse.move(box.x + 500, box.y + 420, { steps: 10 }); await p.mouse.up();
-  await p.click('#draw-save'); await p.waitForTimeout(800);
+  // En lectura, tocar el dibujo lo abre para editarlo
+  await p.keyboard.press('Control+e'); await p.waitForTimeout(1700);
+  await p.click('#note-reading img.note-img'); await p.waitForTimeout(400);
+  console.log('re-edit open:', await p.isVisible('#draw'), await p.evaluate(() => xd.elements.length));
+  await p.keyboard.press('p'); await drag(300, 700, 600, 720);
+  await p.click('#draw-save'); await p.waitForTimeout(1000);
   console.log('note after edit:', await p.evaluate(() => activeNote().body.match(/img:[a-z0-9]+/g).length), await p.evaluate(() => allFiles().then(l => l.length)));
+  // Un dibujo antiguo (solo trazos) se abre convertido
+  await p.evaluate(() => openDrawing({ id: 'viejo', strokes: [{ tool: 'pen', color: '#2563eb', size: 3, points: [[10, 10, 0.5], [50, 40, 0.6], [90, 20, 0.4]] }], w: 800, h: 600 }));
+  await p.waitForTimeout(300);
+  console.log('old drawing:', await p.evaluate(() => xd.elements.map(e => `${e.type}:${e.strokeColor}:${e.points.length}`)));
+  await p.click('#draw-cancel');
   await p.screenshot({ path: S + '/draw-note.png' });
   allErrs.push(...errs); await c.close();
 }

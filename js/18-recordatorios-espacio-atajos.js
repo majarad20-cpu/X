@@ -197,6 +197,8 @@ function updateStorageWarning() {
 const VIEW_KEYS = { 1: 'today', 2: 'tasks', 3: 'projects', 4: 'journal', 5: 'ideas', 6: 'timer', 7: 'habits', 8: 'progress' };
 
 document.addEventListener('keydown', (e) => {
+  // Con el dibujo abierto, el teclado es suyo (31-dibujo.js).
+  if (!$('#draw').hidden) return;
   // Atajos de las notas: funcionan también mientras se escribe.
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
