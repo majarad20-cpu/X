@@ -391,6 +391,7 @@ function applyPanels() {
   $('#lp-files').hidden = panels.lpane !== 'files';
   $('#lp-search').hidden = panels.lpane !== 'search';
   $('#lp-tags').hidden = panels.lpane !== 'tags';
+  $('#lp-bookmarks').hidden = panels.lpane !== 'bookmarks';
   $('#rp-backlinks').hidden = panels.rpane !== 'backlinks';
   $('#rp-outline').hidden = panels.rpane !== 'outline';
   $('#rp-graph').hidden = panels.rpane !== 'graph';
@@ -756,6 +757,7 @@ function renderSearch() {
       const lines = searchPreviewLines(n, groups);
       const item = el('button', { className: 'search-hit' });
       item.innerHTML = `<span class="sh-title">${highlight(baseName(n.path), words)}</span>${folderOf(n.path) ? `<span class="sh-path">${escHtml(folderOf(n.path))}</span>` : ''}${lines.map((l) => `<span class="sh-line">${highlight(l.trim().slice(0, 140), words)}</span>`).join('')}`;
+      item.dataset.pvNote = n.id; // vista previa al pasar el ratón (45-vista-previa.js)
       item.addEventListener('click', (e) => openNote(n, { newTab: e.ctrlKey || e.metaKey }));
       return item;
     })
@@ -787,6 +789,7 @@ function renderSidePanes() {
   renderTree();
   if (panels.lpane === 'search') renderSearch();
   if (panels.lpane === 'tags') renderTagPane();
+  if (panels.lpane === 'bookmarks') renderBookmarks(); // 46-marcadores.js
 }
 
 // ---------- Panel derecho: enlaces y esquema ----------
@@ -838,6 +841,7 @@ function renderRightPanel() {
     if (!items.length) box.append(el('p', { className: 'muted side-empty' }, withButton ? 'Ninguna nota menciona este título sin enlazarlo.' : 'Ninguna nota enlaza aquí todavía. Escribe [[' + baseName(note.path) + ']] en otra nota.'));
     items.forEach(({ note: n, lines }) => {
       const head = el('button', { className: 'bl-note' }, [ico('note'), el('span', {}, baseName(n.path))]);
+      head.dataset.pvNote = n.id;
       head.addEventListener('click', (e) => openNote(n, { newTab: e.ctrlKey || e.metaKey }));
       box.append(head);
       lines.slice(0, 4).forEach(({ i, text }) => {

@@ -14,6 +14,7 @@
         <div class="rib-gitems">
           <button class="rib" id="rib-files" title="Explorador de notas" aria-label="Explorador de notas"><span class="ico" data-icon="files"></span><span class="rib-label">Notas</span></button>
           <button class="rib" id="rib-daily" title="Nota diaria (Alt+D)" aria-label="Nota diaria"><span class="ico" data-icon="calendar"></span><span class="rib-label">Nota diaria</span></button>
+          <button class="rib" id="rib-bookmarks" title="Marcadores" aria-label="Marcadores"><span class="ico rib-star" aria-hidden="true">⭐</span><span class="rib-label">Marcadores</span></button>
           <button class="rib" id="rib-switcher" title="Abrir nota (Ctrl+O)" aria-label="Abrir nota"><span class="ico" data-icon="search"></span><span class="rib-label">Abrir nota</span></button>
           <button class="rib" id="rib-graph" title="Vista de grafo (Ctrl+G)" aria-label="Vista de grafo"><span class="ico" data-icon="graph"></span><span class="rib-label">Grafo</span></button>
           <button class="rib" data-view="canvas" title="Lienzos" aria-label="Lienzos"><span class="ico" data-icon="canvas"></span><span class="rib-label">Lienzos</span></button>
@@ -67,6 +68,7 @@
         <button class="stab active" data-lpane="files" role="tab">Archivos</button>
         <button class="stab" data-lpane="search" role="tab">Buscar</button>
         <button class="stab" data-lpane="tags" role="tab">Etiquetas</button>
+        <button class="stab" data-lpane="bookmarks" role="tab" title="Marcadores" aria-label="Marcadores">⭐</button>
       </div>
       <div id="lp-files" class="lpane"><div id="file-tree" class="file-tree" role="tree"></div></div>
       <div id="lp-search" class="lpane" hidden>
@@ -74,6 +76,7 @@
         <div id="search-results" class="search-results"></div>
       </div>
       <div id="lp-tags" class="lpane" hidden><div id="tag-pane" class="tag-pane"></div></div>
+      <div id="lp-bookmarks" class="lpane" hidden><div id="bookmark-list" class="bm-list" aria-label="Marcadores"></div></div>
     </aside>
 
     <div class="workspace">
@@ -1070,6 +1073,10 @@
   <script src="js/42-agenda-dia.js"></script>
   <script src="js/43-menu-contextual.js"></script>
   <script src="js/44-boveda-drive.js"></script>
+  <script src="js/45-vista-previa.js"></script>
+  <script src="js/46-marcadores.js"></script>
+  <script src="js/47-propiedades.js"></script>
+  <script src="js/48-pdf.js"></script>
   <script src="js/49-busqueda.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>

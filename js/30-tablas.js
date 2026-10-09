@@ -144,6 +144,23 @@ function renderNoteTable(box, src, selfId) {
     });
     return el('th', { scope: 'col', ariaSort: on ? (sort.desc ? 'descending' : 'ascending') : null }, b);
   };
+  // Cómo se ve una celda según su tipo: casilla (true/false), fecha o lista (chips).
+  const cellView = (n, col) => {
+    const p = parseProps(n.body).props.find((x) => x.key.toLowerCase() === col.toLowerCase());
+    if (!p) return '';
+    if (p.items) return p.items.map((x) => el('span', { className: 'prop-chip' }, x));
+    if (/^(true|false)$/i.test(p.value)) {
+      const box = el('input', { type: 'checkbox', className: 'nt-check', checked: /^true$/i.test(p.value), ariaLabel: `${col} de ${baseName(n.path)}` });
+      box.addEventListener('change', () => {
+        setProp(n, p.key, box.checked ? 'true' : 'false');
+        save();
+        renderAll();
+      });
+      return box;
+    }
+    if (/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/.test(p.value)) return el('time', { className: 'nt-date-val', dateTime: p.value }, p.value.replace('T', ' '));
+    return p.value;
+  };
   const editable = (n, col) => {
     const td = el('td', { className: 'nt-cell', tabIndex: 0, title: 'Toca para editar' }, cellView(n, col));
     const edit = (e) => {
