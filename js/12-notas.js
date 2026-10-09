@@ -471,6 +471,32 @@ $('#new-note').addEventListener('click', () => createNote({ folder: activeNote()
 $('#ws-new-tab').addEventListener('click', () => createNote({ newTab: true }));
 $('#new-folder').addEventListener('click', () => promptText({ placeholder: 'Nombre de la carpeta (p. ej. Trabajo/Clientes)', action: 'Crear carpeta', onSubmit: createFolder }));
 $$('.rib[data-view]').forEach((b) => b.addEventListener('click', (e) => showView(b.dataset.view, { newTab: e.ctrlKey || e.metaKey })));
+// Secciones de la barra: se pliegan y se recuerda en este dispositivo (la sección activa sigue visible).
+const RIB_GROUPS_KEY = 'enfoque:ribgroups';
+let ribCollapsed = [];
+try {
+  ribCollapsed = JSON.parse(localStorage.getItem(RIB_GROUPS_KEY)) || [];
+} catch {
+  // Sin almacenamiento: todo desplegado.
+}
+$$('.rib-group').forEach((g) => {
+  const head = g.querySelector('.rib-ghead');
+  const apply = () => {
+    const off = ribCollapsed.includes(g.dataset.group);
+    g.classList.toggle('collapsed', off);
+    head.ariaExpanded = String(!off);
+  };
+  apply();
+  head.addEventListener('click', () => {
+    ribCollapsed = ribCollapsed.includes(g.dataset.group) ? ribCollapsed.filter((x) => x !== g.dataset.group) : [...ribCollapsed, g.dataset.group];
+    try {
+      localStorage.setItem(RIB_GROUPS_KEY, JSON.stringify(ribCollapsed));
+    } catch {
+      // Sin almacenamiento.
+    }
+    apply();
+  });
+});
 
 // ---------- Explorador de archivos ----------
 const COLLAPSED_KEY = 'enfoque:collapsed';

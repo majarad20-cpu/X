@@ -72,7 +72,7 @@ async function loadCalendar({ refresh = false } = {}) {
     events
       .filter((ev) => ev.status !== 'cancelled')
       .forEach((ev) =>
-        eventDays(ev).forEach((k) => cal.byDay.set(k, [...(cal.byDay.get(k) || []), { id: ev.id, title: ev.summary || '(Sin título)', time: eventTimeText(ev), sort: ev.start?.dateTime || '', link: ev.htmlLink || '', meet: ev.conferenceUrl || '', location: ev.location || '' }]))
+        eventDays(ev).forEach((k) => cal.byDay.set(k, [...(cal.byDay.get(k) || []), { id: ev.id, title: ev.summary || '(Sin título)', time: eventTimeText(ev), sort: ev.start?.dateTime || '', start: ev.start?.dateTime || '', end: ev.end?.dateTime || '', link: ev.htmlLink || '', meet: ev.conferenceUrl || '', location: ev.location || '' }]))
       );
     cal.byDay.forEach((list) => list.sort((a, b) => a.sort.localeCompare(b.sort)));
     cal.range = range;

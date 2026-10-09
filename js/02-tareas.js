@@ -782,8 +782,11 @@ function renderWeek() {
         document.querySelector('.day-form input')?.focus();
       });
       const name = d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'short' });
+      const agenda = el('button', { className: 'day-agenda', title: 'Abrir la agenda por horas', ariaLabel: `Agenda por horas del ${name}` }, '🕒');
+      agenda.addEventListener('click', () => openDayView(key));
       const head = el('div', { className: 'day-head' }, [
         el('h4', {}, [name.charAt(0).toUpperCase() + name.slice(1), key === today ? el('span', { className: 'today-badge' }, 'Hoy') : '']),
+        agenda,
         add,
       ]);
 
