@@ -65,7 +65,7 @@ const SKINS = {
   brutal: { label: 'Neobrutalista', hint: 'Bordes gruesos, sombras duras y negritas', radius: 'soft' },
 };
 
-const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal' };
+const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true };
 
 const LOOK_PRESETS = {
   original: { label: 'Original', look: {}, accent: 'indigo' },

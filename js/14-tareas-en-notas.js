@@ -12,7 +12,7 @@ function projectFromToken(text) {
   const m = text.match(/(?:^|\s)\+([\p{L}\p{N}_-]+)/u);
   if (!m) return null;
   const norm = (x) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '').toLowerCase();
-  return state.projects.find((p) => norm(p.name).startsWith(norm(m[1]))) || null;
+  return state.projects.find((p) => norm(p.name) === norm(m[1])) || state.projects.find((p) => norm(p.name).startsWith(norm(m[1]))) || null;
 }
 
 function parseNoteTask(note, idx, raw) {
@@ -20,17 +20,18 @@ function parseNoteTask(note, idx, raw) {
   if (!m || !m[3].trim()) return null;
   let text = m[3];
   let due = null;
+  const daily = note.path.match(/^Diario\/(\d{4}-\d{2}-\d{2})$/);
   const dm = text.match(/📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u);
   if (dm) {
     const v = dm[1].trim();
-    due = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : parseInput(v).due || null;
+    // Las relativas («mañana», «viernes») se cuentan desde el día de la nota diaria o desde que se creó la nota.
+    due = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : parseInputAt(v, daily ? parseKey(daily[1]) : note.createdAt || null).due || null;
   }
   const time = text.match(/⏰\s*(\d{1,2}:\d{2})/u)?.[1] || null;
   const pr = text.match(/(?:^|\s)!(alta|media|baja)\b/i);
   const doneOn = text.match(/✅\s*(\d{4}-\d{2}-\d{2})/u)?.[1] || null;
   const tags = [...text.matchAll(/(?:^|\s)#([\p{L}_][\p{L}\p{N}_/-]*)/gu)].map((x) => x[1].toLowerCase());
   const project = projectFromToken(text) || state.projects.find((p) => p.noteId === note.id) || null;
-  const daily = note.path.match(/^Diario\/(\d{4}-\d{2}-\d{2})$/);
   const title = text
     .replace(/📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u, ' ')
     .replace(/⏰\s*\d{1,2}:\d{2}/u, ' ')

@@ -488,6 +488,7 @@ function renderGoogleSettings(extra = '') {
     const a = el('a', { href: g.driveFolderUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir la carpeta ↗');
     $('#gdrive-status').append(' ', a);
   }
+  if (g.weeklySending?.unconfirmed && g.weeklySending.week === weekKey()) return weeklyStatus('No se pudo confirmar el último envío. Revisa tu correo antes de enviarlo otra vez.', true);
   weeklyStatus(g.weekly && !g.weeklyTo ? 'Escribe el correo al que quieres recibirlo.' : g.weeklySentAt ? `Último resumen enviado: ${when(g.weeklySentAt)}.` : g.weekly ? 'Se enviará el día elegido, la próxima vez que abras la app.' : '');
 }
 

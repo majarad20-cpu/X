@@ -39,13 +39,31 @@ function loadLib(name, setup) {
 const mathCache = new Map();
 function loadMathJax() {
   return loadLib('mathjax', () => {
-    window.MathJax = { startup: { typeset: false }, svg: { fontCache: 'local' }, options: { enableMenu: false, enableAssistiveMml: false } };
+    // ui/safe filtra \href y \style; sin el paquete html no hay \class, \cssId ni \style.
+    window.MathJax = {
+      loader: { load: ['ui/safe'] },
+      startup: { typeset: false },
+      tex: { packages: { '[-]': ['html'] } },
+      svg: { fontCache: 'local' },
+      options: { enableMenu: false, enableAssistiveMml: false },
+    };
   })
     .then(() => window.MathJax.startup.promise)
     .then(() => {
       // Estilos que necesita la salida SVG (se añaden una vez).
       if (!document.getElementById('MJX-SVG-styles')) document.head.append(window.MathJax.svgStylesheet());
     });
+}
+
+// Por si acaso: fuera enlaces que no sean http(s) o #, y estilos que tapen la página.
+function safeMathSvg(node) {
+  for (const x of [node, ...node.querySelectorAll('*')]) {
+    for (const a of [...x.attributes]) {
+      if (a.localName === 'href' && !/^(https?:|#)/i.test(a.value.trim())) x.removeAttributeNode(a);
+      else if (a.name === 'style' && /position\s*:\s*fixed/i.test(a.value)) x.removeAttribute('style');
+    }
+  }
+  return node;
 }
 
 async function hydrateMath(nodes) {
@@ -60,7 +78,7 @@ async function hydrateMath(nodes) {
     const display = n.classList.contains('display');
     const key = `${display ? 'D' : 'I'}${n.dataset.tex}`;
     try {
-      if (!mathCache.has(key)) mathCache.set(key, (await window.MathJax.tex2svgPromise(n.dataset.tex, { display })).outerHTML);
+      if (!mathCache.has(key)) mathCache.set(key, safeMathSvg(await window.MathJax.tex2svgPromise(n.dataset.tex, { display })).outerHTML);
       n.innerHTML = mathCache.get(key);
       n.classList.add('rendered');
       n.title = n.dataset.tex;

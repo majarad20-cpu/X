@@ -234,11 +234,23 @@ function xdTextArea(c) {
 }
 function xdFitText(t) {
   const c = t.containerId && xdGet(t.containerId);
-  if (!c) {
+  if (!c || XD_LINEAR.has(c.type)) {
     const m = xdMeasure(t.originalText ?? t.text, t);
     t.text = t.originalText ?? t.text;
     t.width = m.width;
     t.height = m.height;
+    if (c) {
+      // Etiqueta de flecha: centrada en el punto medio del trazo, sin tocar la flecha.
+      const pts = xdLinearPath(c);
+      const i = (pts.length - 1) / 2;
+      const a = pts[Math.floor(i)];
+      const b = pts[Math.ceil(i)];
+      t.x = (a[0] + b[0]) / 2 - m.width / 2;
+      t.y = (a[1] + b[1]) / 2 - m.height / 2;
+      t.angle = 0;
+      t.textAlign = 'center';
+      t.verticalAlign = 'middle';
+    }
     return;
   }
   const area = xdTextArea(c);
@@ -901,8 +913,17 @@ function xdMutate(fn) {
   xdRenderProps();
   xdScheduleRender();
 }
+// Una línea a medias (clic a clic) se cierra antes; si se descarta, eso ya cuenta como deshacer.
+function xdCloseMulti() {
+  const id = xd.multi;
+  if (!id) return false;
+  xdFinishMulti();
+  xd.pending = undefined;
+  return !xdGet(id);
+}
 function xdUndo() {
   xdEndText();
+  if (xdCloseMulti()) return;
   const prev = xd.history.pop();
   if (prev === undefined) return;
   xd.redo.push(xdSnap());
@@ -911,6 +932,7 @@ function xdUndo() {
   xdAfterHistory();
 }
 function xdRedo() {
+  if (xdCloseMulti()) return;
   const next = xd.redo.pop();
   if (next === undefined) return;
   xd.history.push(xdSnap());
@@ -1309,10 +1331,15 @@ xdCanvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   // Dos dedos: zoom y desplazamiento (se anula lo que se estuviera haciendo).
   if (xd.pointers.size === 2) {
-    if (xd.action?.type === 'freedraw' || xd.action?.type === 'create') {
-      xd.elements = xd.elements.filter((x) => x.id !== xd.action.id);
-      xd.pending = undefined;
+    const t = xd.action?.type;
+    if (t === 'freedraw' || t === 'create' || t === 'linear') xd.elements = xd.elements.filter((x) => x.id !== xd.action.id);
+    else if (['move', 'resize', 'rotate', 'point'].includes(t) && xd.pending !== undefined) {
+      xd.elements = JSON.parse(xd.pending);
+      xd.selected = new Set([...xd.selected].filter((id) => xdGet(id)));
     }
+    if (t && t !== 'pan') xd.pending = undefined;
+    xd.erasing = new Set();
+    xd.hoverBind = null;
     const [a, b] = [...xd.pointers.values()];
     xd.action = { type: 'pinch', dist: Math.hypot(a[0] - b[0], a[1] - b[1]), mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], zoom: xd.view.zoom };
     return;
@@ -1736,12 +1763,13 @@ function xdPointerUp(e) {
   } else if (a.type === 'marquee') {
     xd.pending = undefined;
   } else if (a.type === 'move') {
-    // Una flecha movida sola se suelta de las figuras que no se movieron con ella.
+    // Una flecha movida sin ninguna de sus figuras se suelta de ellas.
     for (const id of a.orig.keys()) {
       const ln = xdGet(id);
       if (!ln || !XD_LINEAR.has(ln.type)) continue;
-      if (ln.startBinding && !a.orig.has(ln.startBinding.elementId)) xdSetBinding(ln, 'start', null);
-      if (ln.endBinding && !a.orig.has(ln.endBinding.elementId)) xdSetBinding(ln, 'end', null);
+      if (a.orig.has(ln.startBinding?.elementId) || a.orig.has(ln.endBinding?.elementId)) continue;
+      if (ln.startBinding) xdSetBinding(ln, 'start', null);
+      if (ln.endBinding) xdSetBinding(ln, 'end', null);
     }
     xdCommit();
   } else if (a.type === 'point') {
@@ -2004,7 +2032,7 @@ document.addEventListener('paste', async (e) => {
   } catch {
     // No es un dibujo.
   }
-  if (!els && xd.clipboard) els = xd.clipboard;
+  if (!els && !text && xd.clipboard) els = xd.clipboard;
   e.preventDefault();
   if (els?.length) xdPasteElements(els);
   else if (text.trim()) {
@@ -2328,6 +2356,17 @@ async function saveDrawing() {
   if (xd.multi) xdFinishMulti();
   const note = noteById(xd.noteId);
   const els = xdLive();
+  if (note && !els.length && xd.editing?.id) {
+    // Dibujo vaciado: se quita de la nota (con confirmación).
+    if (!confirm('El dibujo está vacío. ¿Quitarlo de la nota?')) return;
+    const id = xd.editing.id;
+    closeDrawing();
+    note.body = note.body.replace(new RegExp(`!\\[[^\\]]*\\]\\(img:${id}\\)\\n?`, 'g'), '');
+    note.updatedAt = Date.now();
+    save();
+    renderAll();
+    return showToastMessage('Dibujo quitado de la nota');
+  }
   if (!note || !els.length) return closeDrawing();
   const btn = $('#draw-save');
   btn.disabled = true;
@@ -2339,7 +2378,7 @@ async function saveDrawing() {
     const big = JSON.stringify(scene).length > 600 * 1024;
     const rec = { id: uid(), name: 'Dibujo', type, data, width, height, createdAt: Date.now(), drawing: big ? null : scene };
     await putFile(rec);
-    xdDrawingIds.add(rec.id);
+    if (!big) xdDrawingIds.add(rec.id);
     const editingId = xd.editing?.id;
     closeDrawing();
     if (editingId && note.body.includes(`(img:${editingId})`)) {
@@ -2470,6 +2509,9 @@ document.addEventListener(
   (e) => {
     const img = e.target.closest?.('#note-reading img.note-img[data-img]');
     if (!img || !xdDrawingIds.has(img.dataset.img) || e.ctrlKey || e.metaKey) return;
+    // Solo se intercepta si openDrawingFile lo va a abrir.
+    const note = activeNote();
+    if (!note || note.enc || !note.body.includes(`(img:${img.dataset.img})`)) return;
     e.preventDefault();
     e.stopPropagation();
     openDrawingFile(img.dataset.img);

@@ -228,7 +228,8 @@ function relinkAll(oldPath, newPath) {
   const oldFull = oldPath.toLowerCase();
   let changed = 0;
   state.notes.forEach((n) => {
-    const body = n.body.replace(/(!?\[\[)([^\]|#\n]+)((?:#[^\]|\n]*)?)((?:\|[^\]\n]*)?)\]\]/g, (m, open, target, head, alias) => {
+    // En las tablas el alias va con la barra escapada ([[Nota\|alias]]): se acepta y se conserva.
+    const body = n.body.replace(/(!?\[\[)([^\]|#\n]+?)((?:#[^\]|\n]*)?)((?:\\?\|[^\]\n]*)?)\]\]/g, (m, open, target, head, alias) => {
       const t = target.trim().toLowerCase();
       if (t === oldFull) return `${open}${newPath}${head}${alias}]]`;
       // Enlace por nombre: se actualiza si ya no queda otra nota con el nombre antiguo.
@@ -333,8 +334,26 @@ function openNoteByLink(target, { heading = '', newTab = false, fromNote = null 
   if (!target && heading && fromNote) return scrollToHeading(fromNote, heading);
   const note = findNoteByName(target);
   if (note) return openNote(note, { newTab, heading });
-  // Un enlace a una nota que no existe la crea (si trae carpeta, en esa carpeta).
-  const created = createNote({ folder: folderOf(target), title: baseName(target), body: '', newTab, edit: true });
+  // Un enlace a una nota que no existe la crea (si trae carpeta, en esa carpeta). Los nombres se
+  // limpian (: ? # …): si ya hay una nota con el nombre limpio se abre esa en vez de duplicarla.
+  const folder = folderOf(target).split('/').map(cleanName).filter(Boolean).join('/');
+  const clean = joinPath(folder, cleanName(baseName(target)) || 'Sin título');
+  const same = clean !== target && findNoteByName(clean);
+  if (same) return openNote(same, { newTab, heading });
+  const src = fromNote && !fromNote.enc ? fromNote : null;
+  const created = createNote({ folder, title: baseName(clean), body: '', newTab, edit: true });
+  if (src && clean !== target) {
+    // El enlace de la nota de origen pasa a apuntar al nombre limpio.
+    const name = folder ? created.path : baseName(created.path);
+    const body = src.body.replace(/(!?\[\[)([^\]|#\n]+?)((?:#[^\]|\n]*)?)((?:\\?\|[^\]\n]*)?)\]\]/g, (m, open, t, head, alias) =>
+      t.trim() === target.trim() ? `${open}${name}${head}${alias}]]` : m
+    );
+    if (body !== src.body) {
+      src.body = body;
+      src.updatedAt = Date.now();
+      save();
+    }
+  }
   return created;
 }
 
@@ -521,6 +540,11 @@ function renameFolder(oldPath, newName) {
   const newPath = joinPath(folderOf(oldPath), cleanName(newName));
   if (!cleanName(newName) || newPath === oldPath) return;
   const prefix = `${oldPath}/`;
+  const under = (p) => p.toLowerCase().startsWith(`${newPath.toLowerCase()}/`);
+  const mine = (p) => p === oldPath || p.startsWith(prefix);
+  if (state.notes.some((n) => !mine(n.path) && under(n.path)) || state.folders.some((f) => !mine(f) && (f.toLowerCase() === newPath.toLowerCase() || under(f)))) {
+    return showToastMessage(`Ya existe «${baseName(newPath)}» en esa carpeta.`);
+  }
   state.notes.forEach((n) => {
     if (n.path.startsWith(prefix)) {
       const p = newPath + n.path.slice(oldPath.length);
