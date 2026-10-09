@@ -756,10 +756,11 @@ async function exportMap() {
   if (!map || !mapLayout) return;
   const css = getComputedStyle(document.documentElement);
   const v = (name) => css.getPropertyValue(name).trim();
-  const scale = 2;
+  // Los navegadores no pintan lienzos muy grandes: se limita a 4096 px por lado.
+  const scale = Math.min(2, 4096 / mapLayout.width, 4096 / mapLayout.height);
   const canvas = document.createElement('canvas');
-  canvas.width = mapLayout.width * scale;
-  canvas.height = mapLayout.height * scale;
+  canvas.width = Math.ceil(mapLayout.width * scale);
+  canvas.height = Math.ceil(mapLayout.height * scale);
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
   ctx.fillStyle = v('--bg');
@@ -798,6 +799,7 @@ async function exportMap() {
   });
 
   const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+  if (!blob) return showToastMessage('No se pudo exportar el mapa: es demasiado grande.');
   const filename = `${map.title.replace(/[\\/:*?"<>|]+/g, '').slice(0, 60) || 'mapa'}.png`;
   if (window.claude?.use) {
     const downloads = await window.claude.use('downloads');

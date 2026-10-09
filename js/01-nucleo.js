@@ -49,19 +49,29 @@ function normalize(data) {
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
+    idb.lsEmpty = !raw;
     return raw ? normalize(JSON.parse(raw)) : defaults();
   } catch {
+    idb.lsEmpty = true;
     return defaults();
   }
 }
 
 // ---------- IndexedDB ----------
-const idb = { db: null, ok: false, timer: null, dirty: false, quota: 0, usage: 0, persisted: false, lsFits: true };
+// blocked: no se pudo leer IndexedDB y no había copia en localStorage; no se guarda nada para no
+// pisar los datos que pueda haber en IndexedDB con los de por defecto.
+const idb = { db: null, ok: false, timer: null, dirty: false, quota: 0, usage: 0, persisted: false, lsFits: true, lsEmpty: false, blocked: false };
 
 function idbOpen() {
   return new Promise((resolve) => {
+    let done = false;
+    const finish = (db) => {
+      if (done) return db?.close();
+      done = true;
+      resolve(db);
+    };
     // Si el navegador no responde, se sigue sin IndexedDB (con localStorage) en vez de esperar.
-    setTimeout(() => resolve(null), 3000);
+    setTimeout(() => finish(null), 3000);
     try {
       // Versión 2: almacén «files» (imágenes de las notas); 3: «history» (versiones de las notas).
       const req = indexedDB.open('enfoque', 3);
@@ -71,11 +81,15 @@ function idbOpen() {
         if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'noteId' });
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-      req.onblocked = () => resolve(null);
+      req.onsuccess = () => {
+        // Otra pestaña con una versión más nueva necesita actualizar la base de datos.
+        req.result.onversionchange = () => req.result.close();
+        finish(req.result);
+      };
+      req.onerror = () => finish(null);
+      req.onblocked = () => finish(null);
     } catch {
-      resolve(null);
+      finish(null);
     }
   });
 }
@@ -110,7 +124,10 @@ function idbPut(key, value) {
 async function loadFromDB() {
   idb.db = await idbOpen();
   idb.ok = !!idb.db;
-  if (!idb.ok) return false;
+  if (!idb.ok) {
+    if (window.indexedDB && idb.lsEmpty) blockSaving();
+    return false;
+  }
   navigator.storage?.persist?.().then((p) => (idb.persisted = !!p)).catch(() => {});
   updateQuota();
   const stored = await idbGet('state');
@@ -124,6 +141,15 @@ async function loadFromDB() {
   // Primera vez con IndexedDB: se copia lo que había en localStorage.
   if (!stored && state.updatedAt) await idbPut('state', state);
   return false;
+}
+
+function blockSaving() {
+  idb.blocked = true;
+  const reload = el('button', { className: 'toast-action' }, 'Recargar');
+  reload.addEventListener('click', () => location.reload());
+  $('#toast').replaceChildren(el('span', {}, 'No se pudieron leer los datos guardados. Los cambios no se guardarán: recarga la página.'), reload);
+  $('#toast').hidden = false;
+  clearTimeout(toastTimeout);
 }
 
 function updateQuota() {
@@ -157,6 +183,7 @@ function writeLocalStorage() {
 // Con IndexedDB el guardado se agrupa (un cambio tras otro se escribe una sola vez) y se
 // completa al ocultar o cerrar la página.
 function saveLocal() {
+  if (idb.blocked) return;
   if (!idb.ok) return writeLocalStorage();
   idb.dirty = true;
   clearTimeout(idb.timer);
@@ -165,7 +192,7 @@ function saveLocal() {
 
 function flushLocal() {
   clearTimeout(idb.timer);
-  if (!idb.dirty || !idb.ok) return;
+  if (!idb.dirty || !idb.ok || idb.blocked) return;
   idb.dirty = false;
   writeLocalStorage();
   idbPut('state', state).then((ok) => {
@@ -186,7 +213,7 @@ function save() {
   if (typeof checkProjectMilestones === 'function') checkProjectMilestones();
   state.updatedAt = Date.now();
   saveLocal();
-  scheduleSync();
+  if (!idb.blocked) scheduleSync();
 }
 
 // ---------- Utilidades ----------

@@ -31,34 +31,47 @@ function parseKey(key) {
   return new Date(y, m - 1, d);
 }
 
-function nextOccurrence(date, repeat) {
+// Suma meses sin desbordar: el día 31 pasa al último día del mes si no existe.
+function addMonths(date, n, day = date.getDate()) {
+  const d = new Date(date);
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return d;
+}
+
+// En las mensuales, «day» es el día del mes original (para no ir de 31 a 28 y quedarse en 28).
+function nextOccurrence(date, repeat, day) {
   const d = new Date(date);
   if (repeat === 'daily') d.setDate(d.getDate() + 1);
   else if (repeat === 'weekdays') {
     do d.setDate(d.getDate() + 1);
     while (d.getDay() === 0 || d.getDay() === 6);
   } else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
-  else if (repeat === 'monthly') {
-    const day = d.getDate();
-    d.setDate(1);
-    d.setMonth(d.getMonth() + 1);
-    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(day, lastDay));
-  }
+  else if (repeat === 'monthly') return addMonths(d, 1, day || d.getDate());
   return d;
+}
+
+// Día del mes original si sigue cuadrando con la fecha límite (si se cambió a mano, cuenta la nueva).
+function repeatDayOf(t) {
+  if (!t.due) return undefined;
+  const d = parseKey(t.due);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  return t.repeatDay && Math.min(t.repeatDay, last) === d.getDate() ? t.repeatDay : d.getDate();
 }
 
 // Siguiente fecha posterior a hoy, partiendo de la fecha límite actual.
 function nextDue(t) {
   const today = dateKey();
   let d = parseKey(t.due || today);
-  do d = nextOccurrence(d, t.repeat);
+  if (t.repeat === 'monthly') t.repeatDay = repeatDayOf(t) ?? d.getDate();
+  do d = nextOccurrence(d, t.repeat, t.repeatDay);
   while (dateKey(d) <= today);
   return dateKey(d);
 }
 
-function addTask(text, { priority = 2, due = null, repeat = null, time = null, projectId = null } = {}) {
-  const parsed = parseInput(text);
+function addTask(text, { priority = 2, due = null, repeat = null, time = null, projectId = null, raw = false } = {}) {
+  const parsed = raw ? { title: text.trim(), tags: [] } : parseInput(text);
   projectId = parsed.projectId ?? projectId;
   priority = parsed.priority ?? priority;
   due = parsed.due ?? due;
@@ -226,6 +239,15 @@ function setTagFilter(tag) {
   renderTasks();
 }
 
+// Borra una tarea (con «Deshacer»).
+function deleteTask(t) {
+  if (editingId === t.id) editingId = null;
+  withUndo('Tarea borrada', () => {
+    state.tasks = state.tasks.filter((x) => x.id !== t.id);
+    state.archive = state.archive.filter((x) => x.id !== t.id);
+  });
+}
+
 function taskItem(t, { draggable = false } = {}) {
   if (t.virtual) return noteTaskItem(t);
   if (t.id === editingId) return taskEditor(t);
@@ -278,12 +300,7 @@ function taskItem(t, { draggable = false } = {}) {
   });
 
   const del = el('button', { className: 'del', title: 'Eliminar', ariaLabel: 'Eliminar' }, '✕');
-  del.addEventListener('click', () =>
-    withUndo('Tarea borrada', () => {
-      state.tasks = state.tasks.filter((x) => x.id !== t.id);
-      state.archive = state.archive.filter((x) => x.id !== t.id);
-    })
-  );
+  del.addEventListener('click', () => deleteTask(t));
 
   const row = [check, body, toggle, del];
   if (draggable && !t.done) row.unshift(dragHandle(t));
@@ -542,12 +559,24 @@ const PRIORITY_WORDS = { alta: 3, media: 2, baja: 1 };
 const END = '(?=$|\\s|[,.;:!?])';
 const PREFIX = '(?:(?:para|el|este|esta|del|al)\\s+)*';
 
+// Las fechas relativas («mañana», «viernes»…) se cuentan desde hoy, o desde parseAnchor si se indica.
+let parseAnchor = null;
+const parseNow = () => (parseAnchor ? new Date(parseAnchor) : new Date());
+function parseInputAt(text, at) {
+  parseAnchor = at;
+  try {
+    return parseInput(text);
+  } finally {
+    parseAnchor = null;
+  }
+}
+
 function weekdayIndex(word) {
   return WEEKDAY_PATTERNS.findIndex((p) => new RegExp(`^${p}$`, 'i').test(word));
 }
 
 function nextWeekday(index, { skipToday = false } = {}) {
-  const d = new Date();
+  const d = parseNow();
   let diff = (index - d.getDay() + 7) % 7;
   if (diff === 0 && skipToday) diff = 7;
   return addDays(d, diff);
@@ -555,7 +584,7 @@ function nextWeekday(index, { skipToday = false } = {}) {
 
 // Fecha con día y mes; si ya pasó este año y no se indicó el año, se entiende el próximo.
 function dayMonth(day, month, year) {
-  const now = new Date();
+  const now = parseNow();
   let y = year ? (year < 100 ? 2000 + year : year) : now.getFullYear();
   let d = new Date(y, month, day);
   if (d.getMonth() !== month || d.getDate() !== day) return null;
@@ -564,17 +593,15 @@ function dayMonth(day, month, year) {
 }
 
 const DATE_RULES = [
-  [`pasado\\s+ma[nñ]ana`, () => addDays(new Date(), 2)],
-  [`${PREFIX}hoy`, () => new Date()],
+  [`pasado\\s+ma[nñ]ana`, () => addDays(parseNow(), 2)],
+  [`${PREFIX}hoy`, () => parseNow()],
   // "mañana" como día, no "por la mañana" ni "esta mañana".
-  [`(?<!\\bla\\s)(?<!\\besta\\s)${PREFIX}ma[nñ]ana`, () => addDays(new Date(), 1)],
+  [`(?<!\\bla\\s)(?<!\\besta\\s)${PREFIX}ma[nñ]ana`, () => addDays(parseNow(), 1)],
   [`en\\s+(\\d{1,3})\\s+(d[ií]as?|semanas?|mes(?:es)?)`, (m) => {
     const n = Number(m[1]);
-    if (/^d/i.test(m[2])) return addDays(new Date(), n);
-    if (/^s/i.test(m[2])) return addDays(new Date(), n * 7);
-    const d = new Date();
-    d.setMonth(d.getMonth() + n);
-    return d;
+    if (/^d/i.test(m[2])) return addDays(parseNow(), n);
+    if (/^s/i.test(m[2])) return addDays(parseNow(), n * 7);
+    return addMonths(parseNow(), n);
   }],
   [`${PREFIX}(pr[oó]ximo\\s+)?(${WEEKDAY_PATTERNS.join('|')})`, (m) => nextWeekday(weekdayIndex(m[2]), { skipToday: !!m[1] })],
   [`${PREFIX}(\\d{1,2})/(\\d{1,2})(?:/(\\d{2,4}))?`, (m) => dayMonth(Number(m[1]), Number(m[2]) - 1, m[3] && Number(m[3]))],
@@ -715,8 +742,9 @@ function occurrencesBetween(t, fromKey, toKey) {
   if (!t.repeat || t.done || !t.due) return [];
   const out = [];
   let d = parseKey(t.due);
+  const day = repeatDayOf(t);
   for (let i = 0; i < 400; i++) {
-    d = nextOccurrence(d, t.repeat);
+    d = nextOccurrence(d, t.repeat, day);
     const key = dateKey(d);
     if (key > toKey) break;
     if (key >= fromKey) out.push(key);

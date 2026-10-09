@@ -134,7 +134,7 @@ function renderShared() {
       const row = el('li', { className: `shared-item${it.done ? ' done' : ''}` }, [box, el('div', { className: 'si-body' }, [el('span', { className: 'si-text' }, it.text), el('span', { className: 'muted si-meta' }, meta)])]);
       const mine = el('button', { className: 'side-btn', title: 'Copiar a mis tareas', ariaLabel: `Copiar «${it.text}» a mis tareas` }, '＋');
       mine.addEventListener('click', () => {
-        addTask(it.text);
+        addTask(it.text, { raw: true });
         showToastMessage('Copiada a tus tareas');
       });
       row.append(mine);

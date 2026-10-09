@@ -23,7 +23,10 @@ function blockEditBody(note, value) {
   const cur = noteText(note) ?? '';
   if (cur !== b.expect) {
     // La nota cambió por otro lado (otro dispositivo, Claude, una casilla…): se vuelve a situar el bloque.
-    const k = b.last ? cur.indexOf(b.last) : -1;
+    let k = -1;
+    for (let i = b.last ? cur.indexOf(b.last) : -1; i >= 0; i = cur.indexOf(b.last, i + 1)) {
+      if (k < 0 || Math.abs(i - b.before.length) < Math.abs(k - b.before.length)) k = i;
+    }
     if (k < 0) {
       endBlockEdit();
       showToastMessage('La nota cambió mientras escribías: vuelve a abrir el bloque.');
@@ -112,6 +115,7 @@ function endBlockEdit({ render = true } = {}) {
   ta.hidden = true;
   const note = noteById(b.noteId);
   if (note) {
+    pinNoteDates(note);
     // Un bloque nuevo que se quedó vacío no deja líneas en blanco al final.
     if (b.from === null && !b.last.trim() && !note.enc && note.body !== note.body.replace(/\s+$/, '')) note.body = note.body.replace(/\s+$/, '');
     ta.value = noteText(note) ?? '';

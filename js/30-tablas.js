@@ -14,7 +14,8 @@ function parseProps(body) {
   if (end < 0) return { props: [], end: -1 };
   const props = [];
   for (let i = 1; i < end; i++) {
-    const m = lines[i].match(/^([\p{L}\p{N}_ -]+?)\s*:\s*(.*)$/u);
+    // La clave es todo lo que hay hasta los primeros dos puntos (¿Leído?, Precio €…), como la escribe setProp.
+    const m = lines[i].match(/^\s*([^\s:#-][^:]*?)\s*:\s*(.*)$/u);
     if (m) props.push({ key: m[1].trim(), value: m[2].trim(), line: i });
   }
   return { props, end };
@@ -22,7 +23,9 @@ function parseProps(body) {
 
 const propOf = (note, key) => parseProps(note.body).props.find((p) => p.key.toLowerCase() === key.toLowerCase())?.value ?? '';
 
-function setProp(note, key, value) {
+function setProp(note, rawKey, value) {
+  const key = String(rawKey).replace(/[:\n]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!key) return;
   const lines = note.body.split('\n');
   const { props, end } = parseProps(note.body);
   const clean = String(value).replace(/\n/g, ' ').trim();

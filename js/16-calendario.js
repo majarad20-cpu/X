@@ -40,7 +40,16 @@ function calendarRange() {
 }
 
 function eventDays(ev) {
-  if (ev.start?.dateTime) return [dateKey(new Date(ev.start.dateTime))];
+  if (ev.start?.dateTime) {
+    // Con hora: cada día entre el inicio y el fin (un fin justo a las 00:00 no cuenta ese día).
+    const s = new Date(ev.start.dateTime);
+    const e = ev.end?.dateTime ? new Date(new Date(ev.end.dateTime).getTime() - 1) : s;
+    const out = [];
+    let d = parseKey(dateKey(s));
+    const last = dateKey(e < s ? s : e);
+    for (let i = 0; dateKey(d) <= last && i < 60; i++, d = addDays(d, 1)) out.push(dateKey(d));
+    return out;
+  }
   if (ev.start?.date) {
     // Día completo: la fecha de fin es exclusiva.
     const out = [];
@@ -59,7 +68,9 @@ function eventTimeText(ev) {
 }
 
 async function loadCalendar({ refresh = false } = {}) {
-  if (!calEnabled() || cal.loading) return;
+  if (!calEnabled()) return;
+  // Si ya se está cargando otro rango, se repite al terminar.
+  if (cal.loading) return void (cal.pending = { refresh: refresh || !!cal.pending?.refresh });
   const range = calendarRange();
   if (!refresh && cal.range && cal.range.from <= range.from && cal.range.to >= range.to && cal.status === 'ok') return;
   cal.loading = true;
@@ -88,6 +99,9 @@ async function loadCalendar({ refresh = false } = {}) {
   } finally {
     cal.loading = false;
     renderCalendarViews();
+    const next = cal.pending;
+    cal.pending = null;
+    if (next) loadCalendar(next);
   }
 }
 

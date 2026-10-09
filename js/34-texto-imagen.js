@@ -54,7 +54,8 @@ async function extractImageText(id) {
   const lines = note.body.split('\n');
   const i = lines.findIndex((l) => l.includes(`(img:${id})`));
   const block = ['', '> [!note] Texto de la imagen', ...text.split('\n').map((l) => `> ${l}`), ''];
-  lines.splice(i + 1, 0, ...block);
+  // Si la imagen ya no está en la nota, el texto va al final.
+  lines.splice(i < 0 ? lines.length : i + 1, 0, ...block);
   note.body = lines.join('\n').replace(/\n{3,}/g, '\n\n');
   note.updatedAt = Date.now();
   save();
@@ -64,7 +65,7 @@ async function extractImageText(id) {
     autosize($('#note-editor'));
   }
   renderAll();
-  showToastMessage('Texto añadido debajo de la imagen');
+  showToastMessage(i < 0 ? 'La imagen ya no está en la nota: el texto se añadió al final' : 'Texto añadido debajo de la imagen');
 }
 
 // En el visor: botón para sacar el texto de una imagen de la nota abierta.

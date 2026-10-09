@@ -61,8 +61,10 @@ function openNoteAI() {
   const ta = $('#note-editor');
   // Lo seleccionado en el editor (si lo hay) es el texto con el que trabaja Claude.
   const editing = !ta.hidden && ta.dataset.note === note.id;
-  const start = editing ? (document.activeElement === ta ? ta.selectionStart : Number(ta.dataset.caret ?? ta.selectionStart)) : note.body.length;
-  const end = editing && document.activeElement === ta ? ta.selectionEnd : start;
+  // Editando un solo bloque, el editor tiene solo ese trozo: las posiciones se pasan a la nota entera.
+  const off = blockEdit?.noteId === note.id ? blockEdit.before.length : 0;
+  const start = editing ? (document.activeElement === ta || off ? off + ta.selectionStart : Number(ta.dataset.caret ?? ta.selectionStart)) : note.body.length;
+  const end = editing && (document.activeElement === ta || off) ? off + ta.selectionEnd : start;
   noteAI.noteId = note.id;
   noteAI.sel = end > start ? { start, end, text: note.body.slice(start, end) } : null;
   noteAI.caret = start;
@@ -173,6 +175,7 @@ async function applyNoteAI(mode) {
     showToastMessage('Claude no encontró tareas en el texto.');
     return closeNoteAI();
   }
+  if (blockEdit?.noteId === note.id) endBlockEdit({ render: false });
   await snapshotNote(note, { force: true });
   const body = note.body;
   const result = noteAI.result;

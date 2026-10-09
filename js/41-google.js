@@ -38,7 +38,8 @@ async function startGoogle() {
 async function runGoogleAutomations() {
   const g = gSettings();
   if (g.driveAuto && g.driveLast !== dateKey()) await backupToDrive({ auto: true });
-  if (g.weekly && weeklyDue()) await sendWeeklySummary({ auto: true });
+  // Un envío sin confirmar de esta semana solo se repite a mano.
+  if (g.weekly && weeklyDue() && g.weeklySending?.week !== weekKey()) await sendWeeklySummary({ auto: true });
 }
 
 // ---------- Copia en Google Drive ----------
@@ -50,8 +51,7 @@ async function driveFolder() {
   let folder = (found.files || []).find((f) => f.mimeType === FOLDER_MIME);
   if (!folder) folder = await gCall(DRIVE, 'create_file', { title: 'Enfoque', contentMimeType: FOLDER_MIME });
   if (!folder?.id) throw new Error('sin carpeta');
-  g.driveFolder = folder.id;
-  g.driveFolderUrl = folder.viewUrl || `https://drive.google.com/drive/folders/${folder.id}`;
+  Object.assign(gSettings(), { driveFolder: folder.id, driveFolderUrl: folder.viewUrl || `https://drive.google.com/drive/folders/${folder.id}` });
   save();
   return folder.id;
 }
@@ -73,9 +73,11 @@ async function backupJson() {
   return { json: JSON.stringify({ ...base, files: images }), withFiles };
 }
 
+let driveBusy = false;
 async function backupToDrive({ auto = false } = {}) {
   if (!gAvailable()) return driveStatus('Google Drive solo está disponible al abrir la app desde Claude.', true);
-  const g = gSettings();
+  if (driveBusy) return;
+  driveBusy = true;
   const btn = $('#gdrive-now');
   btn.disabled = true;
   driveStatus('Guardando la copia en Google Drive…');
@@ -88,10 +90,11 @@ async function backupToDrive({ auto = false } = {}) {
       file = await gCall(DRIVE, 'create_file', { ...input, parentId: await driveFolder() });
     } catch (e) {
       // La carpeta pudo borrarse: se busca o se crea otra y se reintenta una vez.
-      if (e?.code !== 'tool_error' || !g.driveFolder) throw e;
-      delete g.driveFolder;
+      if (e?.code !== 'tool_error' || !gSettings().driveFolder) throw e;
+      delete gSettings().driveFolder;
       file = await gCall(DRIVE, 'create_file', { ...input, parentId: await driveFolder() });
     }
+    const g = gSettings();
     g.driveLast = dateKey();
     g.driveLastAt = Date.now();
     g.driveLastUrl = file?.viewUrl || '';
@@ -101,6 +104,7 @@ async function backupToDrive({ auto = false } = {}) {
   } catch (e) {
     driveStatus(`No se pudo guardar la copia. ${gErrorText(e, DRIVE)}`, true);
   } finally {
+    driveBusy = false;
     btn.disabled = false;
   }
 }
@@ -226,7 +230,7 @@ function showGoogleLink(text, url, label) {
 // ---------- Agendar en Google Calendar ----------
 const sched = { task: null, title: '', busy: [] };
 
-function openSchedule({ task = null, title = '', minutes = null } = {}) {
+function openSchedule({ task = null, title = '', minutes = null, date = null } = {}) {
   if (!gAvailable()) return showToastMessage('Google Calendar solo está disponible al abrir la app desde Claude.');
   sched.task = task;
   const now = new Date();
@@ -235,7 +239,7 @@ function openSchedule({ task = null, title = '', minutes = null } = {}) {
   next.setMinutes(next.getMinutes() < 30 ? 30 : 60, 0, 0);
   $('#gsched-title').textContent = task ? '📅 Agendar en Google Calendar' : '🎯 Reservar tiempo de concentración';
   $('#gsched-name').value = task ? task.title : title || '🎯 Concentración';
-  $('#gsched-date').value = task?.due && task.due >= dateKey() ? task.due : dateKey(next);
+  $('#gsched-date').value = date && date >= dateKey() ? date : task?.due && task.due >= dateKey() ? task.due : dateKey(next);
   $('#gsched-time').value = task?.time || `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
   $('#gsched-dur').value = String(minutes || (task ? 30 : 60));
   $('#gsched-status').textContent = '';
@@ -423,8 +427,10 @@ const weeklyStatus = (text, isError = false) => {
 
 const weeklyRecipient = () => $('#gweekly-to').value.trim() || gSettings().weeklyTo || '';
 
+let weeklyBusy = false;
 async function sendWeeklySummary({ auto = false } = {}) {
   if (!gAvailable()) return weeklyStatus('Gmail solo está disponible al abrir la app desde Claude.', true);
+  if (weeklyBusy) return;
   const to = weeklyRecipient();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
     weeklyStatus('Escribe el correo al que quieres recibir el resumen.', true);
@@ -433,19 +439,31 @@ async function sendWeeklySummary({ auto = false } = {}) {
   }
   const btn = $('#gweekly-send');
   btn.disabled = true;
+  weeklyBusy = true;
   weeklyStatus('Enviando el resumen…');
   const w = weeklyData();
+  // Marca de envío en curso: si la respuesta no llega, no se reenvía solo.
+  gSettings().weeklySending = { week: weekKey(), at: Date.now() };
+  save();
   try {
     await gCall(GMAIL, 'send_message', { to: [to], subject: `Tu semana en Enfoque · ${w.from.toLocaleDateString('es', { day: 'numeric', month: 'short' })} – ${w.end.toLocaleDateString('es', { day: 'numeric', month: 'short' })}`, body: weeklyText(w), htmlBody: weeklyHtml(w) });
     const g = gSettings();
     g.weeklySent = weekKey();
     g.weeklySentAt = Date.now();
+    delete g.weeklySending;
     save();
     renderGoogleSettings();
     if (auto) showToastMessage('Resumen semanal enviado a tu correo');
   } catch (e) {
-    weeklyStatus(`No se pudo enviar. ${gErrorText(e, GMAIL)}`, true);
+    const g = gSettings();
+    // Un fallo de conexión no garantiza que el correo no saliera.
+    const unsure = e?.code === 'server_unavailable' || (!G_ERRORS[e?.code] && e?.code !== 'tool_error');
+    if (unsure && g.weeklySending) g.weeklySending.unconfirmed = true;
+    else delete g.weeklySending;
+    save();
+    weeklyStatus(unsure ? 'No se pudo confirmar el envío. Revisa tu correo antes de enviarlo otra vez.' : `No se pudo enviar. ${gErrorText(e, GMAIL)}`, true);
   } finally {
+    weeklyBusy = false;
     btn.disabled = false;
   }
 }
@@ -470,6 +488,7 @@ function renderGoogleSettings(extra = '') {
     const a = el('a', { href: g.driveFolderUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir la carpeta ↗');
     $('#gdrive-status').append(' ', a);
   }
+  if (g.weeklySending?.unconfirmed && g.weeklySending.week === weekKey()) return weeklyStatus('No se pudo confirmar el último envío. Revisa tu correo antes de enviarlo otra vez.', true);
   weeklyStatus(g.weekly && !g.weeklyTo ? 'Escribe el correo al que quieres recibirlo.' : g.weeklySentAt ? `Último resumen enviado: ${when(g.weeklySentAt)}.` : g.weekly ? 'Se enviará el día elegido, la próxima vez que abras la app.' : '');
 }
 

@@ -97,7 +97,7 @@ function renderDayView({ scroll = false } = {}) {
   ].sort((a, b) => a.start - b.start || b.end - a.end);
   dvLayout(blocks);
   for (const b of blocks) lane.append(b.kind === 'task' ? dvTaskBlock(b) : dvEventBlock(b));
-  if (dv.creating) lane.append(dvCreateBox(dv.creating.min));
+  if (dv.creating) lane.append(dvCreateBox(dv.creating));
   const nodes = [...hours, lane];
   if (dv.key === today) {
     const now = new Date();
@@ -140,7 +140,7 @@ const dvPlace = (b) => `top:${(b.start / 60) * DV_HOUR}px;height:${Math.max(22, 
 function dvTaskBlock(b) {
   const { t, ghost } = b;
   const node = el('div', { className: `dv-block task p${t.priority}${t.done ? ' done' : ''}${ghost ? ' ghost' : ''}${t.virtual ? ' virtual' : ''}${b.end - b.start <= 30 ? ' short' : ''}`, style: dvPlace(b), tabIndex: 0, role: 'button', ariaLabel: `${t.time} ${t.title}` });
-  node.dataset.id = t.id;
+  if (!ghost) node.dataset.id = t.id;
   const box = el('input', { type: 'checkbox', checked: !!t.done, disabled: ghost, ariaLabel: `Completar ${t.title}` });
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
   box.addEventListener('change', () => dvToggle(t, box.checked));
@@ -188,11 +188,12 @@ function dvStartCreate(min) {
   renderDayView();
   $('#dv-create-input')?.focus();
 }
-function dvCreateBox(min) {
+function dvCreateBox(creating) {
+  const { min } = creating;
   const input = el('input', { id: 'dv-create-input', type: 'text', maxLength: 200, placeholder: `Tarea a las ${hm(min)}…`, ariaLabel: `Nueva tarea a las ${hm(min)}` });
   const box = el('div', { className: 'dv-create', style: `top:${(min / 60) * DV_HOUR}px;height:${DV_HOUR / 2 + 8}px` }, input);
   const done = (commit) => {
-    if (!dv.creating) return;
+    if (dv.creating !== creating) return;
     const text = input.value.trim();
     dv.creating = null;
     if (commit && text) addTask(text, { due: dv.key, time: hm(min) });
@@ -271,6 +272,7 @@ function dvStartDrag(e, t, node, from, b = null) {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
     $('#dv-side').classList.remove('drop');
+    dv.drag.done = true;
     setTimeout(() => (dv.drag = null));
     if (!moved) {
       if (from === 'timed') dvOpenPop(t, node);
@@ -304,6 +306,7 @@ function dvStartResize(e, t, node, b) {
   const up = () => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
+    dv.drag.done = true;
     setTimeout(() => (dv.drag = null));
     if (end !== b.end) dvSetTime(t, b.start, end - b.start);
   };
@@ -321,7 +324,9 @@ function dvOpenPop(t, anchor) {
   dv.popFor = t.id;
   const title = el('input', { type: 'text', value: t.title, maxLength: 200, ariaLabel: 'Título' });
   const time = el('input', { type: 'time', value: t.time || '', step: 300, ariaLabel: 'Hora' });
-  const dur = el('select', { ariaLabel: 'Duración' }, [15, 30, 45, 60, 90, 120, 180, 240].map((m) => el('option', { value: m, selected: (Number(t.duration) || DV_DEFAULT_MIN) === m }, m < 60 ? `${m} min` : `${m / 60} h`.replace('.5', ' h 30').replace(' h h', ' h'))));
+  const curDur = Number(t.duration) || DV_DEFAULT_MIN;
+  const durs = [...new Set([15, 30, 45, 60, 90, 120, 180, 240, curDur])].sort((a, b) => a - b);
+  const dur = el('select', { ariaLabel: 'Duración' }, durs.map((m) => el('option', { value: m, selected: curDur === m }, m < 60 || m % 30 ? `${m} min` : `${m / 60} h`.replace('.5', ' h 30').replace(' h h', ' h'))));
   const prio = el('select', { ariaLabel: 'Prioridad' }, [3, 2, 1].map((p) => el('option', { value: p, selected: p === t.priority }, PRIORITY_LABEL[p])));
   const date = el('input', { type: 'date', value: t.due || dv.key, ariaLabel: 'Fecha' });
   const notes = el('textarea', { rows: 3, placeholder: 'Notas', ariaLabel: 'Notas' });
@@ -332,10 +337,7 @@ function dvOpenPop(t, anchor) {
     const del = el('button', { type: 'button', className: 'danger-btn' }, 'Borrar');
     del.addEventListener('click', () => {
       hideDvPop();
-      withUndo('Tarea borrada', () => {
-        state.tasks = state.tasks.filter((x) => x.id !== t.id);
-        state.archive = state.archive.filter((x) => x.id !== t.id);
-      });
+      deleteTask(t);
     });
     actions.push(del);
     if (cal.mcp) {
@@ -366,7 +368,7 @@ function dvOpenPop(t, anchor) {
     e.preventDefault();
     const min = toMin(time.value);
     if (t.virtual) {
-      if (date.value && date.value !== t.due) editNoteLine(t, (l) => (/📅\s*\d{4}-\d{2}-\d{2}/u.test(l) ? l.replace(/📅\s*\d{4}-\d{2}-\d{2}/u, `📅 ${date.value}`) : `${l} 📅 ${date.value}`));
+      if (date.value && date.value !== t.due) setTaskDue(t, date.value);
       hideDvPop();
       return dvSetTime({ ...t, due: date.value || t.due }, min);
     }
@@ -437,8 +439,16 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft' && !e.target.closest('.dv-block')) dvShift(-1);
   if (e.key === 'ArrowRight' && !e.target.closest('.dv-block')) dvShift(1);
 });
-RENDER_HOOKS.push(() => renderDayView());
+// Mientras se escribe una tarea nueva o se arrastra, no se vuelve a dibujar (se perdería lo que se hace).
+const dvBusy = () => dv.creating || (dv.drag && !dv.drag.done);
+RENDER_HOOKS.push(() => !dvBusy() && renderDayView());
 // La hora actual avanza.
-setInterval(() => !$('#dayview').hidden && dv.key === dateKey() && renderDayView(), 60000);
+setInterval(() => {
+  if ($('#dayview').hidden || dv.key !== dateKey()) return;
+  const now = new Date();
+  const line = $('#dv-grid .dv-now');
+  if (line) line.style.top = `${(now.getHours() + now.getMinutes() / 60) * DV_HOUR}px`;
+  else if (!dvBusy()) renderDayView();
+}, 60000);
 
 COMMANDS_EXTRA.push(() => [{ label: 'Abrir la agenda de hoy (por horas)', action: () => openDayView(dateKey()) }]);

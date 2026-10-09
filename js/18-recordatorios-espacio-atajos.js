@@ -74,9 +74,16 @@ function checkReminders() {
   );
 }
 
-setInterval(checkReminders, 15000);
+// Al pasar la medianoche se vuelve a dibujar todo (Hoy, vencidas…); renderAll ya revisa los avisos.
+let reminderDay = dateKey();
+function checkRemindersAndDay() {
+  if (reminderDay === dateKey()) return checkReminders();
+  reminderDay = dateKey();
+  renderAll();
+}
+setInterval(checkRemindersAndDay, 15000);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') checkReminders();
+  if (document.visibilityState === 'visible') checkRemindersAndDay();
 });
 
 // ---------- Espacio ----------

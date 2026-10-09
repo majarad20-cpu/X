@@ -34,6 +34,8 @@ const mathHtml = (tex, display) => `<span class="math${display ? ' display' : ''
 // Notas al pie de la nota que se está dibujando (las crea renderMd en su llamada exterior).
 let mdNotes = null;
 let mdNotesSeq = 0;
+// Con `ctx.noExternalImages` (texto de la IA) las imágenes de internet salen como enlace.
+let mdNoExtImg = false;
 function footnoteRef(def) {
   const f = mdNotes;
   let n = f.order.indexOf(def) + 1;
@@ -45,19 +47,27 @@ function footnoteRef(def) {
 // Etiquetas HTML sencillas que Obsidian también admite (sin atributos, así que no hay riesgo).
 const SAFE_TAGS = /&lt;(\/?)(u|sub|sup|kbd|mark|small|s|b|i|ins|br)\s*\/?&gt;/gi;
 
+const MD_HOLD = /\u0001(\d+)\u0001/g;
+
 function inlineMd(text) {
   const tokens = [];
-  const hold = (html) => `\u0001${tokens.push(html) - 1}\u0001`;
+  const raws = [];
+  // Cada trozo ya resuelto se aparta; `raw` es su texto original (para notas al pie y atributos).
+  const hold = (html, raw = '') => {
+    raws.push(raw);
+    return `\u0001${tokens.push(html) - 1}\u0001`;
+  };
+  const plain = (t) => t.replace(MD_HOLD, (_, k) => plain(raws[k] || ''));
   let s = text
-    .replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${escHtml(c)}</code>`))
-    .replace(/(^|[^\\$])\$\$([^$\n]+?)\$\$/g, (_, pre, tex) => pre + hold(mathHtml(tex, true)))
-    .replace(/(^|[^\\$])\$(?=[^\s$])([^$\n]*?[^\s\\$])\$(?![\d$])/g, (_, pre, tex) => pre + hold(mathHtml(tex, false)))
-    .replace(/!?\[\[([^\]\n]+?)\]\]/g, (_, inner) => hold(wikiLinkHtml(inner)))
-    .replace(/\\([\\`*_{}\[\]()#+\-.!|~=$%^<>])/g, (_, c) => hold(escHtml(c)))
+    .replace(/`([^`\n]+)`/g, (m, c) => hold(`<code>${escHtml(c)}</code>`, m))
+    .replace(/(^|[^\\$])\$\$([^$\n]+?)\$\$/g, (_, pre, tex) => pre + hold(mathHtml(tex, true), `$$${tex}$$`))
+    .replace(/(^|[^\\$])\$(?=[^\s$])([^$\n]*?[^\s\\$])\$(?![\d$])/g, (_, pre, tex) => pre + hold(mathHtml(tex, false), `$${tex}$`))
+    .replace(/!?\[\[([^\]\n]+?)\]\]/g, (m, inner) => hold(wikiLinkHtml(inner), m))
+    .replace(/\\([\\`*_{}\[\]()#+\-.!|~=$%^<>])/g, (m, c) => hold(escHtml(c), m))
     // Notas al pie: [^id] (definida al final) y ^[texto] (en línea), numeradas por orden de aparición.
     .replace(/\^\[([^\]\n]+)\]|\[\^([^\]\s]+)\]/g, (m, note, id) => {
       if (!mdNotes || (id && !mdNotes.defs.has(id))) return m;
-      return hold(footnoteRef(note ?? (mdNotes.refs.get(id) || mdNotes.refs.set(id, { id }).get(id))));
+      return hold(footnoteRef(note !== undefined ? plain(note) : mdNotes.refs.get(id) || mdNotes.refs.set(id, { id }).get(id)));
     })
     // Imagen guardada en la app: ![descripción](img:ID). Se carga después (26-imagenes.js).
     .replace(/!\[([^\]\n]*)\]\(img:([a-z0-9]+)\)/gi, (_, raw, id) => {
@@ -67,6 +77,7 @@ function inlineMd(text) {
     // Imagen de internet: ![descripción|300](https://…).
     .replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/gi, (_, raw, url) => {
       const { alt, style } = imgSize(raw);
+      if (mdNoExtImg) return hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">🖼 ${escHtml(alt || url)}</a>`);
       return hold(`<img class="note-img ext" src="${escHtml(url)}" alt="${escHtml(alt)}" loading="lazy" referrerpolicy="no-referrer"${style}>`);
     })
     // Nota de voz: ![🎤 Nota de voz · 0:42](audio:ID).
@@ -96,10 +107,14 @@ function inlineMd(text) {
     .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '<del>$1</del>')
     .replace(/==(?=\S)(.+?)(?<=\S)==/g, '<mark>$1</mark>')
     .replace(SAFE_TAGS, '<$1$2>');
-  return s.replace(/\u0001(\d+)\u0001/g, (_, i) => tokens[i]);
+  // Los trozos pueden llevar otros dentro ([`código`](url), [[Nota|`alias`]]); en los atributos va el texto original.
+  while (/\u0001\d+\u0001/.test(s)) s = s.replace(/="[^"]*"/g, (a) => a.replace(MD_HOLD, (_, k) => escHtml(plain(raws[k] || '')))).replace(MD_HOLD, (_, k) => tokens[k]);
+  return s;
 }
 
-const BLOCK_START = /^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|>|```|\$\$|(-{3,}|\*{3,}|_{3,})\s*$|!\[\[[^\]]+\]\]\s*$)/;
+// Fórmula en bloque: una línea que abre con «$$» (sin cerrar en ella) o que es exactamente «$$…$$».
+const MATH_BLOCK_RE = /^\s*\$\$(?:(?:(?!\$\$).)*|(?:(?!\$\$).)+\$\$\s*)$/;
+const BLOCK_START = /^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|>|```|\$\$(?:(?:(?!\$\$).)*|(?:(?!\$\$).)+\$\$\s*)$|(-{3,}|\*{3,}|_{3,})\s*$|!\[\[[^\]]+\]\]\s*$)/;
 const CALLOUT_ICONS = { note: 'ℹ️', info: 'ℹ️', abstract: '📋', tip: '💡', hint: '💡', important: '❗', warning: '⚠️', caution: '⚠️', danger: '⛔', failure: '❌', bug: '🐞', success: '✅', check: '✅', done: '✅', question: '❓', quote: '❝', example: '📑', todo: '☑️' };
 // Nombres alternativos de los avisos de Obsidian -> tipo base (para el color y el icono).
 const CALLOUT_ALIAS = { summary: 'abstract', tldr: 'abstract', help: 'question', faq: 'question', attention: 'warning', fail: 'failure', missing: 'failure', error: 'danger', cite: 'quote' };
@@ -111,6 +126,14 @@ const blockAttr = (text) => {
   const m = text.match(BLOCK_ID_RE);
   return m ? { text: text.slice(0, m.index), attr: ` id="b-${m[1]}" data-block="${m[1]}"` } : { text, attr: '' };
 };
+
+// Siguiente «%%» de la línea; fuera de un comentario no cuentan los de `código` ni $fórmulas$.
+function commentMark(s, open) {
+  if (open) return s.indexOf('%%');
+  const re = /`[^`\n]+`|\\\$|\$\$[^$\n]+?\$\$|\$(?=[^\s$])[^$\n]*?[^\s\\$]\$(?![\d$])|%%/g;
+  for (let m; (m = re.exec(s)); ) if (m[0] === '%%') return m.index;
+  return -1;
+}
 
 // Comentarios de Obsidian (%% … %%): no se ven al leer. Se conservan las líneas (los números de
 // línea de casillas y títulos siguen apuntando al texto real) y no se tocan los bloques de código.
@@ -129,7 +152,7 @@ function stripComments(src) {
       let out = '';
       let rest = line;
       for (;;) {
-        const k = rest.indexOf('%%');
+        const k = commentMark(rest, open);
         if (k < 0) {
           if (!open) out += rest;
           break;
@@ -183,15 +206,19 @@ function propValueHtml(key, value) {
 }
 
 // Devuelve el HTML de una nota. `ctx.noteId` identifica la nota (para marcar casillas),
-// `ctx.depth` limita las notas incrustadas y `ctx.lineOffset` corrige los números de línea.
+// `ctx.depth` limita las notas incrustadas, `ctx.lineOffset` corrige los números de línea y
+// `ctx.noExternalImages` no carga imágenes de internet.
 function renderMd(src, ctx = {}) {
   const outer = !mdNotes;
   if (outer) mdNotes = { defs: new Map(), refs: new Map(), order: [], pre: `fn${++mdNotesSeq}-` };
+  const noImg = mdNoExtImg;
+  if (ctx.noExternalImages) mdNoExtImg = true;
   try {
     const html = renderBlocks(src, ctx);
     return outer ? html + footnotesHtml() : html;
   } finally {
     if (outer) mdNotes = null;
+    mdNoExtImg = noImg;
   }
 }
 
@@ -253,7 +280,7 @@ function renderBlocks(src, ctx) {
       return;
     }
     // Fórmula en bloque: $$ … $$
-    if (/^\s*\$\$/.test(line)) {
+    if (MATH_BLOCK_RE.test(line)) {
       const start = i;
       let tex = line.trim().slice(2);
       if (tex.endsWith('$$') && tex.length >= 2) tex = tex.slice(0, -2);

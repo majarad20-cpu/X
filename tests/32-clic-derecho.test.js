@@ -7,7 +7,7 @@ const now = new Date('2026-10-09T10:00:00').getTime();
   await c.addInitScript((s) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify(s)); }, {
     tasks: [{ id: 'a', title: 'Cuadrar caja', priority: 2, due: '2026-10-09', done: false, createdAt: now, tags: [] }],
     habits: [], settings: { notesWelcome: true },
-    notes: [{ id: 'n', path: 'Informe', body: '# Informe\nTexto del informe.\n\n- [ ] Revisar cifras 📅 2026-10-09', createdAt: now, updatedAt: now }, { id: 'm', path: 'Otra', body: 'x', createdAt: now, updatedAt: now }],
+    notes: [{ id: 'n', path: 'Informe', body: '# Informe\nTexto del informe.\n\n- [ ] Revisar cifras 📅 2026-10-09', createdAt: now, updatedAt: now }, { id: 'r', path: 'Recados', body: '- [ ] Llamar al banco 📅 mañana', createdAt: now, updatedAt: now }, { id: 'm', path: 'Otra', body: 'x', createdAt: now, updatedAt: now }],
     updatedAt: 1,
   });
   await c.route(/fonts\.g/, r => r.abort());
@@ -16,7 +16,7 @@ const now = new Date('2026-10-09T10:00:00').getTime();
   await p.clock.install({ time: new Date(now) });
   await p.goto(url); await p.clock.runFor(800);
   const menu = () => p.$$eval('#note-menu .menu-item', n => n.map(x => x.querySelector('span').textContent));
-  const pick = async (text) => { await p.click(`#note-menu .menu-item:has-text("${text}")`); await p.clock.runFor(100); };
+  const pick = async (text) => { await p.waitForSelector(`#note-menu .menu-item:has-text("${text}")`, { state: 'visible', timeout: 5000 }); await p.click(`#note-menu .menu-item:has-text("${text}")`); await p.clock.runFor(100); };
   // Tarea en la lista
   await p.evaluate(() => showView('tasks'));
   await p.click('.view.active .task[data-id="a"] .title', { button: 'right', force: true });
@@ -31,14 +31,22 @@ const now = new Date('2026-10-09T10:00:00').getTime();
   const nt = await p.$('.view.active .task.from-note .title');
   await nt.click({ button: 'right', force: true }); await pick('Prioridad alta');
   console.log('note task line:', await p.evaluate(() => state.notes[0].body.split('\n').pop()));
+  // Fecha relativa en una nota («📅 mañana») -> se sustituye, no se duplica
+  await p.click('.view.active .task.from-note:has-text("Llamar al banco") .title', { button: 'right', force: true }); await pick('Para hoy');
+  console.log('relative date:', await p.evaluate(() => state.notes.find(n => n.id === 'r').body));
   // Mes: clic derecho en un día
   await p.click('[data-taskview=month]');
   await p.click('.mg-day[data-key="2026-10-20"]', { button: 'right', force: true });
   console.log('day menu:', await menu());
   await pick('Abrir la agenda del día');
   console.log('agenda:', await p.isVisible('#dayview'), await p.textContent('#dv-title'));
+  // Esc en un menú abierto dentro de la agenda cierra solo el menú
+  await p.click('#dv-grid .dv-lane', { button: 'right', force: true, position: { x: 100, y: 600 } });
+  await p.keyboard.press('Escape');
+  console.log('esc menu only:', await p.isVisible('#note-menu'), await p.isVisible('#dayview'));
   await p.keyboard.press('Escape');
   // Explorador: renombrar con clic derecho
+  await p.waitForSelector('#dayview', { state: 'hidden' }); await p.clock.runFor(100);
   await p.click('.tree-row.file[data-id="m"]', { button: 'right', force: true });
   console.log('file menu:', (await menu()).slice(0, 4));
   await pick('Renombrar');
@@ -59,7 +67,14 @@ const now = new Date('2026-10-09T10:00:00').getTime();
   // Dibujo
   await p.evaluate(() => openDrawing()); await p.clock.runFor(300);
   await p.keyboard.press('r'); await p.mouse.move(400, 300); await p.mouse.down(); await p.mouse.move(520, 380, { steps: 5 }); await p.mouse.up();
-  await p.mouse.click(460, 340, { button: 'right', force: true });
+  await p.mouse.click(700, 600); // nada seleccionado
+  await p.mouse.click(460, 300, { button: 'right' }); // sobre el borde de la figura
+  console.log('right-click selects:', await p.evaluate(() => xd.selected.size));
+  const pos0 = await p.evaluate(() => xd.elements[0].x);
+  await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown');
+  console.log('arrows stay in menu:', (await p.evaluate(() => xd.elements[0].x)) === pos0, await p.evaluate(() => document.activeElement.textContent));
+  await p.keyboard.press('Escape');
+  await p.mouse.click(460, 300, { button: 'right' });
   console.log('draw menu:', (await menu()).slice(0, 2), '| visible over drawing:', await p.evaluate(() => getComputedStyle(document.getElementById('note-menu')).zIndex));
   await pick('Duplicar');
   console.log('draw dup:', await p.evaluate(() => xd.elements.length));

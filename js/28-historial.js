@@ -102,7 +102,22 @@ function lineDiff(a, b) {
   return out;
 }
 
-const historyUI = { noteId: null, versions: [], index: 0 };
+const historyUI = { noteId: null, versions: [], index: 0, stats: new Map(), statsBody: null };
+
+// Líneas de diferencia de cada versión con el texto actual; se calculan una vez por texto.
+function versionStats(v, body) {
+  if (historyUI.statsBody !== body) {
+    historyUI.stats = new Map();
+    historyUI.statsBody = body;
+  }
+  let s = historyUI.stats.get(v);
+  if (!s) {
+    const d = lineDiff(v.body, body);
+    s = { add: d.filter((x) => x.k === 'del').length, del: d.filter((x) => x.k === 'add').length }; // add: líneas que la versión tiene y la actual no
+    historyUI.stats.set(v, s);
+  }
+  return s;
+}
 
 function versionWhen(at) {
   const d = new Date(at);
@@ -116,6 +131,7 @@ async function openHistory(note) {
   const rec = await historyGet(note.id);
   historyUI.noteId = note.id;
   historyUI.versions = (rec?.versions || []).slice().reverse();
+  historyUI.stats = new Map();
   // La primera es la actual: se empieza mostrando la anterior a ella.
   historyUI.index = historyUI.versions.length > 1 ? 1 : 0;
   $('#history').hidden = false;
@@ -131,9 +147,7 @@ function renderHistory() {
   $('#history-list').replaceChildren(
     ...(versions.length
       ? versions.map((v, i) => {
-          const d = lineDiff(v.body, note.body);
-          const add = d.filter((x) => x.k === 'del').length; // líneas que la versión tiene y la actual no
-          const del = d.filter((x) => x.k === 'add').length;
+          const { add, del } = v.body === note.body ? { add: 0, del: 0 } : versionStats(v, note.body);
           const b = el('button', { className: `hv-item${i === index ? ' active' : ''}`, ariaCurrent: i === index ? 'true' : null }, [
             el('span', { className: 'hv-when' }, i === 0 && v.body === note.body ? `${versionWhen(v.at)} · actual` : versionWhen(v.at)),
             el('span', { className: 'hv-meta' }, v.body === note.body ? 'igual que ahora' : `${plural(v.body.split(/\s+/).filter(Boolean).length, 'palabra', 'palabras')} · +${add} −${del} líneas`),

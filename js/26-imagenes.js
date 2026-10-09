@@ -115,6 +115,10 @@ async function insertImages(list, at = null) {
   const images = [...list].filter((f) => f.type.startsWith('image/'));
   const ids = [];
   if (!note || !ta || !images.length) return ids;
+  if (note.enc) {
+    showToastMessage('Las notas con contraseña no admiten imágenes.');
+    return ids;
+  }
   showToastMessage(images.length > 1 ? `Añadiendo ${images.length} imágenes…` : 'Añadiendo imagen…');
   let pos = at ?? (document.activeElement === ta || !ta.dataset.caret ? ta.selectionStart : Number(ta.dataset.caret));
   for (const file of images) {
@@ -122,6 +126,9 @@ async function insertImages(list, at = null) {
       const { data, type, width, height } = await compressImage(file);
       const rec = { id: uid(), name: imageName(file), type, data, width, height, createdAt: Date.now() };
       await putFile(rec);
+      // Mientras se preparaba la imagen se cambió de nota: no se inserta en otra.
+      if (activeNote() !== note) return ids;
+      pos = Math.min(pos, ta.value.length);
       const before = ta.value.slice(0, pos);
       const text = `${before && !before.endsWith('\n') ? '\n' : ''}![${rec.name}](img:${rec.id})\n`;
       ta.setRangeText(text, pos, pos, 'end');

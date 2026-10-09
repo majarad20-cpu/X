@@ -39,13 +39,31 @@ function loadLib(name, setup) {
 const mathCache = new Map();
 function loadMathJax() {
   return loadLib('mathjax', () => {
-    window.MathJax = { startup: { typeset: false }, svg: { fontCache: 'local' }, options: { enableMenu: false, enableAssistiveMml: false } };
+    // ui/safe filtra \href y \style; sin el paquete html no hay \class, \cssId ni \style.
+    window.MathJax = {
+      loader: { load: ['ui/safe'] },
+      startup: { typeset: false },
+      tex: { packages: { '[-]': ['html'] } },
+      svg: { fontCache: 'local' },
+      options: { enableMenu: false, enableAssistiveMml: false },
+    };
   })
     .then(() => window.MathJax.startup.promise)
     .then(() => {
       // Estilos que necesita la salida SVG (se añaden una vez).
       if (!document.getElementById('MJX-SVG-styles')) document.head.append(window.MathJax.svgStylesheet());
     });
+}
+
+// Por si acaso: fuera enlaces que no sean http(s) o #, y estilos que tapen la página.
+function safeMathSvg(node) {
+  for (const x of [node, ...node.querySelectorAll('*')]) {
+    for (const a of [...x.attributes]) {
+      if (a.localName === 'href' && !/^(https?:|#)/i.test(a.value.trim())) x.removeAttributeNode(a);
+      else if (a.name === 'style' && /position\s*:\s*fixed/i.test(a.value)) x.removeAttribute('style');
+    }
+  }
+  return node;
 }
 
 async function hydrateMath(nodes) {
@@ -60,7 +78,7 @@ async function hydrateMath(nodes) {
     const display = n.classList.contains('display');
     const key = `${display ? 'D' : 'I'}${n.dataset.tex}`;
     try {
-      if (!mathCache.has(key)) mathCache.set(key, (await window.MathJax.tex2svgPromise(n.dataset.tex, { display })).outerHTML);
+      if (!mathCache.has(key)) mathCache.set(key, safeMathSvg(await window.MathJax.tex2svgPromise(n.dataset.tex, { display })).outerHTML);
       n.innerHTML = mathCache.get(key);
       n.classList.add('rendered');
       n.title = n.dataset.tex;
@@ -358,6 +376,7 @@ function lintMarkdown(src) {
   const lines = src.replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   let fenced = false;
+  let math = false;
   let i = 0;
   if (lines[0] === '---') {
     const end = lines.indexOf('---', 1);
@@ -381,9 +400,18 @@ function lintMarkdown(src) {
       out.push(line);
       continue;
     }
+    // Las fórmulas $$ … $$ de varias líneas se dejan como están, igual que el código.
+    const dollars = (line.match(/\$\$/g) || []).length % 2;
+    if (math || (dollars && /^\s*\$\$/.test(line))) {
+      if (dollars) math = !math;
+      out.push(line);
+      continue;
+    }
+    // Una línea solo de etiquetas (#proyecto #urgente) no es un título.
+    const tagsOnly = /^#[\p{L}\p{N}_/-]+(?:\s+#[\p{L}\p{N}_/-]+)*\s*$/u.test(line);
+    line = line.replace(/[ \t]+$/, ''); // espacios al final
+    if (!tagsOnly) line = line.replace(/^(#{1,6})(?=[^\s#])/, '$1 '); // «#Título» -> «# Título»
     line = line
-      .replace(/[ \t]+$/, '') // espacios al final
-      .replace(/^(#{1,6})(?=[^\s#])/, '$1 ') // «#Título» -> «# Título»
       .replace(/^(\s*)[*+](\s+)/, '$1-$2') // viñetas siempre con «-»
       .replace(/^(\s*-\s+)\[\]/, '$1[ ]') // «[]» -> «[ ]»
       .replace(/^(\s*-\s+)\[X\]/, '$1[x]')

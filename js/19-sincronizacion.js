@@ -33,6 +33,7 @@ function setSyncStatus(status) {
 
 const monthOf = (date) => date.slice(0, 7);
 const archiveMonth = (t) => dateKey(new Date(t.completedAt || t.createdAt)).slice(0, 7);
+const logOrder = (a, b) => a.at - b.at || String(a.id).localeCompare(String(b.id));
 
 function localBuckets() {
   const out = new Map();
@@ -44,7 +45,7 @@ function localBuckets() {
   months.forEach((m) => out.set(`journal-${m}`, { items: state.journal.filter((e) => monthOf(e.date) === m) }));
   const logMonths = new Set(state.log.map((e) => monthOf(e.date)));
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('log-')).forEach((n) => logMonths.add(n.slice(4)));
-  logMonths.forEach((m) => out.set(`log-${m}`, { items: state.log.filter((e) => monthOf(e.date) === m) }));
+  logMonths.forEach((m) => out.set(`log-${m}`, { items: state.log.filter((e) => monthOf(e.date) === m).sort(logOrder) }));
   const archMonths = new Set(state.archive.map((t) => archiveMonth(t)));
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
   archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
@@ -80,7 +81,7 @@ function applyBucket(name, data) {
       const mine = byId.get(e.id);
       byId.set(e.id, mine ? { ...mine, removed: mine.removed || e.removed } : e);
     });
-    state.log = state.log.filter((e) => monthOf(e.date) !== name.slice(4)).concat([...byId.values()].sort((a, b) => a.at - b.at));
+    state.log = state.log.filter((e) => monthOf(e.date) !== name.slice(4)).concat([...byId.values()].sort(logOrder));
   } else if (name.startsWith('archive-')) {
     const m = name.slice(8);
     const incoming = data.items || [];
@@ -89,7 +90,15 @@ function applyBucket(name, data) {
     // Si otro dispositivo archivó una tarea, aquí deja de estar en la lista activa.
     state.tasks = state.tasks.filter((t) => !ids.has(t.id));
   } else if (name.startsWith('note-') && data.note) {
-    const i = state.notes.findIndex((x) => x.id === data.note.id);
+    const id = data.note.id;
+    const i = state.notes.findIndex((x) => x.id === id);
+    // Llegó otra versión de una nota desbloqueada: el texto en memoria ya no vale (se vuelve a bloquear).
+    if (unlockedNotes.has(id) && (i < 0 || state.notes[i].enc?.ct !== data.note.enc?.ct)) {
+      clearTimeout(encryptTimers.get(id));
+      encryptTimers.delete(id);
+      unlockedNotes.delete(id);
+      lockKeys.delete(id);
+    }
     if (i >= 0) state.notes[i] = data.note;
     else state.notes.push(data.note);
   } else if (name.startsWith('canvas-') && data.canvas) {
@@ -101,6 +110,20 @@ function applyBucket(name, data) {
     if (i >= 0) state.maps[i] = data.map;
     else state.maps.push(data.map);
   }
+}
+
+// Primera vez que se recibe un bloque: manda la nube, pero lo que solo existe aquí se conserva
+// (en las listas con id se juntan ambas; si un id está en las dos, gana la de la nube).
+function mergeByIds(local, remote) {
+  const out = { ...remote };
+  for (const [k, v] of Object.entries(remote)) {
+    const mine = local?.[k];
+    const withIds = (list) => list.every((x) => x && typeof x === 'object' && x.id !== undefined);
+    if (!Array.isArray(v) || !Array.isArray(mine) || !withIds(v) || !withIds(mine)) continue;
+    const ids = new Set(v.map((x) => x.id));
+    out[k] = v.concat(mine.filter((x) => !ids.has(x.id)));
+  }
+  return out;
 }
 
 function removeBucket(name) {
@@ -134,7 +157,7 @@ function scheduleSync() {
 
 // Sube los bloques que cambiaron, de uno en uno; si hubo cambios mientras tanto, repite al terminar.
 async function pushState() {
-  if (!sync.col) return;
+  if (!sync.col || idb.blocked) return;
   if (sync.writing) {
     sync.dirty = true;
     return;
@@ -144,9 +167,15 @@ async function pushState() {
   let tooBig = false;
   try {
     const buckets = localBuckets();
+    const startSent = { ...meta.sent };
     for (const [name, data] of buckets) {
       const json = JSON.stringify(data);
       if (meta.sent[name] === json) continue;
+      // Mientras se subían otros llegó una versión de este bloque: se vuelve a mirar al terminar.
+      if (meta.sent[name] !== startSent[name]) {
+        sync.dirty = true;
+        continue;
+      }
       const now = Date.now();
       try {
         await sync.col.doc(name).set({ ...JSON.parse(json), updatedAt: now });
@@ -161,7 +190,7 @@ async function pushState() {
     }
     // Mapas borrados en este dispositivo.
     for (const name of Object.keys(meta.sent)) {
-      if (/^(map|note|canvas)-/.test(name) && !buckets.has(name)) {
+      if (/^(map|note|canvas)-/.test(name) && !buckets.has(name) && meta.sent[name] === startSent[name] && !localBuckets().has(name)) {
         await sync.col.doc(name).delete();
         delete meta.sent[name];
         delete meta.times[name];
@@ -207,12 +236,19 @@ function receiveSnapshot(snap, first) {
     // Nunca se pisa con una copia vacía lo que este dispositivo tiene sin subir.
     if (localDirty && meta.sent[name] === undefined && bucketIsEmpty(name, body) && !bucketIsEmpty(name, localData)) continue;
     // Si este bloque cambió aquí después que en la nube, gana el de aquí (la bitácora siempre se fusiona).
+    // La primera vez que llega un bloque no gana nunca la copia de aquí: se junta con la de la nube.
     const isLog = name.startsWith('log-');
-    if (!isLog && localDirty && (state.updatedAt || 0) > remoteAt) continue;
+    const firstSync = meta.sent[name] === undefined;
+    const ln = name.startsWith('note-') && localData?.note;
+    const localAt = Math.max(state.updatedAt || 0, (ln && ln.updatedAt) || 0);
+    const pending = ln && ((noteSaveTimer && activeNote()?.id === ln.id) || encryptTimers.has(ln.id));
+    if (!isLog && localDirty && !firstSync && (localAt > remoteAt || pending)) continue;
 
-    applyBucket(name, body);
-    // Tras fusionar la bitácora, lo que quede distinto de la nube se vuelve a subir.
-    meta.sent[name] = isLog ? JSON.stringify(body) : JSON.stringify(localBuckets().get(name) ?? body);
+    const incoming = !isLog && firstSync && localDirty ? mergeByIds(localData, body) : body;
+    const merged = incoming !== body && JSON.stringify(incoming) !== JSON.stringify(body);
+    applyBucket(name, incoming);
+    // Tras fusionar (la bitácora o una primera vez), lo que quede distinto de la nube se vuelve a subir.
+    meta.sent[name] = isLog || merged ? JSON.stringify(body) : JSON.stringify(localBuckets().get(name) ?? body);
     meta.times[name] = remoteAt;
     changed = true;
   }
