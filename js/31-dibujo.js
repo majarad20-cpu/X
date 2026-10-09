@@ -1961,18 +1961,31 @@ document.addEventListener('keyup', (e) => {
   }
 });
 
-document.addEventListener('copy', (e) => {
-  if ($('#draw').hidden || xd.editingText || !xd.selected.size) return;
+// Copia lo seleccionado (con sus textos) al portapapeles interno y devuelve el texto para el del sistema.
+function xdCopySelection() {
   const els = xdSelectedEls().flatMap((x) => [x, xdBoundText(x)].filter(Boolean));
   xd.clipboard = JSON.parse(JSON.stringify(els));
-  e.clipboardData?.setData('text/plain', JSON.stringify({ type: 'excalidraw/clipboard', elements: els }));
+  return JSON.stringify({ type: 'excalidraw/clipboard', elements: els });
+}
+// Pega elementos en el centro de la vista, con ids nuevos, y los deja seleccionados.
+function xdPasteElements(els) {
+  if (!els?.length) return;
+  const b = xdSceneBounds(els.map(xdNormalize));
+  const [cx, cy] = xdToWorld(xdCanvas.clientWidth / 2, xdCanvas.clientHeight / 2);
+  xdMutate(() => {
+    const copies = xdCloneEls(els.map(xdNormalize), cx - (b[0] + b[2]) / 2, cy - (b[1] + b[3]) / 2);
+    xd.elements.push(...copies);
+    xd.selected = new Set(copies.filter((c) => !c.containerId).map((c) => c.id));
+  });
+}
+document.addEventListener('copy', (e) => {
+  if ($('#draw').hidden || xd.editingText || !xd.selected.size) return;
+  e.clipboardData?.setData('text/plain', xdCopySelection());
   e.preventDefault();
 });
 document.addEventListener('cut', (e) => {
   if ($('#draw').hidden || xd.editingText || !xd.selected.size) return;
-  const els = xdSelectedEls().flatMap((x) => [x, xdBoundText(x)].filter(Boolean));
-  xd.clipboard = JSON.parse(JSON.stringify(els));
-  e.clipboardData?.setData('text/plain', JSON.stringify({ type: 'excalidraw/clipboard', elements: els }));
+  e.clipboardData?.setData('text/plain', xdCopySelection());
   e.preventDefault();
   xdMutate(() => xdDelete([...xd.selected]));
 });
@@ -1993,15 +2006,8 @@ document.addEventListener('paste', async (e) => {
   }
   if (!els && xd.clipboard) els = xd.clipboard;
   e.preventDefault();
-  if (els?.length) {
-    const b = xdSceneBounds(els.map(xdNormalize));
-    const [cx, cy] = xdToWorld(xdCanvas.clientWidth / 2, xdCanvas.clientHeight / 2);
-    xdMutate(() => {
-      const copies = xdCloneEls(els.map(xdNormalize), cx - (b[0] + b[2]) / 2, cy - (b[1] + b[3]) / 2);
-      xd.elements.push(...copies);
-      xd.selected = new Set(copies.filter((c) => !c.containerId).map((c) => c.id));
-    });
-  } else if (text.trim()) {
+  if (els?.length) xdPasteElements(els);
+  else if (text.trim()) {
     // Texto pegado: un texto nuevo en el centro.
     const [cx, cy] = xdToWorld(xdCanvas.clientWidth / 2, xdCanvas.clientHeight / 2);
     xdMutate(() => {

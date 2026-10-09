@@ -590,13 +590,7 @@ function renderTree() {
         const more = el('button', { className: 'tree-more', title: 'Opciones de la carpeta', ariaLabel: `Opciones de ${baseName(f)}` }, ico('more'));
         more.addEventListener('click', (e) => {
           e.stopPropagation();
-          showMenu(more, [
-            { label: 'Nueva nota aquí', action: () => createNote({ folder: f }) },
-            { label: 'Ver como tabla', action: () => openFolderTable(f) },
-            { label: 'Nueva subcarpeta', action: () => promptText({ placeholder: 'Nombre de la subcarpeta', action: 'Crear carpeta', onSubmit: (v) => createFolder(joinPath(f, v)) }) },
-            { label: 'Renombrar', action: () => promptText({ placeholder: 'Nuevo nombre', initial: baseName(f), action: 'Renombrar', onSubmit: (v) => renameFolder(f, v) }) },
-            { label: 'Eliminar carpeta', danger: true, action: () => deleteFolder(f) },
-          ]);
+          showMenu(more, folderMenuItems(f));
         });
         row.append(more);
         const toggle = () => {
@@ -645,6 +639,17 @@ function renderTree() {
   tree.replaceChildren(...build('', 0));
   if (!state.notes.length && !folders.length) tree.append(el('p', { className: 'muted side-empty' }, 'Aún no hay notas. Crea una con el botón + o abre la nota diaria.'));
   dropTarget(tree, '');
+}
+
+// Opciones de una carpeta (botón ⋯ del explorador y clic derecho).
+function folderMenuItems(f) {
+  return [
+    { label: 'Nueva nota aquí', action: () => createNote({ folder: f }) },
+    { label: 'Ver como tabla', action: () => openFolderTable(f) },
+    { label: 'Nueva subcarpeta', action: () => promptText({ placeholder: 'Nombre de la subcarpeta', action: 'Crear carpeta', onSubmit: (v) => createFolder(joinPath(f, v)) }) },
+    { label: 'Renombrar', action: () => promptText({ placeholder: 'Nuevo nombre', initial: baseName(f), action: 'Renombrar', onSubmit: (v) => renameFolder(f, v) }) },
+    { label: 'Eliminar carpeta', danger: true, action: () => deleteFolder(f) },
+  ];
 }
 
 function dropTarget(node, folder) {
@@ -1136,8 +1141,7 @@ function noteMenuItems(note) {
   return [
     { label: 'Renombrar', action: () => $('#note-title').select() },
     { label: 'Mover a carpeta…', action: () => pickFolder(note) },
-    { label: 'Abrir en pestaña nueva', action: () => openNote(note, { newTab: true }) },
-    { label: 'Copiar enlace [[…]]', action: () => copyText(`[[${baseName(note.path)}]]`, 'Enlace copiado') },
+    { label: 'Copiar enlace [[…]]', action: () => copyNoteLink(note) },
     { label: 'Insertar plantilla…', action: insertTemplate },
     { label: 'Crear mapa mental de esta nota', action: () => mapFromNote(note) },
     { label: 'Ver en el grafo', action: () => {
@@ -1149,10 +1153,12 @@ function noteMenuItems(note) {
       renderRightPanel();
     } },
     ...NOTE_MENU_EXTRA.map((f) => f(note)).filter(Boolean),
-    ...(note.enc ? [] : [{ label: 'Duplicar', action: () => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false }) }]),
+    ...(note.enc ? [] : [{ label: 'Duplicar', action: () => duplicateNote(note) }]),
     { label: 'Eliminar nota', danger: true, action: () => deleteNote(note) },
   ];
 }
+const duplicateNote = (note) => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false });
+const copyNoteLink = (note) => copyText(`[[${baseName(note.path)}]]`, 'Enlace copiado');
 
 async function copyText(text, done) {
   try {
@@ -1273,10 +1279,19 @@ function suggestKey(e) {
 }
 
 // ---------- Menú contextual ----------
+// `anchor` es un elemento (el menú sale debajo) o un punto { x, y } (clic derecho).
 function showMenu(anchor, items) {
   const menu = $('#note-menu');
+  // Sin separadores al principio, al final ni seguidos.
+  const list = [];
+  for (const it of items.filter(Boolean)) {
+    if (it.sep && (!list.length || list[list.length - 1].sep)) continue;
+    list.push(it);
+  }
+  while (list.length && list[list.length - 1].sep) list.pop();
+  if (!list.length) return;
   menu.replaceChildren(
-    ...items.map((it) => {
+    ...list.map((it) => {
       if (it.sep) return el('hr', { className: 'menu-sep' });
       const b = el('button', { className: `menu-item${it.danger ? ' danger' : ''}`, role: 'menuitem', disabled: !!it.disabled }, [el('span', {}, it.label), it.kbd ? el('kbd', { className: 'menu-kbd' }, it.kbd) : '']);
       b.addEventListener('click', () => {
@@ -1286,10 +1301,17 @@ function showMenu(anchor, items) {
       return b;
     })
   );
+  const point = !anchor.getBoundingClientRect;
+  menu.classList.toggle('ctx', point);
   menu.hidden = false;
-  const r = anchor.getBoundingClientRect();
-  menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8)}px`;
-  menu.style.left = `${Math.max(8, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8))}px`;
+  if (point) {
+    menu.style.left = `${Math.max(8, Math.min(anchor.x, window.innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(anchor.y, window.innerHeight - menu.offsetHeight - 8))}px`;
+  } else {
+    const r = anchor.getBoundingClientRect();
+    menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8)}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8))}px`;
+  }
   menu.querySelector('button')?.focus();
 }
 const hideMenu = () => ($('#note-menu').hidden = true);

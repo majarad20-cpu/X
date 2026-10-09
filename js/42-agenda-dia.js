@@ -140,7 +140,7 @@ const dvPlace = (b) => `top:${(b.start / 60) * DV_HOUR}px;height:${Math.max(22, 
 function dvTaskBlock(b) {
   const { t, ghost } = b;
   const node = el('div', { className: `dv-block task p${t.priority}${t.done ? ' done' : ''}${ghost ? ' ghost' : ''}${t.virtual ? ' virtual' : ''}${b.end - b.start <= 30 ? ' short' : ''}`, style: dvPlace(b), tabIndex: 0, role: 'button', ariaLabel: `${t.time} ${t.title}` });
-  node.dataset.id = t.id;
+  if (!ghost) node.dataset.id = t.id;
   const box = el('input', { type: 'checkbox', checked: !!t.done, disabled: ghost, ariaLabel: `Completar ${t.title}` });
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
   box.addEventListener('change', () => dvToggle(t, box.checked));
@@ -332,10 +332,7 @@ function dvOpenPop(t, anchor) {
     const del = el('button', { type: 'button', className: 'danger-btn' }, 'Borrar');
     del.addEventListener('click', () => {
       hideDvPop();
-      withUndo('Tarea borrada', () => {
-        state.tasks = state.tasks.filter((x) => x.id !== t.id);
-        state.archive = state.archive.filter((x) => x.id !== t.id);
-      });
+      deleteTask(t);
     });
     actions.push(del);
     if (cal.mcp) {

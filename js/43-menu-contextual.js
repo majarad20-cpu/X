@@ -7,89 +7,94 @@
 // En los campos de texto se deja el menú del navegador (cortar, copiar, pegar, ortografía).
 
 // Muestra el menú en un punto de la pantalla.
-function showMenuAt(x, y, items) {
-  const list = items.filter(Boolean).filter((it, i, all) => !(it.sep && (i === 0 || i === all.length - 1 || all[i - 1]?.sep)));
-  if (!list.length) return;
-  showMenu({ getBoundingClientRect: () => ({ bottom: y, right: x, top: y, left: x }) }, list);
-  const menu = $('#note-menu');
-  menu.classList.add('ctx');
-  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
-  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
-}
+const showMenuAt = (x, y, items) => showMenu({ x, y }, items);
 
 const findAnyTask = (id) => allTasks().find((t) => t.id === id) || noteTasks().find((t) => t.id === id);
+// Las acciones que llevan a otra vista cierran antes la agenda del día (si no, quedan detrás).
+const leaveDayView = () => !$('#dayview').hidden && closeDayView();
 
-function setTaskPriority(t, p) {
-  if (t.virtual) {
-    editNoteLine(t, (l) => `${l.replace(/\s*!(alta|media|baja)\b/giu, '')}${p === 2 ? '' : ` !${p === 3 ? 'alta' : 'baja'}`}`);
-  } else t.priority = p;
-  save();
-  renderAll();
-}
-
+// Fecha de una tarea (en las de una nota, cambia «📅 …» en su línea; también fechas como «📅 mañana»).
 function setTaskDate(t, key) {
-  if (t.virtual) {
-    editNoteLine(t, (l) => {
-      const clean = l.replace(/\s*📅\s*\d{4}-\d{2}-\d{2}/u, '');
-      return key ? `${clean} 📅 ${key}` : clean;
-    });
+  if (key) setTaskDue(t, key);
+  else if (t.virtual) {
+    editNoteLine(t, (l) => l.replace(/\s*📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u, ' ').replace(/\s+$/, ''));
   } else {
-    t.due = key;
-    if (!key) t.time = null;
+    t.due = null;
+    t.time = null;
   }
   save();
   renderAll();
   showToastMessage(key ? `Fecha: ${formatDue(key).toLowerCase()}` : 'Sin fecha');
 }
+// En una tarea de nota la fecha puede venir del nombre de la nota diaria (sin «📅» que quitar).
+const hasOwnDate = (t) => !!t.due && (!t.virtual || /📅/u.test(noteById(t.noteId)?.body.split('\n')[t.line] || ''));
+
+// Abre la tarea en el editor de la lista (la única vista donde se edita entera).
+function editTaskInList(t) {
+  leaveDayView();
+  showView('tasks');
+  if (taskView !== 'list') $('[data-taskview="list"]').click();
+  if (tagFilter && !(t.tags || []).includes(tagFilter)) setTagFilter(null);
+  startEditing(t.id);
+  reveal(document.querySelector('.view.active .task-edit'), { block: 'center' });
+}
+
+function duplicateTask(t) {
+  const copy = JSON.parse(JSON.stringify(t));
+  Object.assign(copy, { id: uid(), done: false, completedAt: null, createdAt: Date.now(), order: Date.now(), pomodoros: 0 });
+  for (const k of ['calEventId', 'status', 'remindedFor', 'snoozeUntil']) delete copy[k];
+  copy.subtasks = (copy.subtasks || []).map((st) => ({ ...st, id: uid(), done: false }));
+  state.tasks.push(copy);
+  save();
+  renderAll();
+  showToastMessage('Tarea duplicada');
+}
 
 function taskMenuItems(t) {
   const today = dateKey();
-  const mon = dateKey(addDays(weekStart(new Date()), 7));
+  const tomorrow = dateKey(addDays(new Date(), 1));
   const items = [];
-  if (t.virtual) items.push({ label: '📝 Abrir en su nota', action: () => openNoteAtLine(t.noteId, t.line) }, { label: '📝 Abrir la nota en pestaña nueva', action: () => openNoteAtLine(t.noteId, t.line, { newTab: true }) });
-  else items.push({ label: '✏️ Editar', action: () => (showView('tasks'), startEditing(t.id)) });
+  if (t.virtual)
+    items.push(
+      { label: '📝 Abrir en su nota', action: () => (leaveDayView(), openNoteAtLine(t.noteId, t.line)) },
+      { label: '📝 Abrir la nota en pestaña nueva', action: () => (leaveDayView(), openNoteAtLine(t.noteId, t.line, { newTab: true })) }
+    );
+  else items.push({ label: '✏️ Editar', action: () => editTaskInList(t) });
   items.push(
     { label: t.done ? '↺ Marcar como pendiente' : '✓ Marcar como hecha', action: () => (t.virtual ? toggleNoteTask(t.noteId, t.line, !t.done) : toggleDone(t, !t.done)) },
-    ...(!t.done && typeof setStatus === 'function' ? [{ label: statusOf(t) === 'doing' ? '○ Quitar «en curso»' : '◐ Marcar en curso', action: () => setStatus(t, statusOf(t) === 'doing' ? 'todo' : 'doing') }] : []),
+    ...(!t.done ? [{ label: statusOf(t) === 'doing' ? '○ Quitar «en curso»' : '◐ Marcar en curso', action: () => setStatus(t, statusOf(t) === 'doing' ? 'todo' : 'doing') }] : []),
     { sep: true },
     { label: `${t.due === today ? '✓ ' : ''}📅 Para hoy`, action: () => setTaskDate(t, today) },
-    { label: `${t.due === dateKey(addDays(new Date(), 1)) ? '✓ ' : ''}📅 Para mañana`, action: () => setTaskDate(t, dateKey(addDays(new Date(), 1))) },
-    { label: '📅 La próxima semana (lunes)', action: () => setTaskDate(t, mon) },
-    ...(t.due ? [{ label: '📅 Quitar la fecha', action: () => setTaskDate(t, null) }] : []),
+    { label: `${t.due === tomorrow ? '✓ ' : ''}📅 Para mañana`, action: () => setTaskDate(t, tomorrow) },
+    { label: '📅 La próxima semana (lunes)', action: () => setTaskDate(t, dateKey(nextMonday())) },
+    ...(hasOwnDate(t) ? [{ label: '📅 Quitar la fecha', action: () => setTaskDate(t, null) }] : []),
     { label: '🕒 Abrir en la agenda del día', action: () => openDayView(t.due || today) },
     { sep: true },
-    ...[3, 2, 1].map((p) => ({ label: `${t.priority === p ? '● ' : '○ '}Prioridad ${PRIORITY_LABEL[p].toLowerCase()}`, action: () => setTaskPriority(t, p) }))
+    ...[3, 2, 1].map((p) => ({ label: `${t.priority === p ? '● ' : '○ '}Prioridad ${PRIORITY_LABEL[p].toLowerCase()}`, action: () => setPriority(t, p) }))
   );
   if (!t.virtual) {
     items.push({ sep: true });
     if (cal.mcp) items.push({ label: '📅 Agendar en Google Calendar…', action: () => openSchedule({ task: t, minutes: Number(t.duration) || 30 }) });
     items.push(
-      { label: '⧉ Duplicar', action: () => {
-        const copy = { ...JSON.parse(JSON.stringify(t)), id: uid(), done: false, completedAt: null, createdAt: Date.now(), calEventId: undefined };
-        state.tasks.push(copy);
-        save();
-        renderAll();
-        showToastMessage('Tarea duplicada');
-      } },
+      { label: '⧉ Duplicar', action: () => duplicateTask(t) },
       { label: 'Copiar el título', action: () => copyText(t.title, 'Título copiado') },
-      { label: 'Eliminar', danger: true, action: () => withUndo('Tarea borrada', () => {
-        state.tasks = state.tasks.filter((x) => x.id !== t.id);
-        state.archive = state.archive.filter((x) => x.id !== t.id);
-      }) }
+      { label: 'Eliminar', danger: true, action: () => deleteTask(t) }
     );
   }
   return items;
 }
 
+const isOpenInTab = (tab) => ws.tabs.some((x) => sameTab(x, tab));
+
 function treeNoteItems(note) {
   return [
     { label: 'Abrir', action: () => openNote(note) },
-    { label: 'Abrir en pestaña nueva', kbd: 'Ctrl+clic', action: () => openNote(note, { newTab: true }) },
+    ...(isOpenInTab({ type: 'note', id: note.id }) ? [] : [{ label: 'Abrir en pestaña nueva', kbd: 'Ctrl+clic', action: () => openNote(note, { newTab: true }) }]),
     { sep: true },
     { label: 'Renombrar…', action: () => promptText({ placeholder: 'Nuevo nombre', initial: baseName(note.path), action: 'Renombrar', onSubmit: (v) => renameNote(note, v) }) },
     { label: 'Mover a carpeta…', action: () => pickFolder(note) },
-    ...(note.enc ? [] : [{ label: 'Duplicar', action: () => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false }) }]),
-    { label: 'Copiar enlace [[…]]', action: () => copyText(`[[${baseName(note.path)}]]`, 'Enlace copiado') },
+    ...(note.enc ? [] : [{ label: 'Duplicar', action: () => duplicateNote(note) }]),
+    { label: 'Copiar enlace [[…]]', action: () => copyNoteLink(note) },
     ...(cal.mcp && !note.enc ? [{ label: '📄 Exportar a Google Docs', action: () => exportNoteToDocs(note) }] : []),
     { sep: true },
     { label: 'Eliminar nota', danger: true, action: () => deleteNote(note) },
@@ -99,24 +104,20 @@ function treeNoteItems(note) {
 function tabMenuItems(i) {
   const tab = ws.tabs[i];
   const note = tab?.type === 'note' ? noteById(tab.id) : null;
+  const closeWhere = (keep) => {
+    flushNoteSave();
+    const activeTabObj = ws.tabs[ws.active];
+    ws.tabs = ws.tabs.filter((x, k) => keep(k));
+    ws.active = Math.max(0, ws.tabs.indexOf(activeTabObj));
+    if (!ws.tabs.includes(activeTabObj)) ws.active = Math.min(i, ws.tabs.length - 1);
+    saveTabs();
+    renderAll();
+  };
   return [
-    ...(note ? [{ label: 'Abrir en pestaña nueva', action: () => openNote(note, { newTab: true }) }] : []),
-    { label: 'Cerrar', kbd: 'Ctrl+W', action: () => closeTab(i) },
-    { label: 'Cerrar las demás', disabled: ws.tabs.length < 2, action: () => {
-      flushNoteSave();
-      ws.tabs = [ws.tabs[i]];
-      ws.active = 0;
-      saveTabs();
-      renderAll();
-    } },
-    { label: 'Cerrar las de la derecha', disabled: i >= ws.tabs.length - 1, action: () => {
-      flushNoteSave();
-      ws.tabs = ws.tabs.slice(0, i + 1);
-      ws.active = Math.min(ws.active, i);
-      saveTabs();
-      renderAll();
-    } },
-    ...(note ? [{ sep: true }, { label: 'Copiar enlace [[…]]', action: () => copyText(`[[${baseName(note.path)}]]`, 'Enlace copiado') }] : []),
+    { label: 'Cerrar', kbd: 'Ctrl+W', action: () => (flushNoteSave(), closeTab(i)) },
+    { label: 'Cerrar las demás', disabled: ws.tabs.length < 2, action: () => closeWhere((k) => k === i) },
+    { label: 'Cerrar las de la derecha', disabled: i >= ws.tabs.length - 1, action: () => closeWhere((k) => k <= i) },
+    ...(note ? [{ sep: true }, { label: 'Copiar enlace [[…]]', action: () => copyNoteLink(note) }] : []),
   ];
 }
 
@@ -125,10 +126,20 @@ function readingItems(e, note) {
   const block = e.target.closest('#note-reading > [data-src]');
   const items = [];
   if (sel) items.push({ label: 'Copiar', kbd: 'Ctrl+C', action: () => copyText(sel, 'Copiado') });
-  if (block && noteMode.get(note.id) === 'read') items.push({ label: '✏️ Editar este bloque', kbd: 'Doble clic', action: () => {
-    const [from, to] = block.dataset.src.split('-').map(Number);
-    startBlockEdit(note, from, to, block, null);
-  } });
+  if (block && noteMode.get(note.id) === 'read') {
+    const point = { x: e.clientX, y: e.clientY };
+    items.push({ label: '✏️ Editar este bloque', kbd: 'Doble clic', action: () => {
+      // Si ya se editaba otro bloque, se cierra (las líneas pueden haber cambiado) y se busca de nuevo.
+      let target = block;
+      if (blockEdit || !block.isConnected) {
+        endBlockEdit();
+        target = document.elementFromPoint(point.x, point.y)?.closest('#note-reading > [data-src]');
+      }
+      if (!target) return;
+      const [from, to] = target.dataset.src.split('-').map(Number);
+      startBlockEdit(note, from, to, target, point);
+    } });
+  }
   items.push(
     { label: isEditing(note.id) ? 'Modo lectura' : 'Editar la nota entera', kbd: 'Ctrl+E', action: toggleNoteMode },
     { label: '✏️ Nuevo dibujo…', action: () => openDrawing() },
@@ -157,12 +168,16 @@ document.addEventListener('contextmenu', (e) => {
 
   // Dibujo
   if (t.closest('#draw-canvas')) {
+    // Como en Excalidraw: el clic derecho elige lo que hay debajo (o nada, sobre el fondo).
+    const hit = xdHitElement(xdPoint(e));
+    if (hit && !xd.selected.has(hit.id)) xdSelect(xdGroupMembers(hit));
+    else if (!hit) xdSelect([]);
     const sel = xdSelectedEls();
     return show(
       sel.length
         ? [
             { label: 'Duplicar', kbd: 'Ctrl+D', action: xdDuplicate },
-            { label: 'Copiar', kbd: 'Ctrl+C', action: () => (xd.clipboard = JSON.parse(JSON.stringify(sel.flatMap((x) => [x, xdBoundText(x)].filter(Boolean))))) },
+            { label: 'Copiar', kbd: 'Ctrl+C', action: () => navigator.clipboard?.writeText(xdCopySelection()).catch(() => {}) },
             ...(sel.length > 1 ? [{ label: 'Agrupar', kbd: 'Ctrl+G', action: () => xdGroup(true) }] : []),
             ...(sel.some((x) => x.groupIds?.length) ? [{ label: 'Desagrupar', kbd: 'Ctrl+Mayús+G', action: () => xdGroup(false) }] : []),
             { sep: true },
@@ -172,7 +187,7 @@ document.addEventListener('contextmenu', (e) => {
             { label: 'Borrar', kbd: 'Supr', danger: true, action: () => xdMutate(() => xdDelete(sel.map((x) => x.id))) },
           ]
         : [
-            ...(xd.clipboard ? [{ label: 'Pegar', kbd: 'Ctrl+V', action: () => document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: new DataTransfer() })) }] : []),
+            ...(xd.clipboard ? [{ label: 'Pegar', kbd: 'Ctrl+V', action: () => xdPasteElements(xd.clipboard) }] : []),
             { label: 'Seleccionar todo', kbd: 'Ctrl+A', action: () => xdSelect(xdLive().filter((x) => !x.containerId).map((x) => x.id)) },
             { label: 'Encajar todo', kbd: 'Mayús+1', action: xdFit },
             { label: `${xd.grid ? '✓ ' : ''}Cuadrícula`, kbd: "Ctrl+'", action: () => ((xd.grid = !xd.grid), xdScheduleRender()) },
@@ -186,7 +201,7 @@ document.addEventListener('contextmenu', (e) => {
   if (taskEl) {
     const task = findAnyTask(taskEl.dataset.id);
     if (task) {
-      hideDvPop?.();
+      hideDvPop();
       return show(taskMenuItems(task));
     }
   }
@@ -201,11 +216,7 @@ document.addEventListener('contextmenu', (e) => {
         openDayView(key);
         $('#dv-add-text').focus();
       } },
-      ...(cal.mcp ? [{ label: '🎯 Reservar tiempo en Google Calendar…', action: () => {
-        openSchedule({ minutes: 60 });
-        $('#gsched-date').value = key;
-        loadFreeSlots();
-      } }] : []),
+      ...(cal.mcp && key >= dateKey() ? [{ label: '🎯 Reservar tiempo en Google Calendar…', action: () => openSchedule({ minutes: 60, date: key }) }] : []),
     ]);
   }
   // Hueco libre de la agenda del día
@@ -222,14 +233,7 @@ document.addEventListener('contextmenu', (e) => {
     if (note) return show(treeNoteItems(note));
   }
   const folderRow = t.closest('.tree-row.folder');
-  if (folderRow) {
-    e.preventDefault();
-    folderRow.querySelector('.tree-more')?.click();
-    const menu = $('#note-menu');
-    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
-    return;
-  }
+  if (folderRow?.title) return show(folderMenuItems(folderRow.title));
   if (t.closest('#file-tree')) {
     return show([
       { label: 'Nueva nota', kbd: 'Ctrl+N', action: () => createNote({}) },
@@ -247,9 +251,10 @@ document.addEventListener('contextmenu', (e) => {
   // Barra de la izquierda
   const rib = t.closest('.rib[data-view]');
   if (rib) {
+    const view = rib.dataset.view;
     return show([
-      { label: 'Abrir', action: () => showView(rib.dataset.view) },
-      { label: 'Abrir en pestaña nueva', kbd: 'Ctrl+clic', action: () => showView(rib.dataset.view, { newTab: true }) },
+      { label: 'Abrir', action: () => showView(view) },
+      ...(isOpenInTab({ type: 'view', view }) ? [] : [{ label: 'Abrir en pestaña nueva', kbd: 'Ctrl+clic', action: () => showView(view, { newTab: true }) }]),
     ]);
   }
 
@@ -270,12 +275,14 @@ document.addEventListener('contextmenu', (e) => {
     const id = img.dataset.img;
     return show([
       ...(id && xdDrawingIds.has(id) ? [{ label: '✏️ Editar el dibujo', action: () => openDrawingFile(id) }] : []),
-      { label: 'Ver en grande', action: () => {
+      ...(img.src ? [{ label: 'Ver en grande', action: () => {
         $('#image-viewer-img').src = img.src;
+        $('#image-viewer-img').alt = img.alt;
         $('#image-viewer-caption').textContent = img.alt;
         $('#image-viewer').hidden = false;
+        $('#image-viewer-close').focus();
         updateViewerEdit(img);
-      } },
+      } }] : []),
       ...(id && typeof extractImageText === 'function' && typeof aiReady === 'function' && aiReady() ? [{ label: '📝 Sacar el texto (Claude)', action: () => extractImageText(id) }] : []),
     ]);
   }
@@ -285,13 +292,16 @@ document.addEventListener('contextmenu', (e) => {
   if (note && t.closest('#note-reading, .note-inner')) return show(readingItems(e, note));
 });
 
-// La tecla de menú con una tarea o una fila del explorador enfocada también abre su menú.
+// Teclado dentro de un menú abierto: flechas para moverse, Enter para elegir, Esc para cerrar.
+// Las teclas no siguen hasta la app (el dibujo, la agenda o los atajos generales no deben recibirlas).
 $('#note-menu').addEventListener('keydown', (e) => {
+  e.stopPropagation();
   const items = [...$$('#note-menu .menu-item:not([disabled])')];
   const i = items.indexOf(document.activeElement);
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+    const next = i < 0 ? (e.key === 'ArrowDown' ? 0 : items.length - 1) : (i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+    items[next]?.focus();
   } else if (e.key === 'Escape') {
     e.preventDefault();
     hideMenu();

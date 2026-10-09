@@ -226,7 +226,7 @@ function showGoogleLink(text, url, label) {
 // ---------- Agendar en Google Calendar ----------
 const sched = { task: null, title: '', busy: [] };
 
-function openSchedule({ task = null, title = '', minutes = null } = {}) {
+function openSchedule({ task = null, title = '', minutes = null, date = null } = {}) {
   if (!gAvailable()) return showToastMessage('Google Calendar solo está disponible al abrir la app desde Claude.');
   sched.task = task;
   const now = new Date();
@@ -235,7 +235,7 @@ function openSchedule({ task = null, title = '', minutes = null } = {}) {
   next.setMinutes(next.getMinutes() < 30 ? 30 : 60, 0, 0);
   $('#gsched-title').textContent = task ? '📅 Agendar en Google Calendar' : '🎯 Reservar tiempo de concentración';
   $('#gsched-name').value = task ? task.title : title || '🎯 Concentración';
-  $('#gsched-date').value = task?.due && task.due >= dateKey() ? task.due : dateKey(next);
+  $('#gsched-date').value = date && date >= dateKey() ? date : task?.due && task.due >= dateKey() ? task.due : dateKey(next);
   $('#gsched-time').value = task?.time || `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
   $('#gsched-dur').value = String(minutes || (task ? 30 : 60));
   $('#gsched-status').textContent = '';

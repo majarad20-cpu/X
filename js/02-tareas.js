@@ -226,6 +226,15 @@ function setTagFilter(tag) {
   renderTasks();
 }
 
+// Borra una tarea (con «Deshacer»).
+function deleteTask(t) {
+  if (editingId === t.id) editingId = null;
+  withUndo('Tarea borrada', () => {
+    state.tasks = state.tasks.filter((x) => x.id !== t.id);
+    state.archive = state.archive.filter((x) => x.id !== t.id);
+  });
+}
+
 function taskItem(t, { draggable = false } = {}) {
   if (t.virtual) return noteTaskItem(t);
   if (t.id === editingId) return taskEditor(t);
@@ -278,12 +287,7 @@ function taskItem(t, { draggable = false } = {}) {
   });
 
   const del = el('button', { className: 'del', title: 'Eliminar', ariaLabel: 'Eliminar' }, '✕');
-  del.addEventListener('click', () =>
-    withUndo('Tarea borrada', () => {
-      state.tasks = state.tasks.filter((x) => x.id !== t.id);
-      state.archive = state.archive.filter((x) => x.id !== t.id);
-    })
-  );
+  del.addEventListener('click', () => deleteTask(t));
 
   const row = [check, body, toggle, del];
   if (draggable && !t.done) row.unshift(dragHandle(t));

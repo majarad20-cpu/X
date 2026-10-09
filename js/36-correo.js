@@ -19,7 +19,7 @@ const MAIL_ERRORS = {
   server_unavailable: 'Gmail no responde ahora mismo. Prueba en un momento.',
 };
 const mailErrorText = (e) => MAIL_ERRORS[e?.code] || (e?.code === 'tool_error' ? 'Gmail respondió con un error. Prueba con otra búsqueda.' : 'No se pudo leer el correo.');
-const mail = { filter: 'starred', query: '', threads: [], loading: false, error: '', proposals: null };
+const mail = { filter: 'starred', query: '', threads: [], loading: false, error: '', proposals: null, req: 0 };
 
 const mailAvailable = () => !!cal.mcp;
 const isGmailUrl = (u) => typeof u === 'string' && u.startsWith('https://mail.google.com/');
@@ -48,12 +48,14 @@ function closeMail() {
 }
 
 async function loadMail() {
+  const req = ++mail.req;
   mail.loading = true;
   mail.error = '';
   renderMail();
   const query = mail.query.trim() || MAIL_FILTERS[mail.filter].q;
   try {
     const res = await cal.mcp.callTool('Gmail', 'search_threads', { query, pageSize: 25 });
+    if (req !== mail.req) return;
     const threads = res?.payload?.threads || [];
     mail.threads = threads.map((t) => {
       const m = t.messages?.[t.messages.length - 1] || {};
@@ -68,9 +70,11 @@ async function loadMail() {
       };
     }).filter((t) => t.id);
   } catch (e) {
+    if (req !== mail.req) return;
     mail.threads = [];
     mail.error = mailErrorText(e);
   } finally {
+    if (req !== mail.req) return;
     mail.loading = false;
     renderMail();
   }
@@ -84,7 +88,7 @@ function mailDate(iso) {
 }
 
 function taskFromMail(th, title = th.subject, extra = {}) {
-  addTask(title, extra);
+  addTask(title, { ...extra, raw: true });
   const t = state.tasks[state.tasks.length - 1];
   t.mail = { id: th.id, url: th.url };
   t.notes = [`De: ${th.sender}`, th.snippet].filter(Boolean).join('\n');
@@ -133,10 +137,11 @@ function renderMail() {
 
 // Claude lee el hilo completo y propone tareas; se eligen antes de crearlas.
 async function proposeFromMail(th) {
-  mail.proposals = { th, items: null, error: '' };
+  const p = (mail.proposals = { th, items: null, error: '' });
   renderMail();
   try {
     const res = await cal.mcp.callTool('Gmail', 'get_thread', { threadId: th.id, messageFormat: 'PLAIN_TEXT' });
+    if (mail.proposals !== p) return;
     const msgs = res?.payload?.messages || [];
     const text = msgs
       .map((m) => `De: ${m.sender || ''}\nFecha: ${m.date || ''}\n${m.plaintextBody || m.plaintext_body || m.snippet || ''}`)
@@ -149,13 +154,15 @@ async function proposeFromMail(th) {
       .filter((x) => x && typeof x.titulo === 'string' && x.titulo.trim())
       .slice(0, 6)
       .map((x) => ({ title: x.titulo.trim().slice(0, 160), due: /^\d{4}-\d{2}-\d{2}$/.test(x.fecha || '') ? x.fecha : null, priority: { alta: 3, media: 2, baja: 1 }[x.prioridad] || 2, on: true }));
-    mail.proposals.items = items;
+    if (mail.proposals !== p) return;
+    p.items = items;
   } catch (e) {
-    mail.proposals.error = e?.code && AI_ERRORS[e.code] ? aiErrorText(e) : mailErrorText(e);
     if (AI_FATAL.includes(e?.code)) {
       ai.unavailable = true;
       renderAIControls();
     }
+    if (mail.proposals !== p) return;
+    p.error = e?.code && AI_ERRORS[e.code] ? aiErrorText(e) : mailErrorText(e);
   }
   renderMail();
 }
