@@ -725,6 +725,17 @@
         <ul id="gdrive-backups" class="g-list" hidden></ul>
       </div>
 
+      <h2 class="section-title">Notas en Google Drive</h2>
+      <div class="card g-card" id="gvault-card">
+        <label class="switch"><input id="gvault-on" type="checkbox"> Guardar cada nota como archivo .md en la carpeta «Enfoque/Notas» de mi Drive</label>
+        <p class="muted">Se mantienen tus carpetas. Lo que edites en Drive (por ejemplo, con Obsidian) vuelve a la app. Las notas con contraseña no se suben. Si borras un archivo en Drive, la nota sigue en la app.</p>
+        <div class="row">
+          <button id="gvault-now">Sincronizar ahora</button>
+          <button id="gvault-open" hidden>Abrir la carpeta ↗</button>
+        </div>
+        <p id="gvault-status" class="muted" role="status"></p>
+      </div>
+
       <h2 class="section-title">Resumen semanal por Gmail</h2>
       <div class="card g-card" id="gweekly-card">
         <label class="switch"><input id="gweekly-on" type="checkbox"> Enviarme cada semana un resumen de lo que hice y lo que viene</label>
@@ -1058,6 +1069,7 @@
   <script src="js/41-google.js"></script>
   <script src="js/42-agenda-dia.js"></script>
   <script src="js/43-menu-contextual.js"></script>
+  <script src="js/44-boveda-drive.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
