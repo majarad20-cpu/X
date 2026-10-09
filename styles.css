@@ -1901,3 +1901,9 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
 .menu-item:disabled { opacity: .45; cursor: default; }
 .menu-kbd { font-size: .7rem; color: var(--muted); font-family: inherit; border: 0; background: none; padding: 0; }
 .menu-sep { border: 0; border-top: 1px solid var(--border); margin: 4px 6px; }
+
+/* ---------- Búsqueda con operadores ---------- */
+.search-help { font-size: .8rem; padding: 0 12px; }
+.search-help p { margin: 3px 0; }
+.search-help code { cursor: pointer; background: var(--side); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+.search-help code:hover { border-color: var(--accent); }

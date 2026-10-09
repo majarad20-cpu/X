@@ -718,28 +718,44 @@ function highlight(raw, terms) {
 }
 
 function renderSearch() {
-  const q = $('#note-search').value.trim().toLowerCase();
+  const q = $('#note-search').value.trim();
   const box = $('#search-results');
   if (!q) {
-    box.replaceChildren(el('p', { className: 'muted side-empty' }, 'Escribe para buscar en títulos y contenido. Usa #etiqueta para filtrar por etiqueta.'));
+    box.replaceChildren(
+      el('p', { className: 'muted side-empty' }, 'Escribe para buscar en títulos y contenido.'),
+      el('div', { className: 'muted search-help' }, [
+        el('p', {}, 'Operadores:'),
+        ...[
+          ['"frase exacta"', 'la frase tal cual'],
+          ['-palabra', 'sin esa palabra'],
+          ['a OR b', 'una u otra'],
+          ['#etiqueta  tag:#etiqueta', 'por etiqueta'],
+          ['file:nombre  path:carpeta', 'por nombre o carpeta'],
+          ['content:texto  line:(a b)', 'en el texto, o a y b en la misma línea'],
+          ['task-todo:texto  task-done:', 'en tareas pendientes o hechas'],
+          ['[estado]  [estado:leído]', 'por propiedad'],
+          ['/expresión/', 'expresión regular'],
+        ].map(([code, what]) => el('p', {}, [el('code', {}, code), ` ${what}`])),
+      ])
+    );
+    box.querySelectorAll('.search-help code').forEach((c) =>
+      c.addEventListener('click', () => {
+        $('#note-search').value = c.textContent.split('  ')[0];
+        $('#note-search').focus();
+        renderSearch();
+      })
+    );
     return;
   }
-  const terms = q.split(/\s+/);
-  const tagTerms = terms.filter((t) => t.startsWith('#')).map((t) => t.slice(1));
-  const words = terms.filter((t) => !t.startsWith('#'));
-  const results = state.notes
-    .filter((n) => {
-      const hay = `${n.path}\n${n.body}`.toLowerCase();
-      const tags = tagsIn(n.body);
-      return words.every((w) => hay.includes(w)) && tagTerms.every((t) => tags.some((x) => x === t || x.startsWith(`${t}/`)));
-    })
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const groups = parseSearch(q);
+  const words = searchHighlights(groups);
+  const results = state.notes.filter((n) => groups.length && noteMatchesSearch(n, groups)).sort((a, b) => b.updatedAt - a.updatedAt);
   box.replaceChildren(
     el('p', { className: 'muted search-count' }, plural(results.length, 'resultado', 'resultados')),
     ...results.map((n) => {
-      const lines = n.body.split('\n').filter((l) => terms.some((t) => l.toLowerCase().includes(t))).slice(0, 3);
+      const lines = searchPreviewLines(n, groups);
       const item = el('button', { className: 'search-hit' });
-      item.innerHTML = `<span class="sh-title">${highlight(baseName(n.path), words)}</span>${folderOf(n.path) ? `<span class="sh-path">${escHtml(folderOf(n.path))}</span>` : ''}${lines.map((l) => `<span class="sh-line">${highlight(l.trim().slice(0, 140), terms)}</span>`).join('')}`;
+      item.innerHTML = `<span class="sh-title">${highlight(baseName(n.path), words)}</span>${folderOf(n.path) ? `<span class="sh-path">${escHtml(folderOf(n.path))}</span>` : ''}${lines.map((l) => `<span class="sh-line">${highlight(l.trim().slice(0, 140), words)}</span>`).join('')}`;
       item.addEventListener('click', (e) => openNote(n, { newTab: e.ctrlKey || e.metaKey }));
       return item;
     })

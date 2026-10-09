@@ -7,6 +7,38 @@
 //   carpeta: Libros       #etiqueta        columnas: autor, estado, nota       orden: nota desc
 const tableSort = new Map(); // orden elegido al tocar una cabecera (por bloque, mientras dura la sesión)
 
+// YAML sencillo: comillas solo cuando hacen falta (dos puntos, #, o un primer carácter especial).
+function yamlScalar(v) {
+  const s = String(v ?? '').replace(/\n/g, ' ');
+  if (!s) return '';
+  if (!/[:#]/.test(s) && !/^[\s\-?,[\]{}&*!|>'"%@`]/.test(s) && !/\s$/.test(s)) return s;
+  return s.includes('"') && !s.includes("'") ? `'${s}'` : `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+function yamlUnquote(v) {
+  const s = String(v ?? '').trim();
+  if (/^"(.*)"$/.test(s)) return s.slice(1, -1).replace(/\\(["\\])/g, '$1');
+  if (/^'(.*)'$/.test(s)) return s.slice(1, -1).replace(/''/g, "'");
+  return s;
+}
+// «[a, "b, c"]» -> ['a', 'b, c'] (respetando las comillas).
+function yamlFlowList(v) {
+  const out = [];
+  let cur = '';
+  let q = '';
+  for (const ch of v.trim().slice(1, -1)) {
+    if (q) q = ch === q ? '' : q;
+    else if (ch === '"' || ch === "'") q = ch;
+    else if (ch === ',') {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map(yamlUnquote).filter(Boolean);
+}
+
 function parseProps(body) {
   const lines = body.split('\n');
   if (lines[0]?.trim() !== '---') return { props: [], end: -1 };
@@ -16,13 +48,24 @@ function parseProps(body) {
   for (let i = 1; i < end; i++) {
     // La clave es todo lo que hay hasta los primeros dos puntos (¿Leído?, Precio €…), como la escribe setProp.
     const m = lines[i].match(/^\s*([^\s:#-][^:]*?)\s*:\s*(.*)$/u);
-    if (m) props.push({ key: m[1].trim(), value: m[2].trim(), line: i });
+    if (!m) continue;
+    const p = { key: m[1].trim(), value: m[2].trim(), line: i, to: i };
+    // Lista con guiones en las líneas siguientes (y las líneas sangradas que sigan) forman parte de la propiedad.
+    while (p.to + 1 < end && /^(\s+\S|-\s|-$)/.test(lines[p.to + 1])) p.to++;
+    const items = lines.slice(i + 1, p.to + 1).filter((l) => /^\s*-(\s|$)/.test(l)).map((l) => yamlUnquote(l.replace(/^\s*-\s*/, ''))).filter(Boolean);
+    if (/^\[.*\]$/.test(p.value)) p.items = yamlFlowList(p.value);
+    else if (!p.value && items.length) p.items = items;
+    if (p.items) p.value = p.items.join(', ');
+    else p.value = yamlUnquote(p.value);
+    props.push(p);
+    i = p.to;
   }
   return { props, end };
 }
 
 const propOf = (note, key) => parseProps(note.body).props.find((p) => p.key.toLowerCase() === key.toLowerCase())?.value ?? '';
 
+// Cambia (o añade) una propiedad. Si era una lista, se reescribe entera como lista con guiones.
 function setProp(note, rawKey, value) {
   const key = String(rawKey).replace(/[:\n]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!key) return;
@@ -30,9 +73,12 @@ function setProp(note, rawKey, value) {
   const { props, end } = parseProps(note.body);
   const clean = String(value).replace(/\n/g, ' ').trim();
   const found = props.find((p) => p.key.toLowerCase() === key.toLowerCase());
-  if (found) lines[found.line] = `${found.key}: ${clean}`;
-  else if (end > 0) lines.splice(end, 0, `${key}: ${clean}`);
-  else lines.unshift('---', `${key}: ${clean}`, '---');
+  if (found) {
+    const items = clean.split(',').map((x) => x.trim()).filter(Boolean);
+    const rows = found.items ? (items.length ? [`${found.key}:`, ...items.map((x) => `  - ${yamlScalar(x)}`)] : [`${found.key}: []`]) : [`${found.key}: ${yamlScalar(clean)}`];
+    lines.splice(found.line, found.to - found.line + 1, ...rows);
+  } else if (end > 0) lines.splice(end, 0, `${key}: ${yamlScalar(clean)}`);
+  else lines.unshift('---', `${key}: ${yamlScalar(clean)}`, '---');
   note.body = lines.join('\n');
   note.updatedAt = Date.now();
 }
@@ -99,9 +145,9 @@ function renderNoteTable(box, src, selfId) {
     return el('th', { scope: 'col', ariaSort: on ? (sort.desc ? 'descending' : 'ascending') : null }, b);
   };
   const editable = (n, col) => {
-    const td = el('td', { className: 'nt-cell', tabIndex: 0, title: 'Toca para editar' }, propOf(n, col));
-    const edit = () => {
-      if (td.querySelector('input')) return;
+    const td = el('td', { className: 'nt-cell', tabIndex: 0, title: 'Toca para editar' }, cellView(n, col));
+    const edit = (e) => {
+      if (td.querySelector('input:not(.nt-check)') || e?.target?.closest?.('.nt-check')) return;
       const input = el('input', { type: 'text', value: propOf(n, col), ariaLabel: `${col} de ${baseName(n.path)}` });
       let done = false;
       const commit = (keep) => {
