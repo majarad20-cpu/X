@@ -29,6 +29,7 @@ const b64ToText = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64), (
 
 async function startGoogle() {
   renderGoogleSettings();
+  renderVaultSettings();
   $('#focus-block').hidden = !gAvailable();
   if (!gAvailable()) return;
   // Lo automático va después de que la app se haya dibujado y sin bloquear nada.
@@ -38,6 +39,7 @@ async function startGoogle() {
 async function runGoogleAutomations() {
   const g = gSettings();
   if (g.driveAuto && g.driveLast !== dateKey()) await backupToDrive({ auto: true });
+  if (vaultOn()) await syncVault({ adopt: !Object.keys(vaultMap().files).length });
   // Un envío sin confirmar de esta semana solo se repite a mano.
   if (g.weekly && weeklyDue() && g.weeklySending?.week !== weekKey()) await sendWeeklySummary({ auto: true });
 }
