@@ -5,7 +5,7 @@
 // sabe reconocer la voz, escribe además la transcripción mientras hablas. Dentro de Claude el
 // navegador puede no dar acceso al micrófono: entonces se explica y no se graba nada.
 const VOICE_MAX_MS = 5 * 60 * 1000;
-const voice = { rec: null, stream: null, chunks: [], started: 0, timer: null, speech: null, final: '', interim: '', noteId: null, caret: null, cancelled: false, meter: null };
+const voice = { rec: null, stream: null, chunks: [], started: 0, timer: null, speech: null, final: '', interim: '', noteId: null, caret: null, cancelled: false, meter: null, seq: 0 };
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const canRecord = () => !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
@@ -20,6 +20,8 @@ async function openVoice() {
   if (!note) return showToastMessage('Abre una nota para grabar una nota de voz.');
   if (note.enc) return showToastMessage('Las notas con contraseña no admiten grabaciones.');
   flushNoteSave();
+  if (voice.stream) stopTracks();
+  const seq = ++voice.seq;
   const ta = $('#note-editor');
   voice.noteId = note.id;
   voice.caret = !ta.hidden && ta.dataset.note === note.id ? (document.activeElement === ta ? ta.selectionStart : Number(ta.dataset.caret ?? ta.value.length)) : null;
@@ -34,8 +36,12 @@ async function openVoice() {
   $('#voice-stop').disabled = true;
   if (!canRecord()) return voiceError('Este navegador no permite grabar audio.');
   try {
-    voice.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Cancelado o reabierto mientras se pedía permiso: no se graba.
+    if (seq !== voice.seq || voice.cancelled || $('#voice').hidden) return stream.getTracks().forEach((t) => t.stop());
+    voice.stream = stream;
   } catch (e) {
+    if (seq !== voice.seq || voice.cancelled || $('#voice').hidden) return;
     return voiceError(
       e?.name === 'NotAllowedError' || e?.name === 'SecurityError'
         ? 'No hay permiso para usar el micrófono. Dentro de Claude el navegador puede no permitirlo; en la app de escritorio funcionará.'

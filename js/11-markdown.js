@@ -34,6 +34,8 @@ const mathHtml = (tex, display) => `<span class="math${display ? ' display' : ''
 // Notas al pie de la nota que se está dibujando (las crea renderMd en su llamada exterior).
 let mdNotes = null;
 let mdNotesSeq = 0;
+// Con `ctx.noExternalImages` (texto de la IA) las imágenes de internet salen como enlace.
+let mdNoExtImg = false;
 function footnoteRef(def) {
   const f = mdNotes;
   let n = f.order.indexOf(def) + 1;
@@ -67,6 +69,7 @@ function inlineMd(text) {
     // Imagen de internet: ![descripción|300](https://…).
     .replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/gi, (_, raw, url) => {
       const { alt, style } = imgSize(raw);
+      if (mdNoExtImg) return hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">🖼 ${escHtml(alt || url)}</a>`);
       return hold(`<img class="note-img ext" src="${escHtml(url)}" alt="${escHtml(alt)}" loading="lazy" referrerpolicy="no-referrer"${style}>`);
     })
     // Nota de voz: ![🎤 Nota de voz · 0:42](audio:ID).
@@ -183,15 +186,19 @@ function propValueHtml(key, value) {
 }
 
 // Devuelve el HTML de una nota. `ctx.noteId` identifica la nota (para marcar casillas),
-// `ctx.depth` limita las notas incrustadas y `ctx.lineOffset` corrige los números de línea.
+// `ctx.depth` limita las notas incrustadas, `ctx.lineOffset` corrige los números de línea y
+// `ctx.noExternalImages` no carga imágenes de internet.
 function renderMd(src, ctx = {}) {
   const outer = !mdNotes;
   if (outer) mdNotes = { defs: new Map(), refs: new Map(), order: [], pre: `fn${++mdNotesSeq}-` };
+  const noImg = mdNoExtImg;
+  if (ctx.noExternalImages) mdNoExtImg = true;
   try {
     const html = renderBlocks(src, ctx);
     return outer ? html + footnotesHtml() : html;
   } finally {
     if (outer) mdNotes = null;
+    mdNoExtImg = noImg;
   }
 }
 

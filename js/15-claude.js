@@ -253,17 +253,17 @@ async function generateSummary() {
       cache: false,
       onText: ({ text: t }) => {
         status.textContent = '';
-        out.innerHTML = renderMd(t, { noTasks: true });
+        out.innerHTML = renderMd(t, { noTasks: true, noExternalImages: true });
       },
     });
     lastSummary = text;
-    out.innerHTML = renderMd(text, { noTasks: true });
+    out.innerHTML = renderMd(text, { noTasks: true, noExternalImages: true });
     status.textContent = truncated ? 'El resumen quedó cortado. Puedes generarlo de nuevo.' : '';
     $('#summary-save').hidden = false;
   } catch (e) {
     if (e?.text) {
       lastSummary = e.text;
-      out.innerHTML = renderMd(e.text, { noTasks: true });
+      out.innerHTML = renderMd(e.text, { noTasks: true, noExternalImages: true });
     }
     handleAIError(e, status);
   } finally {
@@ -289,7 +289,7 @@ $('#summary-save').addEventListener('click', () => {
   if (!state.folders.includes('Revisiones')) state.folders.push('Revisiones');
   const title = `Semana ${year}-W${String(week).padStart(2, '0')}`;
   const existing = findNoteByName(`Revisiones/${title}`);
-  if (existing) {
+  if (existing && !existing.enc) {
     existing.body = `${existing.body.replace(/\s*$/, '')}\n\n---\n\n${lastSummary}\n`;
     existing.updatedAt = Date.now();
     save();

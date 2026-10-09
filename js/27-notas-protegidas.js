@@ -5,11 +5,16 @@
 // con PBKDF2) y solo se guarda y sincroniza cifrado. La contraseña no se guarda en ningún sitio:
 // si se olvida, la nota no se puede recuperar.
 const LOCKED_BODY = '🔒 Nota protegida con contraseña.';
-const lockKeys = new Map(); // id de nota → clave, mientras está desbloqueada
+const lockKeys = new Map(); // id de nota → { key, salt }, mientras está desbloqueada
 const encryptTimers = new Map();
 const lockUI = { mode: null, noteId: null, error: '' }; // mode: 'setup' al proteger una nota
 
-const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const b64 = (buf) => {
+  const bytes = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 async function deriveKey(password, salt) {
@@ -36,7 +41,7 @@ async function protectNote(note, password) {
   note.body = LOCKED_BODY;
   note.updatedAt = Date.now();
   unlockedNotes.set(note.id, text);
-  lockKeys.set(note.id, key);
+  lockKeys.set(note.id, { key, salt: note.enc.salt });
   forgetHistory(note.id); // las versiones anteriores estaban en claro
   delete state.syncMeta.sent[`note-${note.id}`]; // y la copia de lo último subido también (se volverá a subir cifrada)
   save();
@@ -45,10 +50,11 @@ async function protectNote(note, password) {
 
 async function unlockNote(note, password) {
   try {
-    const key = await deriveKey(password, unb64(note.enc.salt));
+    const salt = note.enc.salt;
+    const key = await deriveKey(password, unb64(salt));
     const text = await decryptWith(key, note.enc);
     unlockedNotes.set(note.id, text);
-    lockKeys.set(note.id, key);
+    lockKeys.set(note.id, { key, salt });
     return true;
   } catch {
     return false;
@@ -56,7 +62,7 @@ async function unlockNote(note, password) {
 }
 
 function lockNote(id) {
-  flushEncrypt(id);
+  if (encryptTimers.has(id)) flushEncrypt(id);
   unlockedNotes.delete(id);
   lockKeys.delete(id);
 }
@@ -91,12 +97,16 @@ async function flushEncrypt(id) {
   clearTimeout(encryptTimers.get(id));
   encryptTimers.delete(id);
   const note = noteById(id);
-  const key = lockKeys.get(id);
+  const lk = lockKeys.get(id);
   const text = unlockedNotes.get(id);
-  if (!note?.enc || !key || text === undefined) return;
-  Object.assign(note.enc, await encryptWith(key, text));
+  // Si la nota cambió de contraseña (o llegó otra versión), esta clave ya no le sirve.
+  if (!note?.enc || !lk || text === undefined || note.enc.salt !== lk.salt) return;
+  const enc = await encryptWith(lk.key, text);
+  if (noteById(id) !== note || note.enc?.salt !== lk.salt) return;
+  Object.assign(note.enc, enc);
   note.body = LOCKED_BODY;
   save();
+  if (document.visibilityState === 'hidden') flushLocal();
 }
 
 function renderLockPanel(note) {

@@ -129,7 +129,7 @@ function renderAsk() {
       if (t.role === 'user') bubble.textContent = t.content;
       else {
         bubble.classList.add('md');
-        bubble.innerHTML = renderMd(t.content || '…', { noTasks: true });
+        bubble.innerHTML = renderMd(t.content || '…', { noTasks: true, noExternalImages: true });
         if (t.error) bubble.append(el('p', { className: 'ask-error' }, t.error));
       }
       bubble.dataset.i = i;
@@ -168,7 +168,7 @@ async function sendQuestion(question) {
         answer.content = t;
         $('#ask-progress').textContent = '';
         const b = bubble();
-        if (b) b.innerHTML = renderMd(t, { noTasks: true });
+        if (b) b.innerHTML = renderMd(t, { noTasks: true, noExternalImages: true });
       },
     });
     answer.content = text;

@@ -678,13 +678,19 @@ $('#note-search').addEventListener('input', () => {
   searchTimer = setTimeout(renderSearch, 150);
 });
 
-function highlight(text, terms) {
-  let html = escHtml(text);
-  terms.filter(Boolean).forEach((t) => {
-    const re = new RegExp(`(${escHtml(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    html = html.replace(re, '<mark>$1</mark>');
-  });
-  return html;
+function highlight(raw, terms) {
+  const text = String(raw ?? '');
+  const list = [...new Set(terms.filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!list.length) return escHtml(text);
+  // Una sola pasada sobre el texto sin escapar: no se marca dentro de otras marcas ni de entidades.
+  const re = new RegExp(list.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+  let html = '';
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    html += `${escHtml(text.slice(last, m.index))}<mark>${escHtml(m[0])}</mark>`;
+    last = m.index + m[0].length;
+  }
+  return html + escHtml(text.slice(last));
 }
 
 function renderSearch() {
