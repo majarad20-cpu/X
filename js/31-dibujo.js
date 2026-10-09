@@ -2357,15 +2357,13 @@ async function saveDrawing() {
   const note = noteById(xd.noteId);
   const els = xdLive();
   if (note && !els.length && xd.editing?.id) {
-    // Dibujo vaciado: se quita de la nota (con confirmación).
-    if (!confirm('El dibujo está vacío. ¿Quitarlo de la nota?')) return;
+    // Dibujo vaciado: se quita de la nota (con opción de deshacer).
     const id = xd.editing.id;
     closeDrawing();
-    note.body = note.body.replace(new RegExp(`!\\[[^\\]]*\\]\\(img:${id}\\)\\n?`, 'g'), '');
-    note.updatedAt = Date.now();
-    save();
-    renderAll();
-    return showToastMessage('Dibujo quitado de la nota');
+    return withUndo('Dibujo quitado de la nota', () => {
+      note.body = note.body.replace(new RegExp(`!\\[[^\\]]*\\]\\(img:${id}\\)\\n?`, 'g'), '');
+      note.updatedAt = Date.now();
+    });
   }
   if (!note || !els.length) return closeDrawing();
   const btn = $('#draw-save');
