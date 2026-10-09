@@ -115,6 +115,7 @@ function endBlockEdit({ render = true } = {}) {
   ta.hidden = true;
   const note = noteById(b.noteId);
   if (note) {
+    pinNoteDates(note);
     // Un bloque nuevo que se quedó vacío no deja líneas en blanco al final.
     if (b.from === null && !b.last.trim() && !note.enc && note.body !== note.body.replace(/\s+$/, '')) note.body = note.body.replace(/\s+$/, '');
     ta.value = noteText(note) ?? '';

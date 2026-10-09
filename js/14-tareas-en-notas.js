@@ -15,6 +15,31 @@ function projectFromToken(text) {
   return state.projects.find((p) => norm(p.name) === norm(m[1])) || state.projects.find((p) => norm(p.name).startsWith(norm(m[1]))) || null;
 }
 
+// Al terminar de escribir, las fechas relativas de las tareas («📅 mañana») se fijan como AAAA-MM-DD,
+// para que no cambien con los días. En la nota diaria se cuentan desde su día.
+function pinNoteDates(note) {
+  if (!note || note.enc || !note.body.includes('📅')) return false;
+  const daily = note.path.match(/^Diario\/(\d{4}-\d{2}-\d{2})$/);
+  let changed = false;
+  let fence = false;
+  const body = note.body.split('\n').map((line) => {
+    if (/^\s*```/.test(line)) fence = !fence;
+    if (fence || !NOTE_TASK_RE.test(line)) return line;
+    return line.replace(/(📅\s*)([^#!⏰📅✅+]+?)(\s*)(?=[#!⏰📅✅+]|$)/u, (all, mark, v, sp) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return all;
+      const due = parseInputAt(v.trim(), daily ? parseKey(daily[1]) : null).due;
+      if (!due) return all;
+      changed = true;
+      return mark + due + sp;
+    });
+  }).join('\n');
+  if (!changed) return false;
+  note.body = body;
+  note.updatedAt = Date.now();
+  save();
+  return true;
+}
+
 function parseNoteTask(note, idx, raw) {
   const m = raw.match(NOTE_TASK_RE);
   if (!m || !m[3].trim()) return null;

@@ -1065,8 +1065,10 @@ $('#note-editor').addEventListener('input', (e) => {
   }, 500);
   updateSuggest();
 });
-$('#note-editor').addEventListener('blur', () => {
+$('#note-editor').addEventListener('blur', (e) => {
   flushNoteSave();
+  const note = activeNote();
+  if (!blockEdit && note && e.target.dataset.note === note.id && pinNoteDates(note)) e.target.value = note.body;
   setTimeout(() => {
     if (!$('#link-suggest').matches(':hover')) hideSuggest();
   }, 150);
@@ -1333,6 +1335,7 @@ function showMenu(anchor, items) {
   );
   const point = !anchor.getBoundingClientRect;
   menu.classList.toggle('ctx', point);
+  if (menu.hidden) menuReturnFocus = document.activeElement;
   menu.hidden = false;
   if (point) {
     menu.style.left = `${Math.max(8, Math.min(anchor.x, window.innerWidth - menu.offsetWidth - 8))}px`;
@@ -1344,7 +1347,18 @@ function showMenu(anchor, items) {
   }
   menu.querySelector('button')?.focus();
 }
-const hideMenu = () => ($('#note-menu').hidden = true);
+// Al cerrar, el foco vuelve a donde estaba (si se quedara en un botón oculto, el teclado dejaría de responder).
+let menuReturnFocus = null;
+function hideMenu() {
+  const menu = $('#note-menu');
+  const inside = menu.contains(document.activeElement);
+  menu.hidden = true;
+  if (!inside) return;
+  const back = menuReturnFocus;
+  menuReturnFocus = null;
+  if (back?.isConnected && back !== document.body && back.offsetParent !== null) back.focus({ preventScroll: true });
+  else document.activeElement.blur();
+}
 document.addEventListener('pointerdown', (e) => {
   if (!$('#note-menu').hidden && !e.target.closest('#note-menu')) hideMenu();
 });

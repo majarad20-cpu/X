@@ -112,9 +112,9 @@ function inlineMd(text) {
   return s;
 }
 
-// Fórmula en bloque: una línea que es solo «$$» (abre) o exactamente «$$…$$».
-const MATH_BLOCK_RE = /^\s*\$\$(?:\s*|(?:(?!\$\$).)+\$\$\s*)$/;
-const BLOCK_START = /^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|>|```|\$\$(?:\s*|(?:(?!\$\$).)+\$\$\s*)$|(-{3,}|\*{3,}|_{3,})\s*$|!\[\[[^\]]+\]\]\s*$)/;
+// Fórmula en bloque: una línea que abre con «$$» (sin cerrar en ella) o que es exactamente «$$…$$».
+const MATH_BLOCK_RE = /^\s*\$\$(?:(?:(?!\$\$).)*|(?:(?!\$\$).)+\$\$\s*)$/;
+const BLOCK_START = /^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|>|```|\$\$(?:(?:(?!\$\$).)*|(?:(?!\$\$).)+\$\$\s*)$|(-{3,}|\*{3,}|_{3,})\s*$|!\[\[[^\]]+\]\]\s*$)/;
 const CALLOUT_ICONS = { note: 'ℹ️', info: 'ℹ️', abstract: '📋', tip: '💡', hint: '💡', important: '❗', warning: '⚠️', caution: '⚠️', danger: '⛔', failure: '❌', bug: '🐞', success: '✅', check: '✅', done: '✅', question: '❓', quote: '❝', example: '📑', todo: '☑️' };
 // Nombres alternativos de los avisos de Obsidian -> tipo base (para el color y el icono).
 const CALLOUT_ALIAS = { summary: 'abstract', tldr: 'abstract', help: 'question', faq: 'question', attention: 'warning', fail: 'failure', missing: 'failure', error: 'danger', cite: 'quote' };
