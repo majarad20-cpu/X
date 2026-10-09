@@ -263,19 +263,26 @@ function renderMonth() {
           cardDrag(e, chip, {
             targets: '.mg-day',
             onDrop: (target) => target.dataset.key !== key && moveToDay(t, target.dataset.key),
-            onClick: () => selectMonthDay(key),
+            onClick: () => {
+              selectMonthDay(key);
+              openDayView(key);
+            },
           });
         });
       }
       cell.append(chip);
     });
     if (items.length > 3) cell.append(el('div', { className: 'mg-more' }, `+${items.length - 3}`));
-    cell.addEventListener('click', () => selectMonthDay(key));
+    cell.addEventListener('click', () => {
+      selectMonthDay(key);
+      openDayView(key);
+    });
     cell.addEventListener('keydown', (e) => {
       const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         selectMonthDay(key);
+        openDayView(key);
       } else if (step) {
         e.preventDefault();
         const next = dateKey(addDays(parseKey(key), step));

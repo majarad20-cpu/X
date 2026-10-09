@@ -72,7 +72,9 @@ const drag = async (p, from, to, dx = 40, dy = 30) => {
   await drag(p, '.mg-day[data-key="2026-10-09"] .mg-chip', '.mg-day[data-key="2026-10-14"]', 20, 15);
   console.log('moved to 14:', await p.evaluate(() => state.tasks.find(t => t.id === 't1').due));
   await p.click('.mg-day[data-key="2026-10-21"]');
-  await p.fill('#month-day .day-form input', 'Dentista a las 9'); await p.press('#month-day .day-form input', 'Enter');
+  console.log('agenda open:', await p.isVisible('#dayview'));
+  await p.fill('#dv-add-text', 'Dentista a las 9'); await p.press('#dv-add-text', 'Enter');
+  await p.keyboard.press('Escape');
   console.log('added on 21:', await p.evaluate(() => state.tasks.filter(t => t.title === 'Dentista').map(t => `${t.due} ${t.time}`)), '| chip:', await p.$$eval('.mg-day[data-key="2026-10-21"] .mg-chip', n => n.map(x => x.textContent)));
   await p.screenshot({ path: S + '/month.png' });
 

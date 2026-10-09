@@ -934,6 +934,33 @@
       </form>
     </div>
   </div>
+  <div id="dayview" class="modal-back" hidden>
+    <div class="modal dayview" role="dialog" aria-modal="true" aria-labelledby="dv-title">
+      <header class="modal-head">
+        <div class="dv-nav">
+          <button id="dv-prev" class="nav-btn" aria-label="Día anterior">‹</button>
+          <h3 id="dv-title"></h3>
+          <button id="dv-next" class="nav-btn" aria-label="Día siguiente">›</button>
+          <button id="dv-today" class="chip">Hoy</button>
+        </div>
+        <button id="dv-close" class="iv-close modal-x" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="dv-body">
+        <aside id="dv-side" class="dv-side" aria-label="Tareas sin hora">
+          <h4>Sin hora</h4>
+          <ul id="dv-untimed" class="dv-untimed"></ul>
+          <form id="dv-add" class="dv-add">
+            <input id="dv-add-text" type="text" maxlength="200" placeholder="Nueva tarea (p. ej. Dentista a las 10 !alta)" aria-label="Nueva tarea para este día">
+            <button type="submit" class="primary">Añadir</button>
+          </form>
+          <div id="dv-events" class="dv-events"></div>
+          <p class="muted dv-tip">Toca una hora para crear una tarea ahí. Arrastra una tarea para cambiarla de hora (o aquí, para quitársela) y su borde de abajo para cambiar cuánto dura.</p>
+        </aside>
+        <div id="dv-scroll" class="dv-scroll"><div id="dv-grid" class="dv-grid"></div></div>
+      </div>
+      <div id="dv-pop" class="dv-pop" role="dialog" aria-label="Editar tarea" hidden></div>
+    </div>
+  </div>
   <div id="voice" class="modal-back" hidden>
     <div class="modal voice-modal" role="dialog" aria-modal="true" aria-labelledby="voice-title">
       <header class="modal-head"><h3 id="voice-title">🎤 Nota de voz</h3></header>
@@ -1005,6 +1032,7 @@
   <script src="js/39-obsidian.js"></script>
   <script src="js/40-edicion-bloques.js"></script>
   <script src="js/41-google.js"></script>
+  <script src="js/42-agenda-dia.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

@@ -248,12 +248,15 @@ function bump(counter, key, n) {
 
 // Solo se dibuja lo que se ve: el espacio de notas y la sección abierta. Las demás secciones
 // se dibujan al abrirlas (VIEW_RENDER), así que con miles de tareas o notas no se rehace todo.
+// Otras partes que se vuelven a dibujar con todo lo demás (p. ej. la agenda del día abierta).
+const RENDER_HOOKS = [];
 function renderAll() {
   renderNotesUI();
   const tab = activeTab();
   if (tab?.type === 'view') VIEW_RENDER[tab.view]?.();
   if (tab?.view !== 'timer') renderTimer(); // el título de la ventana muestra el tiempo que queda
   checkReminders();
+  RENDER_HOOKS.forEach((f) => f());
 }
 
 // ---------- Aviso con "Deshacer" ----------
