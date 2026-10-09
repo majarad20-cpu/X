@@ -257,6 +257,7 @@ function renderMonth() {
     cell.append(num);
     items.slice(0, 3).forEach(({ t, ghost }) => {
       const chip = el('div', { className: `mg-chip p${t.priority}${t.done ? ' done' : ''}${ghost ? ' ghost' : ''}`, title: `${t.title}${ghost ? ' (repetición prevista)' : ''}` }, t.title);
+      if (!ghost) chip.dataset.id = t.id;
       if (!ghost && !t.done) {
         chip.addEventListener('pointerdown', (e) => {
           e.stopPropagation();

@@ -1894,3 +1894,10 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
   :root[data-riblabels="on"] .rib-ghead { margin-top: 6px; padding-top: 2px; padding-bottom: 2px; }
   .rib-ghead { margin: 4px auto; }
 }
+
+/* Menú del clic derecho */
+.menu.ctx { z-index: 95; max-height: calc(100vh - 16px); overflow-y: auto; }
+.menu-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.menu-item:disabled { opacity: .45; cursor: default; }
+.menu-kbd { font-size: .7rem; color: var(--muted); font-family: inherit; border: 0; background: none; padding: 0; }
+.menu-sep { border: 0; border-top: 1px solid var(--border); margin: 4px 6px; }
