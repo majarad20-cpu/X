@@ -1128,8 +1128,12 @@ $('#rp-backlinks').addEventListener('click', (e) => {
 
 $('#note-more').addEventListener('click', () => {
   const note = activeNote();
-  if (!note) return;
-  showMenu($('#note-more'), [
+  if (note) showMenu($('#note-more'), noteMenuItems(note));
+});
+
+// Opciones de una nota (menú ⋯ de la barra y clic derecho).
+function noteMenuItems(note) {
+  return [
     { label: 'Renombrar', action: () => $('#note-title').select() },
     { label: 'Mover a carpeta…', action: () => pickFolder(note) },
     { label: 'Abrir en pestaña nueva', action: () => openNote(note, { newTab: true }) },
@@ -1147,8 +1151,8 @@ $('#note-more').addEventListener('click', () => {
     ...NOTE_MENU_EXTRA.map((f) => f(note)).filter(Boolean),
     ...(note.enc ? [] : [{ label: 'Duplicar', action: () => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false }) }]),
     { label: 'Eliminar nota', danger: true, action: () => deleteNote(note) },
-  ]);
-});
+  ];
+}
 
 async function copyText(text, done) {
   try {
@@ -1273,7 +1277,8 @@ function showMenu(anchor, items) {
   const menu = $('#note-menu');
   menu.replaceChildren(
     ...items.map((it) => {
-      const b = el('button', { className: `menu-item${it.danger ? ' danger' : ''}`, role: 'menuitem' }, it.label);
+      if (it.sep) return el('hr', { className: 'menu-sep' });
+      const b = el('button', { className: `menu-item${it.danger ? ' danger' : ''}`, role: 'menuitem', disabled: !!it.disabled }, [el('span', {}, it.label), it.kbd ? el('kbd', { className: 'menu-kbd' }, it.kbd) : '']);
       b.addEventListener('click', () => {
         hideMenu();
         it.action();

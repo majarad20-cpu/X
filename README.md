@@ -47,6 +47,8 @@ Tres paneles al estilo de una bóveda de notas: barra de iconos y explorador a l
 
 ## Funciones
 
+- **Clic derecho** (o la tecla de menú, o Mayús+F10): cada cosa muestra sus opciones. Tareas en cualquier vista: editar, completar, en curso, fecha (hoy, mañana, la próxima semana, sin fecha), agenda del día, prioridad, Google Calendar, duplicar, copiar y borrar (las de las notas cambian su línea). Notas del explorador: abrir, abrir en pestaña nueva, renombrar, mover, duplicar, copiar enlace, exportar a Docs y borrar; carpetas: sus opciones. Pestañas: cerrar, cerrar las demás o las de la derecha. Días del calendario y huecos de la agenda: abrir la agenda o crear una tarea. En una nota: editar ese bloque, copiar, dibujo, Claude y las opciones de la nota; en sus enlaces e imágenes, abrir, copiar, ver en grande o editar el dibujo. En el dibujo: duplicar, copiar, agrupar, capas, borrar, pegar, encajar. En los campos de texto sigue el menú del navegador.
+
 - **Hoy**: resumen del día (pendientes, vencidas, hechas y pomodoros), añadir tareas para hoy al instante y marcar los hábitos del día.
   - **Sugerencias para hoy** (como «Mi día»): tareas en curso, que vencen en los próximos días, de prioridad alta sin fecha o que llevan semanas esperando; «+ Hoy» las pasa a hoy y ✕ deja de sugerirlas ese día.
   - **Bitácora**: línea de tiempo con los hitos del día de todas las pestañas (tareas completadas, pomodoros, hábitos, rachas y objetivos semanales, entradas del diario con su ánimo, ideas, mapas y avances de proyecto al 25/50/75/100 %), con resumen y navegación a días anteriores. Se guarda aparte (un bloque por mes), así que los hitos se conservan aunque se borre el elemento, y entre dispositivos se fusiona en vez de pisarse.

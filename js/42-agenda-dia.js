@@ -52,6 +52,7 @@ function renderDayView({ scroll = false } = {}) {
     ...(untimed.length
       ? untimed.map(({ t, ghost }) => {
           const li = el('li', { className: `dv-ut p${t.priority}${t.done ? ' done' : ''}${ghost ? ' ghost' : ''}`, title: ghost ? 'Repetición prevista' : 'Arrastra a una hora para programarla' });
+          if (!ghost) li.dataset.id = t.id;
           const box = el('input', { type: 'checkbox', checked: !!t.done, disabled: ghost, ariaLabel: `Completar ${t.title}` });
           box.addEventListener('change', () => dvToggle(t, box.checked));
           const title = el('span', { className: 'dv-ut-title' }, t.title);
