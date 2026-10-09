@@ -172,7 +172,7 @@ function pdfBlock(n, ctx) {
     const m = n.querySelector('.math') || n;
     return pdfSvg(m, ctx, () => ({ text: pdfText(m.dataset.tex || m.textContent), italics: true, alignment: 'center', color: '#374151', margin: [0, 2, 0, 8] }));
   }
-  if (c.contains('mermaid-box')) return pdfSvg(n, ctx, () => pdfCode(decodeURIComponent(n.dataset.src || '')));
+  if (c.contains('mermaid-box')) return pdfSvg(n, ctx, () => pdfCode(decodeURIComponent(n.dataset.code || '')));
   if (tag === 'dl' && c.contains('props')) {
     const body = [...n.querySelectorAll(':scope > dt')].map((dt) => [{ text: pdfText(dt.textContent), color: '#6b7280' }, { text: pdfTrim(pdfRuns(dt.nextElementSibling?.childNodes || [], {}, ctx)) }]);
     return body.length ? { table: { widths: ['auto', '*'], body }, layout: { hLineWidth: (i, node) => (i === 0 || i === node.table.body.length ? 0 : 0.4), vLineWidth: () => 0, hLineColor: () => '#e5e7eb' }, fontSize: 9, margin: [0, 0, 0, 10] } : null;
@@ -232,7 +232,7 @@ async function pdfMermaid(nodes) {
   window.mermaid.initialize(cfg(false));
   for (const n of nodes) {
     try {
-      n.innerHTML = (await window.mermaid.render(`pdf-mmd-${++mermaidSeq}`, decodeURIComponent(n.dataset.src))).svg;
+      n.innerHTML = (await window.mermaid.render(`pdf-mmd-${++mermaidSeq}`, decodeURIComponent(n.dataset.code))).svg;
       n.classList.add('rendered');
     } catch {
       // Queda el código del diagrama.
@@ -253,7 +253,20 @@ function pdfInlineSvgStyles(svg, copy) {
       const v = cs.getPropertyValue(p);
       if (v && v !== 'normal') dst[k].setAttribute(p, v);
     }
+    // Un trazo «0» rompe pdfkit: solo pasan los discontinuos de verdad.
+    const dash = cs.getPropertyValue('stroke-dasharray');
+    dst[k].setAttribute('stroke-dasharray', dash !== 'none' && dash.split(/[\s,]+/).every((d) => parseFloat(d) > 0) ? dash : 'none');
   });
+}
+
+// Cada SVG se prueba solo: si pdfmake no puede con él, ese va como texto y el resto sigue.
+function pdfSvgOk(s) {
+  try {
+    window.pdfMake.createPdf({ content: [{ svg: s.svg, width: s.w, height: s.h }] })._createDoc({});
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function pdfImageData(src) {
@@ -288,11 +301,14 @@ async function pdfPrepare(box, ctx) {
     const r = svg?.getBoundingClientRect();
     if (!r?.width || !r.height) continue;
     const copy = svg.cloneNode(true);
-    if (n.classList.contains('mermaid-box')) pdfInlineSvgStyles(svg, copy);
+    if (n.classList.contains('mermaid-box')) {
+      pdfInlineSvgStyles(svg, copy);
+      copy.querySelectorAll('style').forEach((x) => x.remove());
+    }
     copy.querySelectorAll('foreignObject').forEach((x) => x.remove());
     const k = Math.min(1, PDF_W / (r.width * PDF_PX), 650 / (r.height * PDF_PX));
-    const svgText = new XMLSerializer().serializeToString(copy).replace(/currentColor/g, '#111827');
-    ctx.svgs.set(n, { svg: svgText, w: r.width * PDF_PX * k, h: r.height * PDF_PX * k });
+    const s = { svg: new XMLSerializer().serializeToString(copy).replace(/currentColor/g, '#111827'), w: r.width * PDF_PX * k, h: r.height * PDF_PX * k };
+    if (pdfSvgOk(s)) ctx.svgs.set(n, s);
   }
   for (const img of box.querySelectorAll('img')) {
     let src = img.getAttribute('src') || '';

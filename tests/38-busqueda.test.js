@@ -9,6 +9,7 @@ const now = new Date('2026-10-09T10:00:00').getTime();
     notes: [
       { id: 'a', path: 'Libros/Dune', body: '---\nautor: Frank Herbert\nestado: leído\ntags: [libro, ficcion]\n---\nUna novela sobre el desierto.\n- [ ] Escribir reseña\n- [x] Comprar el libro', createdAt: now, updatedAt: now - 3 },
       { id: 'b', path: 'Libros/Fundación', body: '---\nautor: Asimov\nestado: pendiente\n---\nImperio galáctico. #libro\n- [ ] Leer capítulo 1', createdAt: now, updatedAt: now - 2 },
+      { id: 't', path: 'Tabla', body: '```tabla\ncarpeta: Libros\ncolumnas: autor\n```', createdAt: now, updatedAt: now - 9 },
       { id: 'c', path: 'Trabajo/Reunión lunes', body: 'Hablar del presupuesto y del desierto de datos.\n- [x] Enviar acta', createdAt: now, updatedAt: now - 1 },
     ],
     updatedAt: 1,
@@ -29,5 +30,9 @@ const now = new Date('2026-10-09T10:00:00').getTime();
   await p.fill('#note-search', '');
   await p.clock.runFor(300);
   console.log('help:', await p.$$eval('.search-help code', (n) => n.length));
+  // Las opciones de un bloque de consulta llegan en la vista de lectura
+  await p.evaluate(() => { openNote(noteById('t')); setNoteMode(noteById('t'), 'read'); });
+  await p.clock.runFor(300);
+  console.log('table cols:', await p.$$eval('#note-reading table th', (n) => n.map((x) => x.textContent.trim())));
   console.log('errors:', errs); await b.close();
 })();

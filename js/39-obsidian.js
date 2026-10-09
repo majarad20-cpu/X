@@ -107,7 +107,7 @@ async function hydrateMermaid(nodes) {
   const theme = looksDark() ? 'dark' : 'default';
   window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme });
   for (const n of nodes) {
-    const src = decodeURIComponent(n.dataset.src);
+    const src = decodeURIComponent(n.dataset.code);
     const key = `${theme}\n${src}`;
     try {
       if (!mermaidCache.has(key)) mermaidCache.set(key, (await window.mermaid.render(`mmd-${++mermaidSeq}`, src)).svg);

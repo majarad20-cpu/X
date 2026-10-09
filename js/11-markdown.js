@@ -306,12 +306,12 @@ function renderBlocks(src, ctx) {
         return;
       }
       if (lang === 'mermaid') {
-        html += `<div class="mermaid-box" data-src="${encodeURIComponent(body.join('\n'))}"><pre class="code"><code data-lang="mermaid">${escHtml(body.join('\n'))}</code></pre></div>`;
+        html += `<div class="mermaid-box" data-code="${encodeURIComponent(body.join('\n'))}"><pre class="code"><code data-lang="mermaid">${escHtml(body.join('\n'))}</code></pre></div>`;
         return;
       }
       if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table'].includes(lang)) {
         const kind = lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
-        html += `<div class="query" data-kind="${kind}" data-src="${encodeURIComponent(body.join('\n'))}"></div>`;
+        html += `<div class="query" data-kind="${kind}" data-code="${encodeURIComponent(body.join('\n'))}"></div>`;
         return;
       }
       html += `<pre class="code"><code${fence[1] ? ` data-lang="${escHtml(fence[1])}"` : ''}>${escHtml(body.join('\n'))}</code></pre>`;
