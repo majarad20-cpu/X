@@ -9,24 +9,48 @@
 <body>
   <div class="app" id="app">
     <nav class="ribbon" aria-label="Navegación">
-      <button class="rib" id="rib-files" title="Explorador de notas" aria-label="Explorador de notas"><span class="ico" data-icon="files"></span><span class="rib-label">Notas</span></button>
-      <button class="rib" id="rib-daily" title="Nota diaria (Alt+D)" aria-label="Nota diaria"><span class="ico" data-icon="calendar"></span><span class="rib-label">Nota diaria</span></button>
-      <button class="rib" id="rib-switcher" title="Abrir nota (Ctrl+O)" aria-label="Abrir nota"><span class="ico" data-icon="search"></span><span class="rib-label">Abrir nota</span></button>
-      <button class="rib" id="rib-graph" title="Vista de grafo (Ctrl+G)" aria-label="Vista de grafo"><span class="ico" data-icon="graph"></span><span class="rib-label">Grafo</span></button>
-      <button class="rib" id="rib-palette" title="Paleta de comandos (Ctrl+P)" aria-label="Paleta de comandos"><span class="ico" data-icon="command"></span><span class="rib-label">Comandos</span></button>
-      <span class="rib-sep" aria-hidden="true"></span>
-      <button class="rib" data-view="today" title="Hoy" aria-label="Hoy"><span class="ico" data-icon="sun"></span><span class="rib-label">Hoy</span></button>
-      <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
-      <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
-      <button class="rib" data-view="journal" title="Diario" aria-label="Diario"><span class="ico" data-icon="book"></span><span class="rib-label">Diario</span></button>
-      <button class="rib" data-view="ideas" title="Ideas y mapas" aria-label="Ideas y mapas"><span class="ico" data-icon="bulb"></span><span class="rib-label">Ideas y mapas</span></button>
-      <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
-      <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
-      <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
-      <button class="rib" data-view="canvas" title="Lienzos" aria-label="Lienzos"><span class="ico" data-icon="canvas"></span><span class="rib-label">Lienzos</span></button>
-      <button class="rib" data-view="shared" title="Listas compartidas" aria-label="Listas compartidas"><span class="ico" data-icon="users"></span><span class="rib-label">Listas compartidas</span></button>
-      <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
-      <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar</span></button>
+      <div class="rib-group" data-group="notes">
+        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Notas»"><span class="rib-gname">Notas</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
+        <div class="rib-gitems">
+          <button class="rib" id="rib-files" title="Explorador de notas" aria-label="Explorador de notas"><span class="ico" data-icon="files"></span><span class="rib-label">Notas</span></button>
+          <button class="rib" id="rib-daily" title="Nota diaria (Alt+D)" aria-label="Nota diaria"><span class="ico" data-icon="calendar"></span><span class="rib-label">Nota diaria</span></button>
+          <button class="rib" id="rib-switcher" title="Abrir nota (Ctrl+O)" aria-label="Abrir nota"><span class="ico" data-icon="search"></span><span class="rib-label">Abrir nota</span></button>
+          <button class="rib" id="rib-graph" title="Vista de grafo (Ctrl+G)" aria-label="Vista de grafo"><span class="ico" data-icon="graph"></span><span class="rib-label">Grafo</span></button>
+          <button class="rib" data-view="canvas" title="Lienzos" aria-label="Lienzos"><span class="ico" data-icon="canvas"></span><span class="rib-label">Lienzos</span></button>
+        </div>
+      </div>
+      <div class="rib-group" data-group="plan">
+        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Planificar»"><span class="rib-gname">Planificar</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
+        <div class="rib-gitems">
+          <button class="rib" data-view="today" title="Hoy" aria-label="Hoy"><span class="ico" data-icon="sun"></span><span class="rib-label">Hoy</span></button>
+          <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
+          <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
+          <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
+        </div>
+      </div>
+      <div class="rib-group" data-group="focus">
+        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Seguimiento»"><span class="rib-gname">Seguimiento</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
+        <div class="rib-gitems">
+          <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
+          <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
+          <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
+        </div>
+      </div>
+      <div class="rib-group" data-group="write">
+        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Escribir y pensar»"><span class="rib-gname">Escribir y pensar</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
+        <div class="rib-gitems">
+          <button class="rib" data-view="journal" title="Diario" aria-label="Diario"><span class="ico" data-icon="book"></span><span class="rib-label">Diario</span></button>
+          <button class="rib" data-view="ideas" title="Ideas y mapas" aria-label="Ideas y mapas"><span class="ico" data-icon="bulb"></span><span class="rib-label">Ideas y mapas</span></button>
+          <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar</span></button>
+        </div>
+      </div>
+      <div class="rib-group" data-group="more">
+        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Más»"><span class="rib-gname">Más</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
+        <div class="rib-gitems">
+          <button class="rib" data-view="shared" title="Listas compartidas" aria-label="Listas compartidas"><span class="ico" data-icon="users"></span><span class="rib-label">Listas compartidas</span></button>
+          <button class="rib" id="rib-palette" title="Paleta de comandos (Ctrl+P)" aria-label="Paleta de comandos"><span class="ico" data-icon="command"></span><span class="rib-label">Comandos</span></button>
+        </div>
+      </div>
       <span class="rib-spacer"></span>
       <button class="rib" id="open-settings" title="Ajustes" aria-label="Ajustes"><span class="ico" data-icon="gear"></span><span class="rib-label">Ajustes</span></button>
     </nav>
