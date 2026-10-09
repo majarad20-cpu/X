@@ -116,7 +116,7 @@ function repelApprox(nodes, strength) {
 function buildGraphData({ center = null, depth = 1, tags = false, ghosts = true, orphans = true, filter = '' } = {}) {
   const nodes = new Map();
   const links = new Map();
-  const tops = [...new Set(state.notes.map((n) => n.path.split('/')[0]).filter((f, i, a) => state.notes.some((n) => n.path.startsWith(`${f}/`))))].sort();
+  const tops = [...new Set(state.notes.filter((n) => n.path.includes('/')).map((n) => n.path.split('/')[0]))].sort();
   state.notes.forEach((n) => {
     const top = n.path.includes('/') ? n.path.split('/')[0] : '';
     nodes.set(`n:${n.id}`, { id: `n:${n.id}`, kind: 'note', note: n, label: baseName(n.path), group: top ? tops.indexOf(top) % BRANCH_COUNT : -1 });
@@ -453,6 +453,7 @@ class GraphView {
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
     cv.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       cv.setPointerCapture(e.pointerId);
       const p = pos(e);
       this.pointers.set(e.pointerId, p);
@@ -663,15 +664,17 @@ function mapFromNote(note) {
   }
   let map = state.maps.find((m) => m.sourceNoteId === note.id);
   if (map) {
-    map.nodes = nodes;
-    map.title = nodes[0].text;
-    map.updatedAt = Date.now();
+    withUndo('Mapa actualizado desde la nota', () => {
+      map.nodes = nodes;
+      map.title = nodes[0].text;
+      map.updatedAt = Date.now();
+    });
   } else {
     map = newMap(nodes[0].text);
     map.nodes = nodes;
     map.sourceNoteId = note.id;
+    save();
   }
-  save();
   openMap(map.id);
 }
 

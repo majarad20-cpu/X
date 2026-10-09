@@ -310,6 +310,8 @@ function startCardMove(e, c, k, node) {
     moved = true;
     k.x = Math.round(start.kx + dx);
     k.y = Math.round(start.ky + dy);
+    // Un re-render (p. ej. al perder el foco) puede haber cambiado el nodo.
+    if (!node.isConnected) node = $(`#cv-world .cv-card[data-id="${CSS.escape(k.id)}"]`) || node;
     node.style.left = `${k.x}px`;
     node.style.top = `${k.y}px`;
     renderEdges(c);

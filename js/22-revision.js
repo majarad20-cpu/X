@@ -39,7 +39,8 @@ function decide(t, action, label) {
     return;
   }
   if (action === 'tomorrow') setTaskDue(t, dateKey(addDays(new Date(), 1)));
-  if (action === 'week') setTaskDue(t, dateKey(addDays(nextMonday(), -3)));
+  // El viernes de esta semana; en fin de semana, hoy (el viernes ya pasó).
+  if (action === 'week') setTaskDue(t, [dateKey(addDays(nextMonday(), -3)), dateKey()].sort()[1]);
   if (action === 'nextweek') setTaskDue(t, dateKey(nextMonday()));
   if (action === 'someday') {
     if (t.virtual) {

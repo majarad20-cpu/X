@@ -376,6 +376,7 @@ function lintMarkdown(src) {
   const lines = src.replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   let fenced = false;
+  let math = false;
   let i = 0;
   if (lines[0] === '---') {
     const end = lines.indexOf('---', 1);
@@ -399,9 +400,18 @@ function lintMarkdown(src) {
       out.push(line);
       continue;
     }
+    // Las fórmulas $$ … $$ de varias líneas se dejan como están, igual que el código.
+    const dollars = (line.match(/\$\$/g) || []).length % 2;
+    if (math || (dollars && /^\s*\$\$/.test(line))) {
+      if (dollars) math = !math;
+      out.push(line);
+      continue;
+    }
+    // Una línea solo de etiquetas (#proyecto #urgente) no es un título.
+    const tagsOnly = /^#[\p{L}\p{N}_/-]+(?:\s+#[\p{L}\p{N}_/-]+)*\s*$/u.test(line);
+    line = line.replace(/[ \t]+$/, ''); // espacios al final
+    if (!tagsOnly) line = line.replace(/^(#{1,6})(?=[^\s#])/, '$1 '); // «#Título» -> «# Título»
     line = line
-      .replace(/[ \t]+$/, '') // espacios al final
-      .replace(/^(#{1,6})(?=[^\s#])/, '$1 ') // «#Título» -> «# Título»
       .replace(/^(\s*)[*+](\s+)/, '$1-$2') // viñetas siempre con «-»
       .replace(/^(\s*-\s+)\[\]/, '$1[ ]') // «[]» -> «[ ]»
       .replace(/^(\s*-\s+)\[X\]/, '$1[x]')

@@ -1233,7 +1233,7 @@ function xdPlaceTextEditor() {
   ta.style.textAlign = t.textAlign || 'left';
   ta.style.opacity = String((t.opacity ?? 100) / 100);
   const m = xdMeasure(ta.value || ' ', t);
-  if (c) {
+  if (c && !XD_LINEAR.has(c.type)) {
     const area = xdTextArea(c);
     const [cx, cy] = xdCenter(c);
     const [sx, sy] = xdToScreen(cx - area.w / 2, cy - m.height / 2);

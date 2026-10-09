@@ -127,7 +127,7 @@ async function insertImages(list, at = null) {
       const rec = { id: uid(), name: imageName(file), type, data, width, height, createdAt: Date.now() };
       await putFile(rec);
       // Mientras se preparaba la imagen se cambió de nota: no se inserta en otra.
-      if (activeNote() !== note || ta.dataset.note !== note.id) return ids;
+      if (activeNote() !== note) return ids;
       pos = Math.min(pos, ta.value.length);
       const before = ta.value.slice(0, pos);
       const text = `${before && !before.endsWith('\n') ? '\n' : ''}![${rec.name}](img:${rec.id})\n`;
