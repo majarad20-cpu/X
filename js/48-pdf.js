@@ -30,7 +30,7 @@ const isPdfBlock = (n) => n.nodeType === 1 && PDF_BLOCK.test(n.localName);
 function pdfRuns(nodes, st, ctx, out = []) {
   for (const n of nodes) {
     if (n.nodeType === 3) {
-      const t = pdfText(st.code ? n.nodeValue : n.nodeValue.replace(/\s+/g, ' '));
+      const t = st.code ? pdfText(n.nodeValue) : pdfText(n.nodeValue.replace(/\s+/g, ' ')).replace(/ {2,}/g, ' ');
       if (t) out.push({ text: t, ...st, code: undefined });
       continue;
     }
@@ -256,6 +256,7 @@ function pdfInlineSvgStyles(svg, copy) {
     // Un trazo «0» rompe pdfkit: solo pasan los discontinuos de verdad.
     const dash = cs.getPropertyValue('stroke-dasharray');
     dst[k].setAttribute('stroke-dasharray', dash !== 'none' && dash.split(/[\s,]+/).every((d) => parseFloat(d) > 0) ? dash : 'none');
+    dst[k].removeAttribute('style'); // ya va todo en atributos
   });
 }
 
