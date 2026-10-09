@@ -152,8 +152,8 @@ function runNoteQuery(q, self) {
 // Sustituye los marcadores de consulta del texto ya pintado por listas reales (con sus botones).
 function hydrateQueries(container, selfId) {
   container.querySelectorAll('.query[data-kind]').forEach((box) => {
-    if (box.dataset.kind === 'tabla') return renderNoteTable(box, decodeURIComponent(box.dataset.src), selfId);
-    const q = parseQuery(decodeURIComponent(box.dataset.src));
+    if (box.dataset.kind === 'tabla') return renderNoteTable(box, decodeURIComponent(box.dataset.code), selfId);
+    const q = parseQuery(decodeURIComponent(box.dataset.code));
     const head = el('div', { className: 'query-head' });
     if (box.dataset.kind === 'tareas') {
       const list = runTaskQuery(q);

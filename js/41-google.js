@@ -163,7 +163,7 @@ async function noteToHtml(note, text) {
   box.querySelectorAll('input[type=checkbox]').forEach((c) => c.replaceWith(document.createTextNode(c.checked ? '☑ ' : '☐ ')));
   box.querySelectorAll('.task-glyph').forEach((g) => g.replaceWith(document.createTextNode(`${g.textContent} `)));
   box.querySelectorAll('.math').forEach((m) => m.replaceWith(document.createTextNode(m.dataset.tex || m.textContent)));
-  box.querySelectorAll('.mermaid-box').forEach((m) => m.replaceWith(Object.assign(document.createElement('pre'), { textContent: decodeURIComponent(m.dataset.src || '') })));
+  box.querySelectorAll('.mermaid-box').forEach((m) => m.replaceWith(Object.assign(document.createElement('pre'), { textContent: decodeURIComponent(m.dataset.code || '') })));
   box.querySelectorAll('.note-audio').forEach((a) => a.replaceWith(document.createTextNode(`[${a.querySelector('.na-label')?.textContent || 'Nota de voz'}]`)));
   box.querySelectorAll('details').forEach((d) => {
     const div = document.createElement('div');

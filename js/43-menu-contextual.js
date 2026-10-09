@@ -85,6 +85,9 @@ function taskMenuItems(t) {
 }
 
 const isOpenInTab = (tab) => ws.tabs.some((x) => sameTab(x, tab));
+// Otros módulos añaden opciones a estos menús (p. ej. los marcadores): (tipo, cosa) => [opciones].
+const CTX_MENU_EXTRA = [];
+const ctxExtra = (kind, x) => CTX_MENU_EXTRA.flatMap((f) => f(kind, x) || []);
 
 function treeNoteItems(note) {
   return [
@@ -96,6 +99,7 @@ function treeNoteItems(note) {
     ...(note.enc ? [] : [{ label: 'Duplicar', action: () => duplicateNote(note) }]),
     { label: 'Copiar enlace [[…]]', action: () => copyNoteLink(note) },
     ...(cal.mcp && !note.enc ? [{ label: '📄 Exportar a Google Docs', action: () => exportNoteToDocs(note) }] : []),
+    ...ctxExtra('note', note),
     { sep: true },
     { label: 'Eliminar nota', danger: true, action: () => deleteNote(note) },
   ];
@@ -144,6 +148,7 @@ function readingItems(e, note) {
     { label: isEditing(note.id) ? 'Modo lectura' : 'Editar la nota entera', kbd: 'Ctrl+E', action: toggleNoteMode },
     { label: '✏️ Nuevo dibujo…', action: () => openDrawing() },
     ...(typeof noteAIAvailable === 'function' && noteAIAvailable(note) ? [{ label: '✨ Claude en esta nota…', kbd: 'Ctrl+J', action: openNoteAI }] : []),
+    ...(e.target.closest('#note-reading :is(h1, h2, h3, h4, h5, h6)[data-line]') ? ctxExtra('heading', { note, el: e.target.closest('h1, h2, h3, h4, h5, h6') }) : []),
     { sep: true },
     ...noteMenuItems(note)
   );
@@ -233,7 +238,7 @@ document.addEventListener('contextmenu', (e) => {
     if (note) return show(treeNoteItems(note));
   }
   const folderRow = t.closest('.tree-row.folder');
-  if (folderRow?.title) return show(folderMenuItems(folderRow.title));
+  if (folderRow?.title) return show([...folderMenuItems(folderRow.title), ...ctxExtra('folder', folderRow.title)]);
   if (t.closest('#file-tree')) {
     return show([
       { label: 'Nueva nota', kbd: 'Ctrl+N', action: () => createNote({}) },
