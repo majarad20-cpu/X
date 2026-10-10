@@ -2035,7 +2035,7 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
 .pk-item.pk-colored .pk-detail { color: var(--pk-color); }
 .fmt-bar .fb-more { font-weight: 700; }
 .fmt-bar .fb-para { font-weight: 700; }
-.fmt-more { position: absolute; top: calc(100% + 6px); right: 0; z-index: 61; width: 252px; padding: 8px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.fmt-more { position: absolute; top: calc(100% + 6px); right: 0; z-index: 61; width: 276px; max-width: calc(100vw - 16px); padding: 8px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
 .fmt-more[hidden] { display: none; }
 .fmt-more .fm-row, .fmt-more .fm-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
 .fmt-more .fm-label { margin: 8px 2px 4px; font-size: .72rem; font-weight: 600; color: var(--muted); }
