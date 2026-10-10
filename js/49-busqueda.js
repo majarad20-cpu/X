@@ -70,12 +70,10 @@ function noteMatchesClause(n, c) {
       return !c.value ? lines.length > 0 : lines.some(has);
     }
     case 'prop': {
-      if (!n.body.startsWith('---')) return false;
-      const fm = parseFrontmatter(n.body.split('\n', 200));
-      const found = fm?.props.find(([k]) => k.toLowerCase() === c.key);
+      const found = noteFields(n).get(c.key); // propiedades y campos en línea (autor:: …)
       if (!found) return false;
       if (c.value === null) return true;
-      const v = Array.isArray(found[1]) ? found[1] : [String(found[1])];
+      const v = found.items || [found.value];
       return v.some((x) => String(x).toLowerCase().includes(c.value));
     }
     default: return has(`${n.path}\n${n.body}`);

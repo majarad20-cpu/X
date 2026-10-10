@@ -202,7 +202,8 @@ async function importVaultEntries(entries) {
   const drawings = entries.filter((e) => VAULT_DRAW.test(e.path));
   const notes = entries.filter((e) => /\.md$/i.test(e.path) && !VAULT_DRAW.test(e.path));
   const images = entries.filter((e) => VAULT_IMG.test(e.path));
-  if (!notes.length && !images.length && !drawings.length) return vaultMessage('No hay notas (.md), imágenes ni dibujos para importar.', true);
+  const canvasFiles = entries.filter((e) => /\.canvas$/i.test(e.path)); // lienzos (JSON Canvas)
+  if (!notes.length && !images.length && !drawings.length && !canvasFiles.length) return vaultMessage('No hay notas (.md), imágenes, dibujos ni lienzos para importar.', true);
   vaultMessage(`Importando ${plural(notes.length, 'nota', 'notas')}${images.length ? ` y ${plural(images.length, 'imagen', 'imágenes')}` : ''}…`);
 
   // Imágenes: se guardan como las pegadas en una nota y se recuerdan por nombre y por ruta.
@@ -265,6 +266,7 @@ async function importVaultEntries(entries) {
 
   let added = 0;
   let renamed = 0;
+  const pathIds = new Map(); // ruta en la bóveda (sin .md) -> nota, para los lienzos
   for (const e of [...notes, ...drawingNotes.map((d) => ({ ...d, text: async () => d.body, drawing: true }))]) {
     let body = (await e.text()).replace(/\r\n?/g, '\n');
     // ![[foto.png|300]] y ![texto](carpeta/foto.png) -> imagen guardada en la app.
@@ -279,13 +281,38 @@ async function importVaultEntries(entries) {
       });
     const path = (e.drawing ? e.path : e.path.replace(/\.md$/i, '')).split('/').map((p) => cleanName(p) || 'Sin título').join('/');
     const existing = state.notes.find((n) => n.path.toLowerCase() === path.toLowerCase());
-    if (existing && existing.body === body) continue;
+    const vaultPath = (e.drawing ? e.path : e.path.replace(/\.md$/i, '')).toLowerCase();
+    if (existing && existing.body === body) {
+      pathIds.set(vaultPath, existing.id);
+      continue;
+    }
     const folder = folderOf(path);
     const note = { id: uid(), path: existing ? uniquePath(folder, `${baseName(path)} (Obsidian)`) : path, body, createdAt: e.modified || Date.now(), updatedAt: e.modified || Date.now() };
     if (existing) renamed++;
+    pathIds.set(vaultPath, note.id);
     state.notes.push(note);
     if (folder && !state.folders.includes(folder)) state.folders.push(folder);
     added++;
+  }
+  // Lienzos: las tarjetas de archivo pasan a ser la nota o la imagen importada con esa ruta.
+  let canvasCount = 0;
+  let failedCanvases = 0;
+  for (const e of canvasFiles) {
+    try {
+      const resolve = (file) => {
+        const f = file.replace(/^\.?\//, '');
+        if (VAULT_IMG.test(f)) {
+          const id = imageId(f);
+          return id ? { imgId: id } : null;
+        }
+        const id = pathIds.get(f.replace(/\.md$/i, '').toLowerCase());
+        return id ? { noteId: id } : cvResolveFile(f);
+      };
+      canvasFromJson(await e.text(), e.path.split('/').pop().replace(/\.canvas$/i, ''), resolve);
+      canvasCount++;
+    } catch {
+      failedCanvases++;
+    }
   }
   if (added) logEvent('note', `Importadas ${plural(added, 'nota', 'notas')} de Obsidian`);
   save();
@@ -294,6 +321,8 @@ async function importVaultEntries(entries) {
   const parts = [`${plural(added, 'nota importada', 'notas importadas')}`];
   if (images.length - failedImages) parts.push(plural(images.length - failedImages, 'imagen', 'imágenes'));
   if (drawings.length - failedDrawings) parts.push(plural(drawings.length - failedDrawings, 'dibujo de Excalidraw', 'dibujos de Excalidraw'));
+  if (canvasCount) parts.push(plural(canvasCount, 'lienzo', 'lienzos'));
+  if (failedCanvases) parts.push(`${failedCanvases} ${failedCanvases === 1 ? 'lienzo no se pudo' : 'lienzos no se pudieron'} leer`);
   if (failedDrawings) parts.push(`${failedDrawings} ${failedDrawings === 1 ? 'dibujo no se pudo' : 'dibujos no se pudieron'} abrir`);
   if (renamed) parts.push(`${renamed} con otro nombre porque ya existían`);
   if (failedImages) parts.push(`${failedImages} ${failedImages === 1 ? 'imagen no se pudo' : 'imágenes no se pudieron'} leer`);
@@ -350,6 +379,21 @@ async function exportVault() {
     zip.file(`${note.path}.md`, body, { date: new Date(note.updatedAt || Date.now()) });
   }
   for (const folder of state.folders) zip.folder(folder);
+  // Lienzos como .canvas (JSON Canvas), con sus imágenes en adjuntos/.
+  const canvasNames = new Set();
+  for (const c of state.canvases) {
+    const base = cleanName(c.title) || 'Lienzo';
+    let name = base;
+    for (let i = 2; canvasNames.has(name.toLowerCase()); i++) name = `${base} ${i}`;
+    canvasNames.add(name.toLowerCase());
+    const json = canvasToJson(c, (id) => {
+      const f = files.get(id);
+      if (!f) return null;
+      used.add(id);
+      return cvAttachPath(id, f);
+    });
+    zip.file(`Lienzos/${name}.canvas`, JSON.stringify(json, null, '\t'), { date: new Date(c.updatedAt || Date.now()) });
+  }
   for (const id of used) {
     const f = files.get(id);
     const ext = EXT[(f.type || '').split(';')[0]] || 'bin';
@@ -366,7 +410,7 @@ async function exportVault() {
   }
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
   const ok = await offerDownload(`enfoque-boveda-${dateKey()}.zip`, blob, 'application/zip');
-  if (ok) vaultMessage(`Bóveda exportada: ${plural(state.notes.length - locked, 'nota', 'notas')}${used.size ? ` y ${plural(used.size, 'adjunto', 'adjuntos')}` : ''}${locked ? ` (${locked} con contraseña no se incluyen)` : ''}. Descomprímela y ábrela en Obsidian como bóveda.`);
+  if (ok) vaultMessage(`Bóveda exportada: ${plural(state.notes.length - locked, 'nota', 'notas')}${state.canvases.length ? `, ${plural(state.canvases.length, 'lienzo', 'lienzos')}` : ''}${used.size ? ` y ${plural(used.size, 'adjunto', 'adjuntos')}` : ''}${locked ? ` (${locked} con contraseña no se incluyen)` : ''}. Descomprímela y ábrela en Obsidian como bóveda.`);
 }
 
 // ---------- Ordenar formato ----------
@@ -645,6 +689,20 @@ mostrar: autor
 \`\`\`
 
 pone una columna por valor (más «Sin estado»); arrastrar una tarjeta cambia la propiedad y el «+» crea una nota con ese valor.
+
+En \`tabla\`, \`totales: precio=suma, puntuación=promedio\` añade una fila de totales (\`suma\`, \`promedio\`, \`mín\`, \`máx\`, \`recuento\`, \`vacíos\`, \`rellenos\`; también se eligen en el pie de cada columna) y \`agrupar: estado\` agrupa las filas en grupos plegables.
+
+\`\`\`
+carpeta: Libros
+mostrar: autor
+tamaño: grande
+\`\`\`
+
+Un bloque \`galeria\` muestra tarjetas con portada: la propiedad \`portada\` (o \`cover\`, \`imagen\`: \`img:ID\`, una URL o \`[[imagen]]\`) o la primera imagen de la nota. Un bloque \`calendario\` (con \`fecha: inicio\`; por defecto \`fecha\`, \`date\`, \`vence\` o \`due\`) pone las notas en el mes: arrastra una a otro día para cambiar su fecha o toca un día vacío para crear una. Ambos admiten los filtros de \`tabla\`.
+
+## Campos en línea
+
+\`autor:: Frank Herbert\` en su propia línea, o \`[autor:: Frank Herbert]\` dentro del texto, cuenta como la propiedad «autor» si no está entre los \`---\`: sale en tablas, filtros, tableros y en la búsqueda \`[autor:herbert]\`.
 
 ## Etiquetas y otros
 

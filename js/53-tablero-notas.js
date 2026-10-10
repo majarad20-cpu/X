@@ -70,7 +70,7 @@ function noteBoardColumns(q, selfId) {
 function removeNoteProp(note, key) {
   const { props, end } = parseProps(note.body);
   const p = props.find((x) => x.key.toLowerCase() === key.toLowerCase());
-  if (!p) return;
+  if (!p) return noteFields(note).get(key.toLowerCase())?.inline && setProp(note, key, ''); // campo en línea: se vacía
   const lines = note.body.split('\n');
   lines.splice(p.line, p.to - p.line + 1);
   const newEnd = end - (p.to - p.line + 1);
@@ -178,7 +178,7 @@ function askFolderBoard(folder) {
   const counts = new Map();
   state.notes
     .filter((n) => !n.enc && n.path.toLowerCase().startsWith(`${folder.toLowerCase()}/`))
-    .forEach((n) => parseProps(n.body).props.forEach((p) => {
+    .forEach((n) => noteFields(n).forEach((p) => {
       if (/^(tags?|alias(es)?|cssclass(es)?)$/i.test(p.key)) return;
       const k = p.key.toLowerCase();
       counts.set(k, { key: counts.get(k)?.key || p.key, n: (counts.get(k)?.n || 0) + 1 });

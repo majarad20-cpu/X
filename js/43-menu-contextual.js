@@ -88,6 +88,8 @@ const isOpenInTab = (tab) => ws.tabs.some((x) => sameTab(x, tab));
 // Otros módulos añaden opciones a estos menús (p. ej. los marcadores): (tipo, cosa) => [opciones].
 const CTX_MENU_EXTRA = [];
 const ctxExtra = (kind, x) => CTX_MENU_EXTRA.flatMap((f) => f(kind, x) || []);
+// Lienzos hechos con las notas de una carpeta o con los enlaces de una nota (32-lienzos.js).
+if (typeof canvasCtxItems === 'function') CTX_MENU_EXTRA.push(canvasCtxItems);
 
 function treeNoteItems(note) {
   return [
@@ -143,7 +145,10 @@ function readingItems(e, note) {
       const [from, to] = target.dataset.src.split('-').map(Number);
       startBlockEdit(note, from, to, target, point);
     } });
+    items.push(...ctxExtra('block', { note, block }));
   }
+  // Vistas (⚙), estilo del bloque e «Insertar…» (54-constructor-consultas.js).
+  items.push(...ctxExtra('reading', { note, e }));
   items.push(
     { label: isEditing(note.id) ? 'Modo lectura' : 'Editar la nota entera', kbd: 'Ctrl+E', action: toggleNoteMode },
     { label: '✏️ Nuevo dibujo…', action: () => openDrawing() },
@@ -161,7 +166,7 @@ document.addEventListener('contextmenu', (e) => {
   if (t.id === 'note-editor' && !e.shiftKey && typeof editorMenuItems === 'function') {
     e.preventDefault();
     const c = !e.clientX && !e.clientY ? caretCoords(t, t.selectionStart) : null;
-    return showMenuAt(c ? c.left : e.clientX, c ? c.top + c.lh : e.clientY, editorMenuItems(t));
+    return showMenuAt(c ? c.left : e.clientX, c ? c.top + c.lh : e.clientY, [...editorMenuItems(t), ...ctxExtra('editor', t)]);
   }
   // Campos de texto: el menú del navegador. El lienzo de los Lienzos tiene su propio manejo.
   if (t.closest('input, textarea, select, [contenteditable="true"], #cv-viewport, .xd-text')) return;

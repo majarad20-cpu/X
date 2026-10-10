@@ -141,7 +141,13 @@ function decodeURIComponentSafe(s) {
 
 const MD_HOLD = /\u0001(\d+)\u0001/g;
 
+// Campo en línea (como Dataview): «clave:: valor» como línea entera o «[clave:: valor]» en el texto.
+const INLINE_FIELD_LINE = /^\s*([\p{L}_][\p{L}\p{N}_ -]*?)::(?:[ \t]+|$)(.*)$/u;
+const fieldChip = (key, valueHtml) => `<span class="inline-field"><span class="if-key">${escHtml(key.trim())}:</span> <span class="if-val">${valueHtml}</span></span>`;
+
 function inlineMd(text) {
+  const field = text.match(INLINE_FIELD_LINE);
+  if (field) return fieldChip(field[1], inlineMd(field[2]));
   const tokens = [];
   const raws = [];
   // Cada trozo ya resuelto se aparta; `raw` es su texto original (para notas al pie y atributos).
@@ -157,6 +163,7 @@ function inlineMd(text) {
     .replace(/(^|[^\\$])\$(?=[^\s$])([^$\n]*?[^\s\\$])\$(?![\d$])/g, (_, pre, tex) => pre + hold(mathHtml(tex, false), `$${tex}$`))
     .replace(/!?\[\[([^\]\n]+?)\]\]/g, (m, inner) => hold(wikiLinkHtml(inner), m))
     .replace(/\\([\\`*_{}\[\]()#+\-.!|~=$%^<>])/g, (m, c) => hold(escHtml(c), m))
+    .replace(/\[([\p{L}_][\p{L}\p{N}_ -]*?)::([^\]\n]*)\]/gu, (m, key, v) => hold(fieldChip(key, escHtml(v.trim())), m))
     // HTML permitido: <u>, <sub>, <span style="color:…">… (la etiqueta se rehace, ver inlineTagHtml).
     .replace(HTML_INLINE_RE, (m, close, tag, attrs) => hold(`\u0002${tagList.push(inlineTagHtml(close, tag, attrs)) - 1}\u0002`, m))
     // Notas al pie: [^id] (definida al final) y ^[texto] (en línea), numeradas por orden de aparición.
@@ -443,13 +450,13 @@ function renderBlocks(src, ctx) {
       return;
     }
     // Bloque de código
-    const fence = line.match(/^```\s*([\w-]*)/);
+    const fence = line.match(/^```\s*([\p{L}\w-]*)/u);
     if (fence) {
       const body = [];
       i++;
       while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
       i++;
-      const lang = fence[1].toLowerCase();
+      const lang = fence[1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       if (lang === 'math' || lang === 'latex') {
         html += `<div class="math-block">${mathHtml(body.join('\n'), true)}</div>`;
         return;
@@ -458,8 +465,8 @@ function renderBlocks(src, ctx) {
         html += `<div class="mermaid-box" data-code="${encodeURIComponent(body.join('\n'))}"><pre class="code"><code data-lang="mermaid">${escHtml(body.join('\n'))}</code></pre></div>`;
         return;
       }
-      if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table', 'tablero', 'kanban'].includes(lang)) {
-        const kind = lang === 'tablero' || lang === 'kanban' ? 'tablero' : lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
+      if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table', 'tablero', 'kanban', 'galeria', 'gallery', 'calendario', 'calendar'].includes(lang)) {
+        const kind = lang.startsWith('gal') ? 'galeria' : lang.startsWith('cal') ? 'calendario' : lang === 'tablero' || lang === 'kanban' ? 'tablero' : lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
         html += `<div class="query" data-kind="${kind}" data-code="${encodeURIComponent(body.join('\n'))}"></div>`;
         return;
       }
