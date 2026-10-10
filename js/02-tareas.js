@@ -267,7 +267,8 @@ function taskItem(t, { draggable = false } = {}) {
   }
   if (t.time) meta.append(' · ', el('span', { className: 'at-time' }, `⏰ ${t.time}`));
   if (t.repeat) meta.append(' · ', el('span', { className: 'repeat' }, `↻ ${REPEAT_LABEL[t.repeat]}`));
-  if (t.pomodoros) meta.append(` · 🍅 ${t.pomodoros}`);
+  // Tiempo dedicado con el Pomodoro (66-pomodoro-extra.js).
+  meta.append(typeof pomoTaskMeta === 'function' ? pomoTaskMeta(t) : t.pomodoros ? ` · 🍅 ${t.pomodoros}` : '');
   if (subtasks.length) meta.append(` · ☑ ${subtasks.filter((s) => s.done).length}/${subtasks.length}`);
 
   const title = el('button', { className: 'title', title: 'Editar' }, t.title);
@@ -424,6 +425,7 @@ function taskEditor(t) {
     el('div', { className: 'row' }, [priority, due, time, repeat, ...(state.projects.length ? [project] : [])]),
     el('div', { className: 'row' }, [el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
     taskNoteRow(t), // «📝 Nota»: abrir, cambiar, desvincular (63-tarea-nota.js)
+    typeof pomoTaskRow === 'function' ? pomoTaskRow(t) : '', // «⏱ tiempo dedicado» y «▶ Pomodoro» (66)
     relItemPanel('task', t), // enlaces y «Relacionado» (60-relaciones.js)
   ]);
   form.addEventListener('submit', (e) => {

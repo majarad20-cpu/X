@@ -17,6 +17,7 @@
 //   trash-<id>       cada nota en la papelera (57-papelera-captura.js)
 //   fin-AAAA-MM      movimientos de finanzas de ese mes (se fusionan por id: 65-finanzas.js)
 //   fin-meta         categorías, gastos fijos y ajustes de finanzas
+//   pomo-AAAA-MM     sesiones de enfoque de ese mes (se fusionan por id: 03-pomodoro.js)
 // Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
 const sync = { col: null, writing: false, dirty: false, timeout: null };
 
@@ -38,6 +39,7 @@ const monthOf = (date) => date.slice(0, 7);
 const archiveMonth = (t) => dateKey(new Date(t.completedAt || t.createdAt)).slice(0, 7);
 const logOrder = (a, b) => a.at - b.at || String(a.id).localeCompare(String(b.id));
 const isFinMonth = (name) => /^fin-\d/.test(name);
+const isPomoMonth = (name) => /^pomo-\d/.test(name);
 // De dos versiones de un movimiento gana la más reciente (con desempate fijo, igual en todos los dispositivos).
 const finNewer = (a, b) => (a.updatedAt || 0) - (b.updatedAt || 0) || (JSON.stringify(a) > JSON.stringify(b) ? 1 : -1);
 
@@ -65,6 +67,11 @@ function localBuckets() {
     const { tx, ...meta } = fin;
     out.set('fin-meta', meta);
   }
+  // Sesiones de enfoque: un bloque por mes, ordenadas por id.
+  const pomo = state.focusLog || [];
+  const pomoMonths = new Set(pomo.map((r) => monthOf(r.date)));
+  Object.keys(state.syncMeta.sent).filter(isPomoMonth).forEach((n) => pomoMonths.add(n.slice(5)));
+  pomoMonths.forEach((m) => out.set(`pomo-${m}`, { items: pomo.filter((r) => monthOf(r.date) === m).sort((a, b) => String(a.id).localeCompare(String(b.id))) }));
   state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
   state.canvases.forEach((c) => out.set(`canvas-${c.id}`, { canvas: c }));
   state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
@@ -112,6 +119,14 @@ function applyBucket(name, data) {
       if (!mine || finNewer(t, mine) > 0) byId.set(t.id, t);
     });
     state.finance = { ...state.finance, tx: [...byId.values()] };
+  } else if (isPomoMonth(name)) {
+    // Se fusiona por id: gana la versión más reciente de cada sesión (p. ej. con «¿Qué hiciste?»).
+    const byId = new Map((state.focusLog || []).map((r) => [r.id, r]));
+    (data.items || []).forEach((r) => {
+      const mine = byId.get(r.id);
+      if (!mine || finNewer(r, mine) > 0) byId.set(r.id, r);
+    });
+    state.focusLog = [...byId.values()];
   } else if (name.startsWith('archive-')) {
     const m = name.slice(8);
     const incoming = data.items || [];
@@ -273,7 +288,7 @@ function receiveSnapshot(snap, first) {
     if (localDirty && meta.sent[name] === undefined && bucketIsEmpty(name, body) && !bucketIsEmpty(name, localData)) continue;
     // Si este bloque cambió aquí después que en la nube, gana el de aquí (la bitácora siempre se fusiona).
     // La primera vez que llega un bloque no gana nunca la copia de aquí: se junta con la de la nube.
-    const isLog = name.startsWith('log-') || isFinMonth(name);
+    const isLog = name.startsWith('log-') || isFinMonth(name) || isPomoMonth(name);
     const firstSync = meta.sent[name] === undefined;
     const ln = name.startsWith('note-') && localData?.note;
     const localAt = Math.max(state.updatedAt || 0, (ln && ln.updatedAt) || 0);

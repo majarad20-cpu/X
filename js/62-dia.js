@@ -119,10 +119,14 @@ function renderDayPanel(note) {
   const doneBox = el('details', { className: 'dp-done', open: dpDoneOpen }, [el('summary', {}, `Hechas (${done.length})`), el('ul', { className: 'dp-list' }, done.map((t) => dpTaskRow(t, key)))]);
   doneBox.addEventListener('toggle', () => (dpDoneOpen = doneBox.open));
 
-  const sessions = (state.log || []).filter((e) => e.type === 'pomodoro' && e.date === key && !e.removed).sort((a, b) => a.at - b.at);
+  // Sesiones con su contexto (66-pomodoro-extra.js); sin él, las de la bitácora.
+  const sessions = typeof pomoDaySessions === 'function'
+    ? pomoDaySessions(key)
+    : (state.log || []).filter((e) => e.type === 'pomodoro' && e.date === key && !e.removed).sort((a, b) => a.at - b.at)
+      .map((e) => el('li', { className: 'dp-row' }, [el('span', { className: 'dp-meta' }, new Date(e.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })), el('span', {}, e.text)]));
   const pomoKids = [
     el('p', { className: 'dp-pomos' }, pomos ? `${plural(pomos, 'pomodoro', 'pomodoros')}${mins ? ` · ${formatMinutes(mins)}` : ''}` : 'Ningún pomodoro'),
-    ...(sessions.length ? [el('ul', { className: 'dp-list dp-sessions' }, sessions.map((e) => el('li', { className: 'dp-row' }, [el('span', { className: 'dp-meta' }, new Date(e.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })), el('span', {}, e.text)])))] : []),
+    ...(sessions.length ? [el('ul', { className: 'dp-list dp-sessions' }, sessions)] : []),
   ];
   if (key === today) {
     const start = el('button', { type: 'button', className: 'dp-start' }, timer.endsAt ? '⏱ Ver el Pomodoro en marcha' : '▶ Empezar un Pomodoro');

@@ -456,6 +456,9 @@ function relatedBlock(type, id, { skipChildren = false, noteIn = type !== 'note'
   const hier = relHierarchyEl(type, x, g);
   box.append(el('h4', { className: 'bl-head rel-head' }, 'Relacionado'));
   if (hier) box.append(hier);
+  // Tiempo dedicado a la nota con el Pomodoro (66-pomodoro-extra.js).
+  const time = type === 'note' && typeof pomoTimeLine === 'function' && pomoTimeLine('note', id);
+  if (time) box.append(time);
   const tasks = (skipChildren && type === 'project' ? g.task.filter((t) => t.projectId !== id) : g.task).slice().sort((a, b) => a.done - b.done || (a.due || '9999').localeCompare(b.due || '9999'));
   const pending = tasks.filter((t) => !t.done).length;
   const groups = [];

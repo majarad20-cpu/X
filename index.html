@@ -197,7 +197,7 @@
         <div class="stat"><span id="stat-pending" class="num">0</span><span class="label">Para hoy</span></div>
         <div class="stat"><span id="stat-overdue" class="num">0</span><span class="label">Vencidas</span></div>
         <div class="stat"><span id="stat-done" class="num">0</span><span class="label">Hechas hoy</span></div>
-        <div class="stat"><span id="stat-pomos" class="num">0</span><span class="label">Pomodoros</span></div>
+        <div class="stat"><span id="stat-pomos" class="num">0</span><span class="label">Pomodoros</span><span id="stat-pomo-goal" class="stat-goal" hidden><i></i></span></div>
       </div>
 
       <div id="today-calendar" class="today-calendar" hidden></div>
@@ -507,10 +507,13 @@
     <!-- Pomodoro -->
     <section id="view-timer" class="view">
       <div class="card timer-card">
-        <div class="modes" role="group" aria-label="Modo">
-          <button class="chip active" data-mode="focus">Enfoque</button>
-          <button class="chip" data-mode="short">Pausa corta</button>
-          <button class="chip" data-mode="long">Pausa larga</button>
+        <div class="timer-top">
+          <div class="modes" role="group" aria-label="Modo">
+            <button class="chip active" data-mode="focus">Enfoque</button>
+            <button class="chip" data-mode="short">Pausa corta</button>
+            <button class="chip" data-mode="long">Pausa larga</button>
+          </div>
+          <button id="timer-gear" class="chip timer-gear" title="Ajustes del Pomodoro" aria-label="Ajustes del Pomodoro">⚙</button>
         </div>
         <div class="ring">
           <svg viewBox="0 0 120 120" aria-hidden="true">
@@ -519,27 +522,30 @@
           </svg>
           <div id="timer-display" class="time">25:00</div>
         </div>
+        <p id="timer-round" class="muted timer-round"></p>
         <button id="focus-block" class="link focus-block" hidden>🎯 Reservar tiempo de concentración en Google Calendar…</button>
-        <label class="current-task">
-          Trabajando en:
-          <select id="timer-task"><option value="">— ninguna —</option></select>
-        </label>
+        <div class="current-task">
+          <label>Trabajando en:
+            <select id="timer-task"><option value="">— Libre —</option></select>
+          </label>
+          <input id="timer-label" type="text" maxlength="80" placeholder="Etiqueta (opcional)" aria-label="Etiqueta de la sesión libre">
+        </div>
         <div class="row center">
           <button id="timer-start" class="primary big">Iniciar</button>
           <button id="timer-reset">Reiniciar</button>
           <button id="timer-skip">Saltar</button>
+          <button id="timer-plus5" hidden>+5 min</button>
         </div>
+        <div id="pomo-goal" class="pomo-goal"></div>
         <p class="muted">Pomodoros hoy: <strong id="pomo-today">0</strong></p>
       </div>
 
-      <details class="card">
-        <summary>Ajustes (minutos)</summary>
-        <div class="settings">
-          <label>Enfoque <input id="set-focus" type="number" min="1" max="120"></label>
-          <label>Pausa corta <input id="set-short" type="number" min="1" max="60"></label>
-          <label>Pausa larga <input id="set-long" type="number" min="1" max="60"></label>
-        </div>
+      <details id="pomo-quick-box" class="card">
+        <summary>⚙ Ajustes del Pomodoro</summary>
+        <div id="pomo-quick" class="pomo-set"></div>
       </details>
+
+      <div id="pomo-stats" class="card pomo-stats"></div>
     </section>
 
     <!-- Hábitos -->
@@ -776,6 +782,9 @@
         <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas hace más de 7 días se archivan solas y siguen apareciendo en «Hechas».</p>
         <div id="storage-meter"></div>
       </div>
+
+      <h2 class="section-title">Pomodoro</h2>
+      <div id="pomo-settings" class="card pomo-set"></div>
 
       <h2 class="section-title">Google Calendar</h2>
       <div class="card">
@@ -1121,6 +1130,7 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
+  <div id="pomo-alert" class="pomo-alert" role="status" aria-live="polite" hidden></div>
 
   <script src="js/01-nucleo.js"></script>
   <script src="js/02-tareas.js"></script>
@@ -1184,6 +1194,7 @@
   <script src="js/62-dia.js"></script>
   <script src="js/64-semana.js"></script>
   <script src="js/65-finanzas.js"></script>
+  <script src="js/66-pomodoro-extra.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

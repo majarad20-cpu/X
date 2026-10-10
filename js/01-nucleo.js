@@ -9,6 +9,7 @@ const defaults = () => ({
   settings: { focus: 25, short: 5, long: 15, sort: 'priority', accent: 'indigo' },
   pomodoros: {}, // { 'YYYY-MM-DD': n }
   focusMinutes: {}, // { 'YYYY-MM-DD': minutos de enfoque completados }
+  focusLog: [], // sesiones de enfoque con su contexto (03-pomodoro.js)
   completions: {}, // { 'YYYY-MM-DD': tareas completadas ese día }
   projects: [],
   journal: [], // entradas del diario
@@ -26,7 +27,7 @@ const defaults = () => ({
 
 // Datos del usuario (lo que se sincroniza, se exporta y se puede deshacer).
 const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'projects', 'folders'];
-const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes', 'canvases', 'finance'];
+const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes', 'canvases', 'finance', 'focusLog'];
 
 // Datos guardados → estado completo, con los valores por defecto de lo que falte.
 function normalize(data) {
