@@ -675,7 +675,9 @@ function qbInsertAfter(note, to, fn) {
     const lines = ta.value.split('\n');
     const at = to == null || to >= lines.length ? lines.length - 1 : to;
     const pos = lines.slice(0, at + 1).join('\n').length;
-    editorInsert(ta, '\n\n\n', pos, pos, pos + 2);
+    // Una línea en blanco antes y otra después (si la siguiente ya lo está, basta con esa).
+    const blankNext = at === lines.length - 1 || !lines[at + 1].trim();
+    editorInsert(ta, blankNext ? '\n\n' : '\n\n\n', pos, pos, pos + 2);
   } else ta.focus({ preventScroll: true });
   fn();
 }
@@ -793,6 +795,13 @@ peRefresh = (note, focus) => {
   qbPeRefreshBase(note, focus);
   if (qbPropsNote === note.id && !$('#qb-props').hidden) qbPropsRender(focus);
 };
+
+// Esc cierra los diálogos aunque el foco haya salido de ellos (los campos de propiedades se quedan el Esc).
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !$('#picker').hidden || !$('#note-menu').hidden) return;
+  if ($('#qb') && !$('#qb').hidden) qbClose();
+  else if ($('#qb-props') && !$('#qb-props').hidden) qbPropsClose();
+});
 
 // ---------- Menús ----------
 CTX_MENU_EXTRA.push((kind, x) => {
