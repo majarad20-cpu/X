@@ -5,6 +5,7 @@
 // cada una quepa en un bloque de la nube (256 KB), se guardan en IndexedDB (almacén «files») y en
 // el texto quedan como ![descripción](img:ID). Fuera de IndexedDB solo viven en memoria.
 const FILE_MAX_CHARS = 240 * 1024;
+const FILE_SYNC_MAX = 250 * 1024; // un poco menos que un bloque de la nube
 const files = { cache: new Map(), memory: new Map(), count: 0, bytes: 0 };
 
 function fileStore(mode) {
@@ -14,7 +15,8 @@ function fileStore(mode) {
 const isImageData = (d) => typeof d === 'string' && /^data:image\/(webp|jpeg|png|gif);base64,/.test(d);
 // También las notas de voz (35-voz.js) se guardan aquí.
 const isAudioData = (d) => typeof d === 'string' && /^data:audio\/(webm|ogg|mp4|mpeg|wav|x-m4a|aac)(;[\w=.-]+)*;base64,/.test(d);
-const isMediaData = (d) => isImageData(d) || isAudioData(d);
+// Y los archivos de audio, vídeo, PDF u otros que se adjuntan a una nota (51-formato.js): ![nombre](file:ID).
+const isMediaData = (d) => typeof d === 'string' && /^data:[\w.+-]+\/[\w.+-]+(;[\w=.-]+)*;base64,/.test(d);
 
 function putFile(rec) {
   if (!rec?.id || !isMediaData(rec.data)) return Promise.resolve(false);
@@ -152,22 +154,20 @@ function pickImageForNote() {
 }
 
 $('#note-image-input').addEventListener('change', (e) => insertImages(e.target.files));
-$('#note-editor').addEventListener('paste', (e) => {
-  const list = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
-  if (!list.length) return;
+// Pegar o arrastrar: las imágenes se reducen; audio, vídeo y PDF se adjuntan tal cual (51-formato.js).
+function dropFilesInNote(e, all) {
+  const list = all.filter((f) => f.type.startsWith('image/'));
+  const media = all.filter(isEmbedFile);
+  if (!list.length && !media.length) return;
   e.preventDefault();
-  insertImages(list);
-});
+  $('#note-editor').focus();
+  insertImages(list).then(() => media.length && insertMediaFiles(media));
+}
+$('#note-editor').addEventListener('paste', (e) => dropFilesInNote(e, [...(e.clipboardData?.files || [])]));
 $('#note-editor').addEventListener('dragover', (e) => {
   if ([...(e.dataTransfer?.items || [])].some((i) => i.kind === 'file')) e.preventDefault();
 });
-$('#note-editor').addEventListener('drop', (e) => {
-  const list = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/'));
-  if (!list.length) return;
-  e.preventDefault();
-  $('#note-editor').focus();
-  insertImages(list);
-});
+$('#note-editor').addEventListener('drop', (e) => dropFilesInNote(e, [...(e.dataTransfer?.files || [])]));
 
 // Cualquier <img data-img> que aparezca en la página se rellena con su imagen guardada.
 async function hydrateImage(img) {
@@ -239,6 +239,12 @@ async function pushFiles() {
   const pending = (await allFiles()).filter((f) => !sent[f.id]);
   let changed = false;
   for (const f of pending) {
+    // Lo que no cabe en un bloque de la nube se queda solo en este dispositivo.
+    if ((f.data?.length || 0) > FILE_SYNC_MAX) {
+      sent[f.id] = 'big';
+      changed = true;
+      continue;
+    }
     try {
       await sync.col.doc(`file-${f.id}`).set({ file: f, updatedAt: Date.now() });
       sent[f.id] = 1;
@@ -269,7 +275,7 @@ function receiveFile(name, body) {
 // ---------- Copia de seguridad ----------
 async function backupFiles() {
   const used = new Set();
-  state.notes.forEach((n) => n.body.replace(/\((?:img|audio):([a-z0-9]+)\)/gi, (_, id) => used.add(id)));
+  state.notes.forEach((n) => n.body.replace(/\((?:img|audio|file):([a-z0-9]+)\)/gi, (_, id) => used.add(id)));
   return (await allFiles()).filter((f) => used.has(f.id));
 }
 

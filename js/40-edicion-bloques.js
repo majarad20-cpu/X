@@ -165,7 +165,8 @@ $('#note-scroll').addEventListener('dblclick', (e) => {
 // Un clic fuera del bloque lo cierra. Dentro de la nota se espera un poco, por si es el primer
 // clic de un doble clic sobre otro bloque.
 document.addEventListener('pointerdown', (e) => {
-  if (!blockEdit || e.target.closest('#note-editor, #link-suggest, #fmt-bar')) return;
+  // Los selectores y menús que insertan en el bloque (51-formato.js) tampoco lo cierran.
+  if (!blockEdit || e.target.closest('#note-editor, #link-suggest, #fmt-bar, #picker, #note-menu')) return;
   clearTimeout(blockEndTimer);
   if ($('#note-reading').contains(e.target) || e.target.matches('.note-inner, .note-scroll')) blockEndTimer = setTimeout(() => endBlockEdit(), 320);
   else endBlockEdit();
@@ -345,6 +346,8 @@ function showFmtBar() {
 function hideFmtBar() {
   const bar = $('#fmt-bar');
   if (bar) bar.hidden = true;
+  const more = bar?.querySelector('.fmt-more');
+  if (more) more.hidden = true;
 }
 let fmtTimer = null;
 document.addEventListener('selectionchange', () => {
