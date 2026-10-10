@@ -205,13 +205,12 @@ function matchPropFilter(n, f) {
 }
 const matchPropFilters = (n, filters) => !filters?.length || filters.every((f) => matchPropFilter(n, f));
 
-// Valor para ordenar: nombre, creada, modificada, carpeta o una propiedad (las vacías, al final).
+// Valor para ordenar: nombre, creada, modificada o una propiedad (las vacías, al final).
 function noteSortValue(n, key) {
   const k = fold(key);
-  if (['nombre', 'name', 'nota', 'note', 'titulo', 'title'].includes(k)) return baseName(n.path);
-  if (['creada', 'created'].includes(k)) return n.createdAt || n.updatedAt || 0;
-  if (['modificada', 'modified', 'actualizada', 'updated'].includes(k)) return n.updatedAt || 0;
-  if (['carpeta', 'folder'].includes(k)) return folderOf(n.path);
+  if (k === 'nombre' || k === 'name') return baseName(n.path);
+  if (k === 'creada' || k === 'created') return n.createdAt || n.updatedAt || 0;
+  if (k === 'modificada' || k === 'modified') return n.updatedAt || 0;
   return propOf(n, key);
 }
 function sortNotesBy(list, key, desc) {

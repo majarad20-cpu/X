@@ -9,7 +9,8 @@
 // Columnas propias de la nota (solo lectura): Nota, Carpeta, Creada y Modificada. Si «columnas:» nombra
 // alguna, se ven solo las que nombra; si no, Modificada va al final como siempre.
 const TABLE_BUILTINS = ['Nota', 'Carpeta', 'Creada', 'Modificada'];
-const builtinCol = (c) => TABLE_BUILTINS.find((b) => b.toLowerCase() === String(c).trim().toLowerCase()) || null;
+// Con mayúscula: «nota» o «carpeta» en minúscula siguen siendo propiedades.
+const builtinCol = (c) => (TABLE_BUILTINS.includes(String(c).trim()) ? String(c).trim() : null);
 const tableSort = new Map(); // orden elegido al tocar una cabecera (por bloque, mientras dura la sesión)
 
 // YAML sencillo: comillas solo cuando hacen falta (dos puntos, #, o un primer carácter especial).
