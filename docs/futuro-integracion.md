@@ -43,7 +43,7 @@ NOTAS e IDEAS ── no están "dentro" de nada: se ENLAZAN con cualquier cosa
 6. **Bloques vivos desde «Insertar…»:** hábitos (casillas o mapa de calor), tarjeta de proyecto, ideas con etiqueta y botón de Pomodoro.
 7. **Ideas ↔ notas:** convertir en ambos sentidos y conservar el enlace a su origen.
 8. ✅ **Hecho:** **Tarea con nota vinculada** (botón 📝 en la tarea, fila «📝 Nota» en su formulario y clic derecho), y el proyecto lista todas sus notas en su detalle, con «+ Nueva nota del proyecto» (`js/63-tarea-nota.js`). La tarea guarda `noteId`; la nota lleva `tarea:` y `proyecto:` y muestra arriba «☑ Nota de la tarea». Una tarea que se repite conserva la misma nota (una reunión semanal lleva una sola nota). Si la nota está en la carpeta general «Proyectos» (o la comparte con otro proyecto), la carpeta del proyecto es «Proyectos/Nombre».
-9. **Pomodoro con contexto:** el tiempo queda registrado en la tarea o nota y se suma en el proyecto.
+9. ✅ **Hecho:** **Pomodoro con contexto:** cada sesión guarda su contexto (tarea, nota, proyecto o libre) en `state.focusLog` (bloques `pomo-AAAA-MM`); el tiempo se ve en la tarea («⏱ 1 h 25 min (4 🍅)»), en «Relacionado» de la nota y en «Tiempo dedicado» del proyecto (con el desglose por tarea y nota), y las sesiones con su contexto en el panel de la nota diaria. Se empieza con el contexto elegido desde el clic derecho, el formulario de la tarea, el menú ⋯ de la nota, el proyecto y la nota diaria (`js/03-pomodoro.js`, `js/66-pomodoro-extra.js`).
 10. **Grafo «neuronal»:** todos los tipos con colores y filtros; líneas continuas para la jerarquía y punteadas para los enlaces.
 
 ## Antes de empezar
