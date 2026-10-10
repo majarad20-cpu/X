@@ -17,17 +17,11 @@ function nextMonday() {
   return addDays(weekStart(new Date()), 7);
 }
 
-function setTaskDue(t, due) {
-  if (t.virtual) {
-    const note = noteById(t.noteId);
-    const lines = note.body.split('\n');
-    const line = lines[t.line].replace(/\s*📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u, ' ').replace(/\s+$/, '');
-    lines[t.line] = `${line} 📅 ${due}`;
-    note.body = lines.join('\n');
-    note.updatedAt = Date.now();
-  } else {
-    t.due = due;
-  }
+// En las notas se reescribe la línea solo si sigue siendo la de la tarea (editNoteLine, de 24).
+function setTaskDue(t, due, opts) {
+  if (t.virtual) return editNoteLine(t, (l) => `${l.replace(/\s*📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u, ' ').replace(/\s+$/, '')} 📅 ${due}`, opts);
+  t.due = due;
+  return true;
 }
 
 function decide(t, action, label) {

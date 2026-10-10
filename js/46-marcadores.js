@@ -272,6 +272,8 @@ CTX_MENU_EXTRA.push((kind, x) => {
     return [{ label: b ? '⭐ Quitar de marcadores' : '⭐ Añadir a marcadores', action: () => (b ? removeBookmark(b.id) : addBookmark({ type: 'folder', ref: x })) }];
   }
   if (kind === 'heading') {
+    // Un título de una nota incrustada lleva las líneas de esa otra nota.
+    if (!x.el || x.el.closest('.embed')) return [];
     const h = headingsIn(noteText(x.note) || '').find((it) => it.line === Number(x.el?.dataset.line));
     if (!h) return [];
     const b = bmFind('heading', x.note.id, h.text);

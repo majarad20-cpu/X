@@ -72,6 +72,8 @@ const xd = {
   caret: null,
   initial: '',
   clipboard: null,
+  clipText: '', // lo último que se mandó al portapapeles del sistema
+  clipFailed: false,
 };
 
 // ---------- Utilidades ----------
@@ -1990,10 +1992,20 @@ document.addEventListener('keyup', (e) => {
 });
 
 // Copia lo seleccionado (con sus textos) al portapapeles interno y devuelve el texto para el del sistema.
-function xdCopySelection() {
+// Fuera de un evento copy (menú contextual), lo escribe también y apunta si falló: al pegar, el
+// portapapeles del sistema tendría un texto viejo y vale más el interno.
+function xdCopySelection(sys = true) {
   const els = xdSelectedEls().flatMap((x) => [x, xdBoundText(x)].filter(Boolean));
   xd.clipboard = JSON.parse(JSON.stringify(els));
-  return JSON.stringify({ type: 'excalidraw/clipboard', elements: els });
+  const text = JSON.stringify({ type: 'excalidraw/clipboard', elements: els });
+  xd.clipText = text;
+  xd.clipFailed = false;
+  if (sys) {
+    const w = navigator.clipboard?.writeText?.(text);
+    if (!w) xd.clipFailed = true;
+    else w.catch(() => xd.clipText === text && (xd.clipFailed = true));
+  }
+  return text;
 }
 // Pega elementos en el centro de la vista, con ids nuevos, y los deja seleccionados.
 function xdPasteElements(els) {
@@ -2007,13 +2019,15 @@ function xdPasteElements(els) {
   });
 }
 document.addEventListener('copy', (e) => {
-  if ($('#draw').hidden || xd.editingText || !xd.selected.size) return;
-  e.clipboardData?.setData('text/plain', xdCopySelection());
+  if ($('#draw').hidden || xd.editingText || !xd.selected.size) return (xd.clipFailed = false); // otra copia: el sistema ya tiene algo nuevo
+  e.clipboardData?.setData('text/plain', xdCopySelection(false));
+  xd.clipFailed = !e.clipboardData;
   e.preventDefault();
 });
 document.addEventListener('cut', (e) => {
   if ($('#draw').hidden || xd.editingText || !xd.selected.size) return;
-  e.clipboardData?.setData('text/plain', xdCopySelection());
+  e.clipboardData?.setData('text/plain', xdCopySelection(false));
+  xd.clipFailed = !e.clipboardData;
   e.preventDefault();
   xdMutate(() => xdDelete([...xd.selected]));
 });
@@ -2032,7 +2046,8 @@ document.addEventListener('paste', async (e) => {
   } catch {
     // No es un dibujo.
   }
-  if (!els && !text && xd.clipboard) els = xd.clipboard;
+  // Vacío, igual a lo último copiado o copia fallida: el portapapeles interno.
+  if (xd.clipboard && (!text || text === xd.clipText || xd.clipFailed)) els = xd.clipboard;
   e.preventDefault();
   if (els?.length) xdPasteElements(els);
   else if (text.trim()) {

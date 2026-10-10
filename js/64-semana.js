@@ -121,28 +121,55 @@ function pwAddGoal(text) {
   $('#pw-goals [data-goal="new"]')?.focus();
 }
 
+// Línea actual del objetivo en la nota semanal: la suya si aún es él; si no, el único de la
+// sección con ese texto. Si ya no está, se avisa, se redibuja y da -1.
+function pwGoalLine(g) {
+  const note = pwWeekNote();
+  const lines = note && !note.enc ? note.body.split('\n') : [];
+  const ok = (i) => {
+    const m = lines[i]?.match(NOTE_TASK_RE);
+    return !!m && pwGoalText(m[3]) === g.text;
+  };
+  let i = ok(g.line) ? g.line : -1;
+  const s = i < 0 && pwGoalSection(lines);
+  if (s) {
+    const hits = lines.map((_, j) => j).filter((j) => j > s.h && j < s.end && ok(j));
+    if (hits.length === 1) i = hits[0];
+  }
+  if (i < 0) {
+    showToastMessage('El objetivo cambió en la nota semanal: no se ha modificado');
+    pwGoalsDone();
+  }
+  return i;
+}
+
 // Nuevo texto de un objetivo: se conservan su casilla y sus fechas (📅, ✅).
 function pwEditGoal(g, text) {
   if (!text.trim()) return pwDelGoal(g);
   if (text.trim() === g.text) return;
+  const i = pwGoalLine(g);
+  if (i < 0) return;
   pwEditWeekNote((lines) => {
-    const m = lines[g.line].match(NOTE_TASK_RE);
+    const m = lines[i].match(NOTE_TASK_RE);
     const keep = [...m[3].matchAll(/(📅|✅)\s*\d{4}-\d{2}-\d{2}/gu)].map((x) => x[0]);
-    lines[g.line] = `${m[1]}- [${m[2]}] ${[text.trim(), ...keep].join(' ')}`;
+    lines[i] = `${m[1]}- [${m[2]}] ${[text.trim(), ...keep].join(' ')}`;
   });
   pwGoalsDone();
 }
 
 function pwDelGoal(g) {
-  withUndo('Objetivo borrado', () => pwEditWeekNote((lines) => lines.splice(g.line, 1)));
+  const i = pwGoalLine(g);
+  if (i >= 0) withUndo('Objetivo borrado', () => pwEditWeekNote((lines) => lines.splice(i, 1)));
 }
 
 // Fecha del objetivo: el domingo de la semana, solo si se pide.
 function pwGoalDue(g) {
   const sunday = pwKeys()[6];
+  const i = pwGoalLine(g);
+  if (i < 0) return;
   pwEditWeekNote((lines) => {
-    const l = lines[g.line].replace(/\s*📅\s*\d{4}-\d{2}-\d{2}/u, '');
-    lines[g.line] = g.due ? l : `${l.replace(/\s+$/, '')} 📅 ${sunday}`;
+    const l = lines[i].replace(/\s*📅\s*\d{4}-\d{2}-\d{2}/u, '');
+    lines[i] = g.due ? l : `${l.replace(/\s+$/, '')} 📅 ${sunday}`;
   });
   pwGoalsDone();
 }
@@ -450,25 +477,48 @@ function pwAutoPlan() {
     if (!fits.length) return void left++;
     const k = t.priority === 3 ? fits[0] : fits.reduce((a, b) => (load.get(b) < load.get(a) ? b : a));
     load.set(k, load.get(k) + d);
-    plan.push({ t, key: k });
+    plan.push({ ref: pwRef(t), key: k, t }); // t: solo la tarea de cuando se calculó; al aplicar se usa ref
   });
   if (!plan.length) return showToastMessage(tasks.length ? 'No cabe nada más: los días ya están llenos' : 'No hay tareas sin planificar');
-  pw.preview = { plan, left, offset: pw.offset };
+  pw.preview = { plan, left, offset: pw.offset, rev: dataRev };
   renderPlanWeek();
 }
 
-function pwApplyPlan() {
-  const { plan } = pw.preview;
-  pw.preview = null;
-  withUndo(`Reparto automático: ${plural(plan.length, 'tarea', 'tareas')}`, () => plan.forEach(({ t, key }) => setTaskDue(t, key)));
+// La propuesta guarda referencias, no tareas: tras deshacer o editar una nota se buscan de nuevo.
+const pwRef = (t) => (t.virtual ? { virtual: true, noteId: t.noteId, line: t.line, title: t.title } : { id: t.id });
+function pwResolve(ref) {
+  if (!ref.virtual) return state.tasks.find((t) => t.id === ref.id && !t.done) || null;
+  const i = noteTaskLineNow(ref);
+  const note = noteById(ref.noteId);
+  const t = i < 0 ? null : parseNoteTask(note, i, note.body.split('\n')[i]);
+  return t && !t.done ? t : null;
 }
+
+function pwApplyPlan() {
+  if (!pw.preview) return;
+  const plan = pw.preview.plan.map((x) => ({ t: pwResolve(x.ref), key: x.key }));
+  pw.preview = null;
+  const ok = plan.filter((x) => x.t);
+  const gone = plan.length - ok.length;
+  if (!ok.length) {
+    renderPlanWeek();
+    return showToastMessage('Las tareas de la propuesta ya no están: vuelve a calcular el reparto');
+  }
+  // Las de las notas se reescriben en su línea actual (setTaskDue la comprueba de nuevo).
+  withUndo(`Reparto automático: ${plural(ok.length, 'tarea', 'tareas')}${gone ? ` · ${plural(gone, 'ya no estaba', 'ya no estaban')}` : ''}`, () => ok.forEach(({ t, key }) => setTaskDue(t, key, { quiet: true })));
+}
+
+// Tareas de la propuesta, buscadas de nuevo (las que ya no están no se muestran).
+const pwPreviewItems = () => (pw.preview?.plan || []).map((x) => ({ x, t: pwResolve(x.ref) })).filter((y) => y.t);
 
 function pwRenderPreview() {
   const box = $('#pw-preview');
-  if (pw.preview && pw.preview.offset !== pw.offset) pw.preview = null;
+  // Otra semana o datos cambiados (una nota editada, deshacer…): la propuesta ya no vale.
+  if (pw.preview && (pw.preview.offset !== pw.offset || pw.preview.rev !== dataRev)) pw.preview = null;
   box.hidden = !pw.preview;
   if (!pw.preview) return box.replaceChildren();
-  const { plan, left } = pw.preview;
+  const { left } = pw.preview;
+  const plan = pwPreviewItems();
   const apply = el('button', { className: 'primary', type: 'button' }, `Aplicar (${plan.length})`);
   apply.addEventListener('click', pwApplyPlan);
   const cancel = el('button', { type: 'button' }, 'Cancelar');
@@ -476,14 +526,14 @@ function pwRenderPreview() {
   box.replaceChildren(
     el('h3', {}, '⚡ Reparto automático'),
     el('p', { className: 'muted' }, `Propuesta: ${plural(plan.length, 'tarea', 'tareas')} repartidas por prioridad, hasta ${pwHours(pwSet().cap)} al día${left ? ` · ${plural(left, 'tarea no cabe', 'tareas no caben')}` : ''}. Quita lo que no quieras y aplica.`),
-    el('ul', { className: 'pw-prev-list' }, plan.map((x) => {
-      const rm = el('button', { className: 'del', type: 'button', title: 'Quitar de la propuesta', ariaLabel: `Quitar «${x.t.title}»` }, '✕');
+    el('ul', { className: 'pw-prev-list' }, plan.map(({ x, t }) => {
+      const rm = el('button', { className: 'del', type: 'button', title: 'Quitar de la propuesta', ariaLabel: `Quitar «${t.title}»` }, '✕');
       rm.addEventListener('click', () => {
-        pw.preview.plan = plan.filter((y) => y !== x);
+        pw.preview.plan = pw.preview.plan.filter((y) => y !== x);
         if (!pw.preview.plan.length) pw.preview = null;
         renderPlanWeek();
       });
-      return el('li', { className: `pw-prev-row p${x.t.priority}` }, [el('span', { className: 'pw-prev-title' }, x.t.title), el('span', { className: 'muted' }, `→ ${capFirst(pwDayName(x.key))} · ${pwHours(pwDur(x.t))}`), rm]);
+      return el('li', { className: `pw-prev-row p${t.priority}` }, [el('span', { className: 'pw-prev-title' }, t.title), el('span', { className: 'muted' }, `→ ${capFirst(pwDayName(x.key))} · ${pwHours(pwDur(t))}`), rm]);
     })),
     el('div', { className: 'row' }, [apply, cancel])
   );
@@ -517,7 +567,7 @@ function renderPlanWeek() {
   pwRenderPreview();
   const items = pwDayItems(keys);
   const prev = new Map();
-  (pw.preview?.plan || []).forEach(({ t, key }) => prev.set(key, [...(prev.get(key) || []), t]));
+  pwPreviewItems().forEach(({ x, t }) => prev.set(x.key, [...(prev.get(x.key) || []), t]));
   const strip = $('#pw-days');
   const sl = strip.scrollLeft;
   strip.replaceChildren(...keys.map((k, i) => pwDay(k, i, items.get(k), prev.get(k) || [], s, today)));

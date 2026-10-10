@@ -64,6 +64,7 @@ $('#nav-fwd').addEventListener('click', () => navGo(1));
   })
 );
 document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented) return; // ya lo usó otro (p. ej. mover una nota del calendario)
   if (!e.altKey || e.shiftKey || e.metaKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
   // Dentro de un campo de texto, Alt+flecha es de la edición; ahí vale Ctrl+Alt+flecha.
   if (!e.ctrlKey && e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;

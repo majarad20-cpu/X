@@ -106,6 +106,23 @@ function peSet(note, key, type, value, { rename = null, focus } = {}) {
   }, focus);
 }
 
+// Solo cambia el nombre en la línea de la clave; las líneas que siguen (valor de varias líneas o
+// anidado) se quedan tal cual.
+function peRenameKey(note, key, rename) {
+  return peEdit(note, (lines, { props }) => {
+    const found = props.find((p) => p.key.toLowerCase() === key.toLowerCase());
+    if (!found) return false;
+    if (rename.toLowerCase() !== key.toLowerCase() && props.some((p) => p.key.toLowerCase() === rename.toLowerCase())) {
+      showToastMessage(`Ya hay una propiedad «${rename}»`);
+      return false;
+    }
+    const line = lines[found.line];
+    const colon = line.indexOf(':', line.indexOf(found.key) + found.key.length);
+    if (colon < 0) return false;
+    lines[found.line] = `${line.match(/^\s*/)[0]}${rename}${line.slice(colon)}`;
+  });
+}
+
 function peDelete(note, key) {
   peEdit(note, (lines, { props }) => {
     const found = props.find((p) => p.key.toLowerCase() === key.toLowerCase());
@@ -132,20 +149,24 @@ function peRefresh(note, focus) {
   if (focus) $(`#note-reading .pe-panel ${focus}`)?.focus({ preventScroll: true });
 }
 
-// Claves usadas en todas las notas y los valores de cada una (para sugerirlos).
+// Claves usadas en todas las notas y los valores de cada una (para sugerirlos). Cada tecla cambia
+// dataRev: mientras se escribe (y no cambia el número de notas) la lista vale un momento, y cada
+// cuerpo de nota se lee una sola vez (peKnownProps), así la vista previa no relee la bóveda.
+const peKnownProps = new Map();
 function peKnown() {
-  if (peKnownCache?.rev === dataRev) return peKnownCache.keys;
+  const c = peKnownCache;
+  if (c && (c.rev === dataRev || (c.n === state.notes.length && Date.now() - c.at < 1500 && document.activeElement === $('#note-editor')))) return c.keys;
   const keys = new Map();
   for (const n of state.notes) {
     if (n.enc || !n.body.startsWith('---')) continue;
-    for (const p of parseProps(n.body).props) {
+    for (const p of memoBy(peKnownProps, n.body, (b) => parseProps(b).props)) {
       const k = p.key.toLowerCase();
       if (!keys.has(k)) keys.set(k, { key: p.key, values: new Set() });
       const vals = keys.get(k).values;
       (p.items || [p.value]).forEach((v) => v && vals.size < 200 && vals.add(v));
     }
   }
-  peKnownCache = { rev: dataRev, keys };
+  peKnownCache = { rev: dataRev, n: state.notes.length, at: Date.now(), keys };
   return keys;
 }
 const peDatalist = (id, values) => el('datalist', { id }, [...values].slice(0, 200).map((v) => el('option', { value: v })));
@@ -226,7 +247,8 @@ function peValueEditor(note, p, type, idx, ro) {
 
 function peRow(note, p, lines, idx) {
   const raw = peRaw(lines[p.line]);
-  const ro = p.to > p.line && !p.items;
+  // Varias líneas que no son una lista sencilla (texto en bloque, YAML anidado): solo se lee.
+  const ro = p.to > p.line && (!p.items || lines.slice(p.line + 1, p.to + 1).some((l) => l.trim() && !/^\s*-(\s|$)/.test(l)));
   const type = ro ? 'text' : peTypeOf(p, raw);
   const [ico, name] = PE_TYPES[type];
   const typeBtn = el('button', { className: 'pe-ico', type: 'button', title: `${name} · cambiar el tipo o eliminar`, ariaLabel: `Tipo de ${p.key}: ${name}` }, ico);
@@ -247,6 +269,7 @@ function peRow(note, p, lines, idx) {
   const keyInput = peInput({ type: 'text', className: 'pe-key', value: p.key, ariaLabel: 'Nombre de la propiedad', spellcheck: false }, (v) => {
     const k = peKeyClean(v);
     if (!k) return peRefresh(note);
+    if (ro) return k === p.key || peRenameKey(note, p.key, k) || peRefresh(note);
     if (!peSet(note, p.key, type, p.items || (type === 'checkbox' ? /^true$/i.test(p.value) : p.value), { rename: k })) peRefresh(note);
   });
   keyInput.setAttribute('list', 'pe-keys');

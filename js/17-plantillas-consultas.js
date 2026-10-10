@@ -22,15 +22,15 @@ function fillTemplate(body, title = '', when = new Date()) {
   const { year, week } = isoWeek(when);
   const mon = addDays(when, -((when.getDay() + 6) % 7));
   return body
-    .replace(/\{\{\s*mes\s*\}\}/gi, dateKey(when).slice(0, 7))
-    .replace(/\{\{\s*a[ñn]o\s*\}\}/gi, String(when.getFullYear()))
-    .replace(/\{\{\s*inicio_semana\s*\}\}/gi, dateKey(mon))
-    .replace(/\{\{\s*fin_semana\s*\}\}/gi, dateKey(addDays(mon, 6)))
-    .replace(/\{\{\s*fecha\s*\}\}/gi, dateKey(now))
-    .replace(/\{\{\s*fecha_larga\s*\}\}/gi, long.charAt(0).toUpperCase() + long.slice(1))
-    .replace(/\{\{\s*hora\s*\}\}/gi, nowHM())
-    .replace(/\{\{\s*t[ií]tulo\s*\}\}/gi, title)
-    .replace(/\{\{\s*semana\s*\}\}/gi, `${year}-W${String(week).padStart(2, '0')}`);
+    .replace(/\{\{\s*mes\s*\}\}/gi, () => dateKey(when).slice(0, 7))
+    .replace(/\{\{\s*a[ñn]o\s*\}\}/gi, () => String(when.getFullYear()))
+    .replace(/\{\{\s*inicio_semana\s*\}\}/gi, () => dateKey(mon))
+    .replace(/\{\{\s*fin_semana\s*\}\}/gi, () => dateKey(addDays(mon, 6)))
+    .replace(/\{\{\s*fecha\s*\}\}/gi, () => dateKey(now))
+    .replace(/\{\{\s*fecha_larga\s*\}\}/gi, () => long.charAt(0).toUpperCase() + long.slice(1))
+    .replace(/\{\{\s*hora\s*\}\}/gi, () => nowHM())
+    .replace(/\{\{\s*t[ií]tulo\s*\}\}/gi, () => title)
+    .replace(/\{\{\s*semana\s*\}\}/gi, () => `${year}-W${String(week).padStart(2, '0')}`);
 }
 
 function ensureTemplates() {
@@ -118,7 +118,8 @@ function parseQuery(src) {
       if (lw.startsWith('#') && lw.length > 1) q.tags.push(lw.slice(1));
       else if (lw.startsWith('+') && lw.length > 1) q.project = w.slice(1);
     });
-    const l = line.toLowerCase();
+    // Las palabras clave no cuentan dentro de #etiquetas ni +proyectos.
+    const l = line.toLowerCase().split(/\s+/).filter((w) => !/^[#+]/.test(w)).join(' ');
     if (/\bhechas?\b|\bcompletadas?\b/.test(l)) q.status = 'done';
     else if (/\btodas\b/.test(l)) q.status = 'all';
     else if (/\bpendientes?\b/.test(l)) q.status = 'pending';
@@ -189,8 +190,8 @@ function propValues(n, key) {
 
 // Números como números y fechas (AAAA-MM-DD…) como fechas; otra cosa no se compara (NaN).
 function propCompare(a, b) {
-  const na = Number(String(a).replace(',', '.'));
-  const nb = Number(String(b).replace(',', '.'));
+  const na = tableNum(a);
+  const nb = tableNum(b);
   if (a !== '' && b !== '' && !Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
   const iso = /^\d{4}-\d{2}-\d{2}/;
   if (iso.test(a) && iso.test(b)) return a < b ? -1 : a > b ? 1 : 0;

@@ -6,7 +6,9 @@
 // al cambiar una nota se sube el archivo nuevo y el anterior va a la papelera de Drive.
 // Lo que edites en Drive (por ejemplo, desde Obsidian con la carpeta sincronizada) vuelve a la app.
 // Solo un dispositivo escribe en Drive (el que lo activó), para no duplicar archivos.
-// Las notas con contraseña no se suben nunca.
+// Las notas con contraseña no se suben nunca (y su archivo, si lo tenían, se quita).
+// El conector solo puede mandar archivos a la papelera, no borrarlos del todo: las versiones
+// anteriores (y la de una nota que luego se protege) siguen en la papelera de Drive hasta vaciarla.
 const VAULT_KEY = 'enfoque:vault';
 const VAULT_PUSH_MS = 30000;
 const VAULT_PULL_MS = 5 * 60000;
@@ -201,7 +203,8 @@ async function pullVault() {
     if (entry ? f.modifiedTime && f.modifiedTime <= entry.mt : ignore.has(f.id)) continue;
     const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
     if (typeof got.content !== 'string') continue;
-    const text = b64ToText(got.content);
+    // Los .md editados en Windows llegan con \r\n: se normalizan (las propiedades esperan \n).
+    const text = b64ToText(got.content).replace(/\r\n?/g, '\n');
     const note = noteId && noteById(noteId);
     if (note && !note.enc) {
       if (text !== note.body && !(text === '\n' && !note.body)) {
@@ -294,5 +297,7 @@ setInterval(() => vaultOn() && syncVault(), VAULT_PUSH_MS);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && vaultOn()) syncVault();
 });
+// Aviso en los ajustes: lo que va a la papelera de Drive sigue ahí (sin cifrar) hasta vaciarla.
+$('#gvault-on').closest('.switch').nextElementSibling?.after(el('p', { className: 'muted gvault-trash-note' }, 'Al cambiar una nota, la versión anterior va a la papelera de Drive; también la de una nota que proteges con contraseña, que allí sigue sin cifrar. Vacía la papelera desde Drive si quieres borrarlas del todo.'));
 COMMANDS_EXTRA.push(() => (vaultOn() ? [{ label: 'Sincronizar las notas con Drive', action: () => syncVault({ manual: true }) }] : []));
 renderVaultSettings();

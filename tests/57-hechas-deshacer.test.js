@@ -141,6 +141,8 @@ const mock = (initial) => {
       return p;
     };
     const dump = (p) => p.evaluate(() => JSON.parse(JSON.stringify(Object.fromEntries([...window.__docs]))));
+    // «gone» lleva { id, at } (antes, solo el id): se comparan los id.
+    const gid = (g) => (g || []).map((x) => x?.id ?? x);
     const A = await open({ tasks: [task('x', 'Archivar y borrar', { done: true, completedAt: t0 - 3600e3 }), task('y', 'Sigue')], habits: [], settings: { notesWelcome: true }, updatedAt: 1 }, {});
     const M = await A.evaluate(() => `archive-${archiveMonth(state.tasks.find((t) => t.id === 'x'))}`);
     await A.evaluate(() => showView('tasks'));
@@ -150,7 +152,7 @@ const mock = (initial) => {
     await A.click('[data-filter=done]');
     await A.click('#task-list .task[data-id="x"] .done-act:has-text("Eliminar")'); await A.waitForTimeout(1500);
     const cloud2 = await dump(A);
-    check('nube tras borrar', [cloud2[M].items.length, cloud2[M].gone], [0, ['x']]);
+    check('nube tras borrar', [cloud2[M].items.length, gid(cloud2[M].gone)], [0, ['x']]);
 
     // B tenía la archivada y, sin enterarse del borrado, archiva otra del mismo mes (su copia es más reciente).
     const B = await open({ tasks: [task('w', 'De B', { done: true, completedAt: t0 - 1800e3 })], habits: [], settings: { notesWelcome: true }, updatedAt: 1 }, cloud1);
@@ -158,20 +160,20 @@ const mock = (initial) => {
     await B.evaluate(([m, doc]) => { archiveTasks(state.tasks.filter((t) => t.id === 'w')); window.__docs.set(m, doc); window.__emit(); }, [M, cloud2[M]]);
     await B.waitForTimeout(1500);
     const cloudB = await dump(B);
-    check('B no la devuelve', [await B.evaluate(() => allTasks().some((t) => t.id === 'x')), cloudB[M].items.map((t) => t.id), cloudB[M].gone], [false, ['w'], ['x']]);
+    check('B no la devuelve', [await B.evaluate(() => allTasks().some((t) => t.id === 'x')), cloudB[M].items.map((t) => t.id), gid(cloudB[M].gone)], [false, ['w'], ['x']]);
 
     // A recibe una copia vieja (con la borrada) más reciente que la suya: se queda fuera y A vuelve a subir.
     const stale = { items: [...cloud1[M].items, ...cloudB[M].items], updatedAt: Date.now() + 5000 };
     await A.evaluate(([m, doc]) => { window.__docs.set(m, doc); window.__emit(); }, [M, stale]);
     await A.waitForTimeout(1500);
     const cloudA = await dump(A);
-    check('A no la devuelve', [await A.evaluate(() => state.archive.map((t) => t.id)), cloudA[M].items.map((t) => t.id), cloudA[M].gone], [['w'], ['w'], ['x']]);
+    check('A no la devuelve', [await A.evaluate(() => state.archive.map((t) => t.id)), cloudA[M].items.map((t) => t.id), gid(cloudA[M].gone)], [['w'], ['w'], ['x']]);
     // Restaurar no es borrar: vuelve a la lista en el otro dispositivo.
     await A.evaluate(() => restoreTask(state.archive.find((t) => t.id === 'w'))); await A.waitForTimeout(1500);
     const cloudR = await dump(A);
     await B.evaluate((d) => { window.__docs.clear(); Object.entries(d).forEach(([k, v]) => window.__docs.set(k, v)); window.__emit(); }, cloudR);
     await B.waitForTimeout(300);
-    check('restaurar llega', [await B.evaluate(() => state.tasks.map((t) => t.id).sort()), await B.evaluate(() => state.archive.length), cloudR[M].gone], [['w', 'y'], 0, ['x']]);
+    check('restaurar llega', [await B.evaluate(() => state.tasks.map((t) => t.id).sort()), await B.evaluate(() => state.archive.length), gid(cloudR[M].gone)], [['w', 'y'], 0, ['x']]);
     await A.context().close(); await B.context().close();
   }
 

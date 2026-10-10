@@ -5,6 +5,11 @@
 //   📅 2026-10-08  o  📅 mañana   fecha     ⏰ 17:30  hora      !alta  prioridad
 //   #etiqueta                     etiquetas +proyecto proyecto  ✅ 2026-10-07  completada ese día
 // En una nota diaria (Diario/AAAA-MM-DD), las tareas sin fecha son de ese día.
+//
+// findNoteTaskLine(noteId, line, title = null) -> número de línea actual o -1.
+//   Antes de tocar una tarea de nota por su número de línea, comprueba que esa línea sigue siendo
+//   la tarea (mismo título, como lo da parseNoteTask). Si se movió, busca la más cercana con ese
+//   título. Sin `title`, solo comprueba que la línea es una tarea. Notas protegidas: siempre -1.
 const NOTE_TASK_RE = /^(\s*)[-*+]\s+\[([ xX/])\]\s+(.*)$/;
 let noteTaskCache = { stamp: '', list: [] };
 
@@ -26,11 +31,11 @@ function pinNoteDates(note) {
     if (/^\s*```/.test(line)) fence = !fence;
     if (fence || !NOTE_TASK_RE.test(line)) return line;
     return line.replace(/(📅\s*)([^#!⏰📅✅+]+?)(\s*)(?=[#!⏰📅✅+]|$)/u, (all, mark, v, sp) => {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return all;
-      const due = parseInputAt(v.trim(), daily ? parseKey(daily[1]) : null).due;
-      if (!due) return all;
+      // Solo se cambian las palabras de la fecha; lo que sigue («a Juan [[…]]») se queda.
+      const d = noteDueSpan(v, daily ? parseKey(daily[1]) : null);
+      if (!d || d.iso) return all;
       changed = true;
-      return mark + due + sp;
+      return mark + d.due + v.slice(d.len) + sp;
     });
   }).join('\n');
   if (!changed) return false;
@@ -42,6 +47,20 @@ function pinNoteDates(note) {
   return true;
 }
 
+// Fecha al principio del texto que sigue a 📅: { due, len, iso } o null. Se prueba con las primeras
+// palabras (de más a menos) y vale la más larga que sea solo una fecha («mañana», «15 de octubre»).
+function noteDueSpan(v, at) {
+  const iso = v.match(/^\d{4}-\d{2}-\d{2}(?=\s|$)/);
+  if (iso) return { due: iso[0], len: 10, iso: true };
+  const ends = [...v.matchAll(/\S+/g)].slice(0, 6).map((m) => m.index + m[0].length);
+  for (let k = ends.length - 1; k >= 0; k--) {
+    const p = v.slice(0, ends[k]).replace(/[,.;:]+$/, '');
+    const r = p && parseInputAt(p, at);
+    if (r?.due && !r.time && !r.repeat && !r.priority && !r.projectId && r.title === p.trim()) return { due: r.due, len: p.length, iso: false };
+  }
+  return null;
+}
+
 function parseNoteTask(note, idx, raw) {
   const m = raw.match(NOTE_TASK_RE);
   if (!m || !m[3].trim()) return null;
@@ -49,18 +68,20 @@ function parseNoteTask(note, idx, raw) {
   let due = null;
   const daily = note.path.match(/^Diario\/(\d{4}-\d{2}-\d{2})$/);
   const dm = text.match(/📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u);
+  let rest = text;
   if (dm) {
-    const v = dm[1].trim();
     // Las relativas («mañana», «viernes») se cuentan desde el día de la nota diaria o desde que se creó la nota.
-    due = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : parseInputAt(v, daily ? parseKey(daily[1]) : note.createdAt || null).due || null;
+    const d = noteDueSpan(dm[1], daily ? parseKey(daily[1]) : note.createdAt || null);
+    due = d?.due || null;
+    // Lo que sigue a la fecha es parte del título.
+    rest = `${text.slice(0, dm.index)} ${d ? dm[1].slice(d.len) : ''} ${text.slice(dm.index + dm[0].length)}`;
   }
   const time = text.match(/⏰\s*(\d{1,2}:\d{2})/u)?.[1] || null;
   const pr = text.match(/(?:^|\s)!(alta|media|baja)\b/i);
   const doneOn = text.match(/✅\s*(\d{4}-\d{2}-\d{2})/u)?.[1] || null;
   const tags = [...text.matchAll(/(?:^|\s)#([\p{L}_][\p{L}\p{N}_/-]*)/gu)].map((x) => x[1].toLowerCase());
   const project = projectFromToken(text) || state.projects.find((p) => p.noteId === note.id) || null;
-  const title = text
-    .replace(/📅\s*([^#!⏰📅✅+]+?)\s*(?=[#!⏰📅✅+]|$)/u, ' ')
+  const title = rest
     .replace(/⏰\s*\d{1,2}:\d{2}/u, ' ')
     .replace(/✅\s*\d{4}-\d{2}-\d{2}/u, ' ')
     .replace(/(?:^|\s)!(alta|media|baja)\b/gi, ' ')
@@ -118,10 +139,37 @@ function noteTasks() {
   return list;
 }
 
+// Línea actual de una tarea de nota (ver arriba): la indicada si sigue siendo esa tarea o, si se movió,
+// la más cercana con el mismo título (fuera de bloques de código). -1 si ya no está.
+function findNoteTaskLine(noteId, line, title = null) {
+  const note = noteById(noteId);
+  if (!note || note.enc) return -1;
+  const lines = note.body.split('\n');
+  const ok = (i) => {
+    const t = i >= 0 && i < lines.length ? parseNoteTask(note, i, lines[i]) : null;
+    return !!t && (title === null || title === undefined || t.title === title);
+  };
+  const code = new Set();
+  let fence = false;
+  lines.forEach((l, i) => {
+    if (/^\s*```/.test(l)) fence = !fence;
+    else if (fence) code.add(i);
+  });
+  if (!code.has(line) && ok(line)) return line;
+  if (title === null || title === undefined) return -1;
+  for (let d = 1, end = Math.max(line + 1, lines.length); d < end; d++) {
+    for (const i of [line - d, line + d]) if (!code.has(i) && ok(i)) return i;
+  }
+  return -1;
+}
+
 // Marca o desmarca la casilla en el texto de la nota y la cuenta en estadísticas y bitácora.
-function toggleNoteTask(noteId, line, done) {
+// Con `title`, si la línea se movió se busca la tarea (findNoteTaskLine); si ya no está, no se toca nada.
+function toggleNoteTask(noteId, line, done, title = null) {
   const note = noteById(noteId);
   if (!note) return;
+  line = findNoteTaskLine(noteId, line, title);
+  if (line < 0) return showToastMessage('La línea cambió: ábrela en su nota.');
   const lines = note.body.split('\n');
   const t = parseNoteTask(note, line, lines[line]);
   if (!t || t.done === done) return;
@@ -146,11 +194,12 @@ function toggleNoteTask(noteId, line, done) {
 // Quita de su nota la línea de una tarea (con «Deshacer»). Si la línea cambió, no se toca.
 function deleteNoteTaskLine(t) {
   const note = noteById(t.noteId);
-  const lines = note && !note.enc ? note.body.split('\n') : [];
-  if (!lines.length || parseNoteTask(note, t.line, lines[t.line] ?? '')?.title !== t.title) return showToastMessage('La línea cambió: ábrela en su nota.');
+  const at = findNoteTaskLine(t.noteId, t.line, t.title);
+  if (at < 0) return showToastMessage('La línea cambió: ábrela en su nota.');
+  const lines = note.body.split('\n');
   if (typeof noteHistoryCheckpoint === 'function') noteHistoryCheckpoint(note);
   withUndo('Línea de la nota borrada', () => {
-    lines.splice(t.line, 1);
+    lines.splice(at, 1);
     note.body = lines.join('\n');
     note.updatedAt = Date.now();
   });
@@ -174,7 +223,7 @@ function openNoteAtLine(noteId, line, { newTab = false } = {}) {
 function noteTaskItem(t) {
   const note = noteById(t.noteId);
   const check = el('input', { type: 'checkbox', checked: t.done, ariaLabel: 'Completar' });
-  check.addEventListener('change', () => toggleNoteTask(t.noteId, t.line, check.checked));
+  check.addEventListener('change', () => toggleNoteTask(t.noteId, t.line, check.checked, t.title));
   const meta = el('div', { className: 'meta' }, PRIORITY_LABEL[t.priority]);
   if (t.status === 'doing' && !t.done) meta.prepend(el('span', { className: 'doing-badge' }, '◐ En curso'), ' · ');
   if (t.due) {

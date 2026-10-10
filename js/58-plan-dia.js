@@ -7,7 +7,7 @@
 // La respuesta de Claude no se da por buena: se comprueba cada bloque (tarea, horas, solapes).
 const PD_HOURS = { from: '09:00', to: '18:00' };
 const PD_PX = 44; // alto de una hora en la línea de tiempo
-const pd = { key: null, tasks: [], ids: new Map(), events: [], blocks: [], fuera: [], auto: false, ctl: null, note: '' };
+const pd = { run: 0, key: null, tasks: [], ids: new Map(), events: [], blocks: [], fuera: [], auto: false, ctl: null, note: '' };
 
 const pdHours = () => ({ ...PD_HOURS, ...(state.settings.planDay || {}) });
 const pdTitle = (s, n = 80) => String(s ?? '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -72,6 +72,7 @@ Horario de trabajo: ${hm(ctx.from)} a ${hm(ctx.to)}.${pd.key === dateKey() ? ` A
 
 Reglas:
 - Los eventos son fijos: ningún bloque puede solaparse con ellos ni con otro bloque.
+- Las tareas con "horaActual" tienen hora fija: su bloque empieza a esa hora (con su duración o 30 min) y no se mueve. Cuenta ese hueco como ocupado.
 - Todo dentro del horario de trabajo. Horas en formato HH:MM de 24 h.
 - Primero lo de prioridad alta, lo vencido y el trabajo profundo; lo ligero, por la tarde.
 - Usa la duración indicada; si no hay, estima entre 15 y 120 minutos. Como mucho un bloque por tarea.
@@ -87,17 +88,34 @@ Tareas (JSON): ${JSON.stringify(tasks).slice(0, 15000)}
 ${hint ? `Indicaciones de la persona:\n"""\n${hint.slice(0, 1000)}\n"""` : 'Sin indicaciones.'}`;
 }
 
+// Las tareas con hora (⏰) son fijas: su bloque va a esa hora. Si ahí no cabe (fuera del horario,
+// ya pasada o sobre un evento), se quedan fuera del plan y sin cambios.
+function pdFixed(ctx) {
+  const blocks = [];
+  const fuera = [];
+  for (const t of pd.tasks) {
+    const start = pdMin(t.time);
+    if (start === null) continue;
+    const blk = { task: t, title: t.title, start, end: start + Math.min(240, Number(t.duration) || 30), motivo: `Hora fija (${t.time})`, fixed: true };
+    if (start < ctx.lower || blk.end > ctx.to || ctx.events.some((e) => pdOverlap(e, blk)) || blocks.some((o) => pdOverlap(o, blk))) fuera.push({ task: t, motivo: `Hora fija (${t.time}) sin sitio en el plan: se queda como está` });
+    else blocks.push(blk);
+  }
+  return { blocks, fuera };
+}
+
 // Comprueba la propuesta: tareas que existen, horas válidas, dentro del horario y sin solapes.
-// Lo que no se puede arreglar se descarta.
+// Lo que no se puede arreglar se descarta. Las de hora fija se ponen aquí, a su hora (pdFixed).
 function pdValidate(raw, ctx) {
-  const out = [];
-  const used = new Set();
+  const fix = pdFixed(ctx);
+  const out = fix.blocks.slice();
+  const used = new Set(pd.tasks.filter((t) => pdMin(t.time) !== null).map((t) => t.id));
   let dropped = 0;
   const list = Array.isArray(raw?.bloques) ? raw.bloques.slice(0, 40) : [];
   for (const b of list) {
     if (!b || typeof b !== 'object') { dropped++; continue; }
     const hasId = b.taskId !== null && b.taskId !== undefined && b.taskId !== '';
     const task = hasId ? ctx.ids.get(String(b.taskId)) : null;
+    if (task && pdMin(task.time) !== null) continue; // la de hora fija ya está puesta
     if ((hasId && !task) || (task && used.has(task.id))) { dropped++; continue; }
     const title = task ? task.title : pdTitle(b.titulo, 60);
     let start = pdMin(b.inicio);
@@ -114,16 +132,19 @@ function pdValidate(raw, ctx) {
   out.sort((a, b) => a.start - b.start);
   // Lo que no tiene bloque: con el motivo de Claude si lo dio.
   const why = new Map((Array.isArray(raw?.fuera) ? raw.fuera : []).filter((f) => f && ctx.ids.has(String(f.taskId))).map((f) => [ctx.ids.get(String(f.taskId)).id, pdTitle(f.motivo, 160)]));
-  const fuera = pd.tasks.filter((t) => !used.has(t.id)).map((t) => ({ task: t, motivo: why.get(t.id) || 'Sin hueco en el horario' }));
+  const fuera = fix.fuera.concat(pd.tasks.filter((t) => !used.has(t.id)).map((t) => ({ task: t, motivo: why.get(t.id) || 'Sin hueco en el horario' })));
   return { blocks: out, fuera, dropped };
 }
 
-// Plan local, sin Claude: por prioridad, cada tarea en el primer hueco libre, con 10 min entre bloques.
+// Plan local, sin Claude: las de hora fija a su hora; las demás, por prioridad, cada una en el
+// primer hueco libre, con 10 min entre bloques.
 function pdLocalPlan(ctx) {
-  const busy = ctx.events.slice();
-  const blocks = [];
-  const fuera = [];
+  const fix = pdFixed(ctx);
+  const busy = ctx.events.concat(fix.blocks);
+  const blocks = fix.blocks.slice();
+  const fuera = fix.fuera.slice();
   for (const t of pd.tasks) {
+    if (pdMin(t.time) !== null) continue;
     const dur = Math.min(240, Number(t.duration) || 30);
     let s = ctx.lower;
     let placed = null;
@@ -193,6 +214,7 @@ function pdDialog() {
 
 function closePlanDay() {
   pd.ctl?.abort();
+  pd.run = (pd.run || 0) + 1; // un «Aceptar» a medias ya no aplica nada
   if ($('#pld')) $('#pld').hidden = true;
 }
 
@@ -205,6 +227,7 @@ const pdCtx = () => {
 
 async function openPlanDay(key = dateKey()) {
   pdDialog();
+  pd.run = (pd.run || 0) + 1;
   pd.key = key;
   pd.tasks = pdCandidates(key);
   pd.ids = new Map(pd.tasks.map((t, i) => [`T${i + 1}`, t]));
@@ -309,8 +332,9 @@ function pdRender() {
   // Lista editable
   $('#pld-list').replaceChildren(
     ...pd.blocks.map((b) => {
-      const s = el('input', { type: 'time', value: hm(b.start), step: 300, ariaLabel: `Inicio de ${b.title}` });
-      const e = el('input', { type: 'time', value: hm(b.end), step: 300, ariaLabel: `Fin de ${b.title}` });
+      // Las de hora fija conservan su hora.
+      const s = el('input', { type: 'time', value: hm(b.start), step: 300, disabled: !!b.fixed, ariaLabel: `Inicio de ${b.title}` });
+      const e = el('input', { type: 'time', value: hm(b.end), step: 300, disabled: !!b.fixed, ariaLabel: `Fin de ${b.title}` });
       const upd = () => {
         const a = pdMin(s.value);
         const z = pdMin(e.value);
@@ -365,33 +389,60 @@ function pdApplyTask(t, key, start, dur) {
 
 const pdEventKey = (t) => (t.virtual ? `n:${t.noteId}:${t.title}` : t.id);
 
-// Primero los eventos (si se pidieron) y su registro; después las horas, con «Deshacer».
+// Primero los eventos (si se pidieron); después las horas y el registro de los eventos, con «Deshacer».
+// Si se cancela mientras se crean los eventos, no se aplica nada y se ofrece borrarlos.
 async function pdAccept() {
   const key = pd.key;
+  const run = pd.run;
   const chosen = pd.blocks.filter((b) => b.task).map((b) => ({ ...b, task: pdFresh(b.task) })).filter((b) => b.task);
   if (!chosen.length) return showToastMessage('Las tareas del plan ya no existen.');
-  let extra = '';
+  let res = { text: '', made: {} };
   if ($('#pld-gcal').checked && cal.mcp) {
     $('#pld-accept').disabled = true;
     $('#pld-status').textContent = 'Creando los eventos en Google Calendar…';
-    extra = await pdCreateEvents(key, chosen);
+    res = await pdCreateEvents(key, chosen);
+    if (pd.run !== run || $('#pld').hidden) return pdCancelled(res.made);
   }
   closePlanDay();
-  withUndo(`Plan aplicado: ${plural(chosen.length, 'tarea con hora', 'tareas con hora')}${extra ? ` · ${extra}` : ''}`, () => {
+  const made = Object.keys(res.made).length;
+  withUndo(`Plan aplicado: ${plural(chosen.length, 'tarea con hora', 'tareas con hora')}${res.text ? ` · ${res.text}` : ''}${made ? ' · Deshacer no borra los eventos del calendario' : ''}`, () => {
+    // El registro de eventos va dentro del cambio: al deshacer vuelve a como estaba.
+    const g = (state.settings.planEvents ||= {});
+    Object.assign(g, res.made);
+    const old = dateKey(addDays(new Date(), -31)); // se olvidan los de hace más de un mes
+    Object.keys(g).forEach((k) => g[k].day < old && delete g[k]);
     for (const b of chosen) {
       pdApplyTask(b.task, key, b.start, b.end - b.start);
-      const ev = state.settings.planEvents?.[pdEventKey(b.task)];
+      const ev = g[pdEventKey(b.task)];
       if (!b.task.virtual && ev?.day === key) b.task.calEventId = ev.id;
     }
   });
-  if (extra && calEnabled()) loadCalendar({ refresh: true });
+  if (res.text && calEnabled()) loadCalendar({ refresh: true });
+}
+
+// Plan cancelado con eventos ya creados: se avisa y se ofrece borrarlos.
+function pdCancelled(made) {
+  const ids = Object.values(made).map((e) => e.id).filter((id) => id && id !== 'creado');
+  if (!Object.keys(made).length) return;
+  const del = el('button', { className: 'toast-action' }, 'Borrar eventos');
+  del.addEventListener('click', async () => {
+    hideToast();
+    let fails = 0;
+    for (const id of ids) await gCall(CAL_SERVER, 'delete_event', { eventId: id }).catch(() => fails++);
+    showToastMessage(fails ? `No se pudieron borrar ${plural(fails, 'evento', 'eventos')}` : 'Eventos borrados de Google Calendar');
+    if (calEnabled()) loadCalendar({ refresh: true });
+  });
+  $('#toast').replaceChildren(el('span', {}, `Plan cancelado: no se ha aplicado. ${plural(Object.keys(made).length, 'evento creado', 'eventos creados')} en Google Calendar`), ...(ids.length ? [del] : []));
+  $('#toast').hidden = false;
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(hideToast, 10000);
 }
 
 // Un evento por bloque de tarea. No se repite si ya se creó para esa tarea a la misma hora.
-// Los ids se guardan por tarea en state.settings.planEvents.
+// Devuelve el resumen y los eventos nuevos por tarea (pdAccept los guarda en state.settings.planEvents).
 async function pdCreateEvents(key, blocks) {
-  const g = (state.settings.planEvents ||= {});
-  let made = 0;
+  const g = state.settings.planEvents || {};
+  const made = {};
   let skipped = 0;
   const errors = [];
   const [y, m, d] = key.split('-').map(Number);
@@ -406,23 +457,20 @@ async function pdCreateEvents(key, blocks) {
     const e = new Date(y, m - 1, d, Math.floor(b.end / 60), b.end % 60);
     try {
       const ev = await gCall(CAL_SERVER, 'create_event', { summary: b.task.title, startTime: localStamp(s), endTime: localStamp(e), timeZone: tz(), description: 'Bloque planificado con Enfoque.' });
-      g[k] = { id: ev.id || 'creado', day: key, start: hm(b.start), end: hm(b.end), link: ev.htmlLink || '' };
-      made++;
+      made[k] = { id: ev.id || 'creado', day: key, start: hm(b.start), end: hm(b.end), link: ev.htmlLink || '' };
     } catch (err) {
       errors.push(gErrorText(err, 'Google Calendar'));
     }
   }
-  // Se olvidan los de hace más de un mes.
-  const old = dateKey(addDays(new Date(), -31));
-  Object.keys(g).forEach((k) => g[k].day < old && delete g[k]);
-  save();
-  return [
-    made && `${plural(made, 'evento creado', 'eventos creados')} en Google Calendar`,
+  const n = Object.keys(made).length;
+  const text = [
+    n && `${plural(n, 'evento creado', 'eventos creados')} en Google Calendar`,
     skipped && `${plural(skipped, 'evento ya existía', 'eventos ya existían')}`,
     errors.length && `${plural(errors.length, 'bloque no se pudo crear', 'bloques no se pudieron crear')}: ${errors[0]}`,
   ]
     .filter(Boolean)
     .join(' · ');
+  return { text, made };
 }
 
 // ---------- Botones ----------

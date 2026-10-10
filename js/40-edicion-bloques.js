@@ -11,7 +11,8 @@ let blockEndTimer = null;
 // renderNotePane pregunta si debe dejar la nota como está (se está escribiendo en un bloque).
 function blockEditKeeps(note) {
   if (!blockEdit) return false;
-  if (blockEdit.noteId === note.id && document.activeElement === $('#note-editor')) return true;
+  // Una nota que se acaba de bloquear no se queda a la vista aunque el editor tenga el foco.
+  if (blockEdit.noteId === note.id && noteText(note) !== null && document.activeElement === $('#note-editor')) return true;
   endBlockEdit({ render: false });
   return false;
 }

@@ -17,17 +17,27 @@ function dpTasks(key, note) {
   const due = state.tasks.concat(noteTasks()).filter((t) => mine(t) && !t.done && t.due && (key === today ? t.due <= key : t.due === key)).sort(byImportance);
   const done = state.tasks.concat(state.archive).filter((t) => t.done && t.completedAt && dateKey(new Date(t.completedAt)) === key)
     .concat(noteTasks().filter((t) => mine(t) && t.done && t.doneOn === key));
+  // Las que se repiten no quedan hechas (pasan a su siguiente fecha): se toman de la bitácora.
+  const app = new Map(state.tasks.concat(state.archive).map((t) => [t.id, t]));
+  const seen = new Set(done.map((t) => t.id));
+  state.log.forEach((e) => {
+    const t = e.type === 'task' && !e.removed && e.date === key && app.get(e.ref);
+    if (!t || !t.repeat || seen.has(t.id)) return;
+    seen.add(t.id);
+    done.push({ ...t, done: true, logged: t }); // logged: la tarea de verdad
+  });
   // Creadas ese día que no salen arriba (sin fecha o para otro día).
-  const shown = new Set([...due, ...done]);
+  const shown = new Set([...due, ...done, ...done.map((t) => t.logged)]);
   const created = state.tasks.concat(state.archive).filter((t) => t.createdAt && dateKey(new Date(t.createdAt)) === key && !shown.has(t)).sort(byImportance);
   return { due, done, created };
 }
 
 function dpTaskRow(t, key) {
-  const check = el('input', { type: 'checkbox', checked: t.done, ariaLabel: t.done ? 'Desmarcar' : 'Completar' });
+  // Las repetidas hechas ese día (copias sacadas de la bitácora) no se desmarcan desde aquí.
+  const check = el('input', { type: 'checkbox', checked: t.done, disabled: !!t.logged, ariaLabel: t.logged ? 'Hecha (se repite)' : t.done ? 'Desmarcar' : 'Completar' });
   check.addEventListener('change', () => (t.virtual ? toggleNoteTask(t.noteId, t.line, check.checked) : toggleDone(t, check.checked)));
   const name = el('button', { type: 'button', className: 'dp-name', title: 'Abrir la tarea' }, t.title);
-  name.addEventListener('click', () => (typeof relOpenTask === 'function' ? relOpenTask(t) : t.virtual ? openNoteAtLine(t.noteId, t.line) : showView('tasks')));
+  name.addEventListener('click', () => (typeof relOpenTask === 'function' ? relOpenTask(t.logged || t) : t.virtual ? openNoteAtLine(t.noteId, t.line) : showView('tasks')));
   const meta = [
     !t.done && t.due && t.due < key ? `vencida · ${formatDue(t.due)}` : '',
     t.time ? `⏰ ${t.time}` : '',

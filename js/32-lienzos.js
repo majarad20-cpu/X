@@ -951,7 +951,7 @@ viewport.addEventListener('keydown', (e) => {
   } else if (mod && k && e.key.toLowerCase() === 'd') {
     e.preventDefault();
     duplicateCanvasCard(c, k);
-  } else if (k && e.key.startsWith('Arrow')) {
+  } else if (k && !e.altKey && e.key.startsWith('Arrow')) { // Alt+flecha es atrás/adelante
     e.preventDefault();
     const step = e.shiftKey ? 50 : 10;
     const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
