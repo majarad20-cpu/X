@@ -194,6 +194,12 @@ function renderProjectDetail(p) {
   const notes = projectNotesBlock(p);
   if ($('#pd-notes')) $('#pd-notes').replaceWith(notes);
   else rel.before(notes);
+  // «Tiempo dedicado» con el Pomodoro, por tarea y nota (66-pomodoro-extra.js).
+  if (typeof pomoProjectBlock === 'function') {
+    const time = pomoProjectBlock(p);
+    if ($('#pd-time')) $('#pd-time').replaceWith(time);
+    else rel.before(time);
+  }
   rel.replaceChildren(relItemPanel('project', p, { skipChildren: true }));
 }
 

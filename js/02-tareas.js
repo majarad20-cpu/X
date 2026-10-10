@@ -149,16 +149,102 @@ const isDueToday = (t) => !t.done && t.due && t.due <= dateKey();
 // Tareas activas más las archivadas (para «Hechas», proyectos y el calendario).
 const allTasks = () => state.tasks.concat(state.archive);
 
-// Las tareas completadas hace más de 7 días pasan al archivo, que se guarda por meses.
+// Las tareas completadas hace más de N días (Ajustes; 7 por defecto) pasan al archivo, que se
+// guarda por meses. 0 = al completarlas; -1 = nunca. Una restaurada cuenta desde que volvió.
 const ARCHIVE_AFTER_DAYS = 7;
+const archiveAfterDays = () => state.settings.archiveDays ?? ARCHIVE_AFTER_DAYS;
 function archiveOldTasks() {
-  const cutoff = Date.now() - ARCHIVE_AFTER_DAYS * 24 * 60 * 60 * 1000;
-  const old = state.tasks.filter((t) => t.done && !t.repeat && (t.completedAt || t.createdAt) < cutoff);
+  const days = archiveAfterDays();
+  if (days < 0) return;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const old = state.tasks.filter((t) => t.done && !t.repeat && (days ? (t.restoredAt || t.completedAt || t.createdAt) < cutoff : !t.restoredAt));
   if (!old.length) return;
   old.forEach((t) => (t.completedAt = t.completedAt || t.createdAt));
   state.tasks = state.tasks.filter((t) => !old.includes(t));
   state.archive.push(...old);
   save();
+}
+
+// Archivar ya (sin esperar), con «Deshacer».
+function archiveTasks(list) {
+  list = list.filter((t) => t.done && state.tasks.includes(t));
+  if (!list.length) return;
+  withUndo(list.length === 1 ? 'Tarea archivada' : `${list.length} tareas archivadas`, () => {
+    list.forEach((t) => {
+      t.completedAt = t.completedAt || Date.now();
+      delete t.restoredAt;
+    });
+    state.tasks = state.tasks.filter((t) => !list.includes(t));
+    state.archive.push(...list);
+  });
+}
+
+// Del archivo a la lista, todavía como hecha.
+function restoreTask(t) {
+  if (!state.archive.includes(t)) return;
+  state.archive = state.archive.filter((x) => x !== t);
+  t.restoredAt = Date.now();
+  state.tasks.push(t);
+  save();
+  renderAll();
+  showToastMessage('Tarea devuelta a la lista');
+}
+
+// Borra varias tareas hechas tras confirmarlo (con «Deshacer»).
+function deleteDoneTasks(list) {
+  const ids = new Set(list.filter((t) => t.done && !t.virtual).map((t) => t.id));
+  if (!ids.size) return;
+  const n = plural(ids.size, 'tarea hecha', 'tareas hechas');
+  askConfirm(`¿Eliminar ${n}? Podrás deshacerlo unos segundos.`, 'Eliminar', () =>
+    withUndo(ids.size === 1 ? 'Tarea hecha borrada' : `${n} borradas`, () => {
+      if (ids.has(editingId)) editingId = null;
+      state.tasks = state.tasks.filter((t) => !ids.has(t.id));
+      state.archive = state.archive.filter((t) => !ids.has(t.id));
+    })
+  );
+}
+
+// Confirmación propia (window.confirm puede estar bloqueado dentro de Claude): el aviso de 66-pomodoro-extra.js.
+function askConfirm(text, yes, onYes) {
+  pomoAlert(text, { sticky: true, kind: 'confirm', actions: [{ label: 'Cancelar', cls: 'primary', fn: () => {} }, { label: yes, cls: 'danger-chip', fn: onYes }] });
+  $('#pomo-alert .primary')?.focus();
+}
+
+// «Hechas»: todas, solo las de la lista o solo las archivadas.
+let doneScope = 'all';
+const DONE_SCOPES = { all: 'Todas', active: 'Sin archivar', archived: 'Archivadas' };
+
+// Barra encima de la lista cuando se ven tareas hechas: filtro (en «Hechas») y acciones en bloque.
+function renderDoneBar(tasks) {
+  const bar = $('#done-bar');
+  const done = tasks.filter((t) => t.done && !t.virtual);
+  bar.hidden = taskFilter !== 'done' && !done.length;
+  if (bar.hidden) return bar.replaceChildren();
+  const parts = [];
+  if (taskFilter === 'done') {
+    parts.push(el('div', { className: 'segmented done-scope', role: 'group', ariaLabel: 'Qué hechas ver' }, Object.entries(DONE_SCOPES).map(([k, label]) => {
+      const b = el('button', { className: `seg${doneScope === k ? ' active' : ''}`, ariaPressed: String(doneScope === k) }, label);
+      b.dataset.doneScope = k;
+      b.addEventListener('click', () => {
+        doneScope = k;
+        taskLimit = TASK_PAGE;
+        renderTasks();
+      });
+      return b;
+    })));
+  }
+  const active = done.filter((t) => state.tasks.includes(t));
+  if (active.length) {
+    const arch = el('button', { className: 'chip done-bulk-archive', title: 'Pasarlas al archivo ahora (siguen en «Hechas»)' }, `🗄 Archivar todas las hechas (${active.length})`);
+    arch.addEventListener('click', () => archiveTasks(active));
+    parts.push(arch);
+  }
+  if (done.length) {
+    const del = el('button', { className: 'chip danger-chip done-bulk-delete', title: `Borrar las ${done.length} hechas que se ven` }, 'Eliminar las hechas…');
+    del.addEventListener('click', () => deleteDoneTasks(done));
+    parts.push(del);
+  }
+  bar.replaceChildren(...parts);
 }
 
 const manualSort = () => state.settings.sort === 'manual';
@@ -180,9 +266,11 @@ function visibleTasks() {
     pending: (t) => !t.done,
     done: (t) => t.done,
   };
+  const scope = taskFilter !== 'done' || doneScope === 'all' ? null : doneScope === 'archived';
   return (taskFilter === 'done' ? allTasks() : state.tasks)
     .concat(noteTasks())
     .filter(filters[taskFilter])
+    .filter((t) => scope === null || (!t.virtual && state.archive.includes(t)) === scope)
     .filter((t) => !tagFilter || (t.tags || []).includes(tagFilter))
     .sort(manualSort() ? byManualOrder : byImportance);
 }
@@ -218,12 +306,15 @@ function toggleDone(t, done) {
   t.done = done;
   if (done) {
     t.completedAt = Date.now();
+    delete t.restoredAt;
     bump(state.completions, dateKey(), 1);
     logEvent('task', t.title, { ref: t.id, detail: projectById(t.projectId) ? `📁 ${projectById(t.projectId).name}` : '' });
+    archiveOldTasks(); // con «Archivar al momento» pasa ya al archivo
   } else {
     if (t.completedAt) unlogEvent('task', t.id, dateKey(new Date(t.completedAt)));
     if (t.completedAt) bump(state.completions, dateKey(new Date(t.completedAt)), -1);
     t.completedAt = null;
+    delete t.restoredAt;
   }
   save();
   renderAll();
@@ -267,8 +358,11 @@ function taskItem(t, { draggable = false } = {}) {
   }
   if (t.time) meta.append(' · ', el('span', { className: 'at-time' }, `⏰ ${t.time}`));
   if (t.repeat) meta.append(' · ', el('span', { className: 'repeat' }, `↻ ${REPEAT_LABEL[t.repeat]}`));
-  if (t.pomodoros) meta.append(` · 🍅 ${t.pomodoros}`);
+  // Tiempo dedicado con el Pomodoro (66-pomodoro-extra.js).
+  meta.append(typeof pomoTaskMeta === 'function' ? pomoTaskMeta(t) : t.pomodoros ? ` · 🍅 ${t.pomodoros}` : '');
   if (subtasks.length) meta.append(` · ☑ ${subtasks.filter((s) => s.done).length}/${subtasks.length}`);
+  const archived = t.done && state.archive.includes(t);
+  if (archived) meta.append(' · ', el('span', { className: 'archived-badge' }, '🗄 Archivada'));
 
   const title = el('button', { className: 'title', title: 'Editar' }, t.title);
   title.addEventListener('click', () => startEditing(t.id));
@@ -304,7 +398,16 @@ function taskItem(t, { draggable = false } = {}) {
   const del = el('button', { className: 'del', title: 'Eliminar', ariaLabel: 'Eliminar' }, '✕');
   del.addEventListener('click', () => deleteTask(t));
 
-  const row = [check, body, taskNoteButton(t), toggle, del]; // 📝 nota de la tarea (63-tarea-nota.js)
+  // Hechas: «Archivar» (o «Restaurar» si ya está archivada) y «Eliminar» en vez de ✕.
+  let tail = del;
+  if (t.done) {
+    const keep = el('button', { className: 'done-act', title: archived ? 'Devolver a la lista (sigue hecha)' : 'Pasar al archivo ahora' }, archived ? '↩ Restaurar' : '🗄 Archivar');
+    keep.addEventListener('click', () => (archived ? restoreTask(t) : archiveTasks([t])));
+    const drop = el('button', { className: 'done-act danger', title: 'Eliminar la tarea' }, '🗑 Eliminar');
+    drop.addEventListener('click', () => deleteTask(t));
+    tail = el('span', { className: 'done-acts' }, [keep, drop]);
+  }
+  const row = [check, body, taskNoteButton(t), toggle, tail]; // 📝 nota de la tarea (63-tarea-nota.js)
   if (draggable && !t.done) row.unshift(dragHandle(t));
   const li = el('li', { className: `task p${t.priority}${t.done ? ' done' : ''}` }, el('div', { className: 'task-row' }, row));
   li.dataset.id = t.id;
@@ -424,6 +527,7 @@ function taskEditor(t) {
     el('div', { className: 'row' }, [priority, due, time, repeat, ...(state.projects.length ? [project] : [])]),
     el('div', { className: 'row' }, [el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
     taskNoteRow(t), // «📝 Nota»: abrir, cambiar, desvincular (63-tarea-nota.js)
+    typeof pomoTaskRow === 'function' ? pomoTaskRow(t) : '', // «⏱ tiempo dedicado» y «▶ Pomodoro» (66)
     relItemPanel('task', t), // enlaces y «Relacionado» (60-relaciones.js)
   ]);
   form.addEventListener('submit', (e) => {
@@ -469,6 +573,7 @@ function renderTasks() {
   if (taskView === 'board') renderBoard();
   $('#task-sort').value = state.settings.sort || 'priority';
   const tasks = visibleTasks();
+  renderDoneBar(tasks);
   // Con muchas tareas se dibujan por tandas; el resto aparece con «Mostrar más».
   const shown = tasks.slice(0, taskLimit);
   const items = shown.map((t) => taskItem(t, { draggable: manualSort() }));

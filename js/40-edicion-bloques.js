@@ -185,6 +185,9 @@ $('#note-editor').addEventListener('keydown', (e) => {
 // Atajos de formato, cierre automático de [ ( { y envolver lo seleccionado, como en Obsidian.
 // Se usa insertText para que Ctrl+Z deshaga cada paso.
 function editorInsert(ta, text, start, end, selStart = null, selEnd = null) {
+  // Historial propio de la nota (67-deshacer.js): un paso antes y otro después del cambio.
+  const hist = ta.id === 'note-editor' && typeof noteHistoryCheckpoint === 'function' && activeNote();
+  if (hist) noteHistoryCheckpoint(hist);
   ta.focus({ preventScroll: true });
   ta.setSelectionRange(start, end);
   const ok = document.execCommand?.('insertText', false, text);
@@ -193,6 +196,7 @@ function editorInsert(ta, text, start, end, selStart = null, selEnd = null) {
     ta.dispatchEvent(new Event('input'));
   }
   if (selStart !== null) ta.setSelectionRange(selStart, selEnd ?? selStart);
+  if (hist) noteHistoryCheckpoint(hist);
 }
 
 // Pone o quita las marcas alrededor de la selección (o de la palabra, si no hay selección).

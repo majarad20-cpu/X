@@ -8,6 +8,7 @@
 // Ajuste: «Mostrar el resumen del día en las notas diarias». Plegado: state.settings.dayPanelClosed.
 const dayPanelOn = () => state.settings.dayPanel !== false;
 let dpDoneOpen = false; // «Hechas (N)» desplegado
+let dpCreatedOpen = false; // «Creadas este día (N)» desplegado
 
 // Tareas del día `key` (las de la propia nota ya se ven en ella).
 function dpTasks(key, note) {
@@ -16,7 +17,10 @@ function dpTasks(key, note) {
   const due = state.tasks.concat(noteTasks()).filter((t) => mine(t) && !t.done && t.due && (key === today ? t.due <= key : t.due === key)).sort(byImportance);
   const done = state.tasks.concat(state.archive).filter((t) => t.done && t.completedAt && dateKey(new Date(t.completedAt)) === key)
     .concat(noteTasks().filter((t) => mine(t) && t.done && t.doneOn === key));
-  return { due, done };
+  // Creadas ese día que no salen arriba (sin fecha o para otro día).
+  const shown = new Set([...due, ...done]);
+  const created = state.tasks.concat(state.archive).filter((t) => t.createdAt && dateKey(new Date(t.createdAt)) === key && !shown.has(t)).sort(byImportance);
+  return { due, done, created };
 }
 
 function dpTaskRow(t, key) {
@@ -76,7 +80,7 @@ function renderDayPanel(note) {
   const today = dateKey();
   const closed = !!state.settings.dayPanelClosed;
   const habitsDone = state.habits.filter((h) => h.log[key]).length;
-  const { due, done } = dpTasks(key, note);
+  const { due, done, created } = dpTasks(key, note);
   const pomos = state.pomodoros[key] || 0;
   const mins = state.focusMinutes?.[key] || 0;
   const ideas = state.ideas.filter((i) => i.createdAt && dateKey(new Date(i.createdAt)) === key);
@@ -118,11 +122,24 @@ function renderDayPanel(note) {
 
   const doneBox = el('details', { className: 'dp-done', open: dpDoneOpen }, [el('summary', {}, `Hechas (${done.length})`), el('ul', { className: 'dp-list' }, done.map((t) => dpTaskRow(t, key)))]);
   doneBox.addEventListener('toggle', () => (dpDoneOpen = doneBox.open));
+  const createdBox = el('details', { className: 'dp-created', open: dpCreatedOpen }, [
+    el('summary', {}, `Creadas ${key === today ? 'hoy' : 'este día'} (${created.length})`),
+    el('ul', { className: 'dp-list' }, created.map((t) => {
+      const row = dpTaskRow(t, key);
+      row.append(el('span', { className: 'dp-meta' }, t.done ? 'hecha' : t.due ? `para ${formatDue(t.due)}` : 'sin fecha'));
+      return row;
+    })),
+  ]);
+  createdBox.addEventListener('toggle', () => (dpCreatedOpen = createdBox.open));
 
-  const sessions = (state.log || []).filter((e) => e.type === 'pomodoro' && e.date === key && !e.removed).sort((a, b) => a.at - b.at);
+  // Sesiones con su contexto (66-pomodoro-extra.js); sin él, las de la bitácora.
+  const sessions = typeof pomoDaySessions === 'function'
+    ? pomoDaySessions(key)
+    : (state.log || []).filter((e) => e.type === 'pomodoro' && e.date === key && !e.removed).sort((a, b) => a.at - b.at)
+      .map((e) => el('li', { className: 'dp-row' }, [el('span', { className: 'dp-meta' }, new Date(e.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })), el('span', {}, e.text)]));
   const pomoKids = [
     el('p', { className: 'dp-pomos' }, pomos ? `${plural(pomos, 'pomodoro', 'pomodoros')}${mins ? ` · ${formatMinutes(mins)}` : ''}` : 'Ningún pomodoro'),
-    ...(sessions.length ? [el('ul', { className: 'dp-list dp-sessions' }, sessions.map((e) => el('li', { className: 'dp-row' }, [el('span', { className: 'dp-meta' }, new Date(e.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })), el('span', {}, e.text)])))] : []),
+    ...(sessions.length ? [el('ul', { className: 'dp-list dp-sessions' }, sessions)] : []),
   ];
   if (key === today) {
     const start = el('button', { type: 'button', className: 'dp-start' }, timer.endsAt ? '⏱ Ver el Pomodoro en marcha' : '▶ Empezar un Pomodoro');
@@ -144,6 +161,7 @@ function renderDayPanel(note) {
       dpSection('☑', key === today ? 'Tareas de hoy' : 'Tareas de ese día', due.length ? String(due.length) : '', [
         due.length ? el('ul', { className: 'dp-list' }, due.map((t) => dpTaskRow(t, key))) : dpEmpty(key < today ? 'Nada quedó pendiente.' : 'Nada pendiente.'),
         ...(done.length ? [doneBox] : []),
+        ...(created.length ? [createdBox] : []),
       ]),
       dpSection('🍅', 'Pomodoros', '', pomoKids),
       ...(ideas.length ? [dpSection('💡', 'Ideas apuntadas', String(ideas.length), [el('ul', { className: 'dp-list' }, ideaRows)])] : []),

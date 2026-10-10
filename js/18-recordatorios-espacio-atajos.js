@@ -131,7 +131,7 @@ function storageReport() {
   const j = worst('journal-');
   rows.push({ key: 'journal', label: 'Diario', detail: j ? `Mes más lleno: ${monthName(j.n.slice(8))} · ${plural(state.journal.length, 'entrada', 'entradas')} en total` : 'Sin entradas', b: j ? j.b : 0 });
   const a = worst('archive-');
-  rows.push({ key: 'archive', label: 'Archivo de tareas', detail: a ? `Mes más lleno: ${monthName(a.n.slice(8))} · ${plural(state.archive.length, 'tarea archivada', 'tareas archivadas')}` : 'Vacío: aquí pasan las tareas completadas hace más de 7 días', b: a ? a.b : 0 });
+  rows.push({ key: 'archive', label: 'Archivo de tareas', detail: a ? `Mes más lleno: ${monthName(a.n.slice(8))} · ${plural(state.archive.length, 'tarea archivada', 'tareas archivadas')}` : 'Vacío: aquí pasan las tareas completadas (o las que archives a mano), según Ajustes › Tareas hechas', b: a ? a.b : 0 });
   const l = worst('log-');
   rows.push({ key: 'log', label: 'Bitácora', detail: l ? `Mes más lleno: ${monthName(l.n.slice(4))} · ${plural(state.log.filter((e) => !e.removed).length, 'hito', 'hitos')} en total` : 'Sin hitos todavía', b: l ? l.b : 0 });
   const nt = worst('note-');

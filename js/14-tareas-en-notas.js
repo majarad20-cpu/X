@@ -34,9 +34,11 @@ function pinNoteDates(note) {
     });
   }).join('\n');
   if (!changed) return false;
+  if (typeof noteHistoryCheckpoint === 'function') noteHistoryCheckpoint(note); // Ctrl+Z vuelve al texto escrito (67)
   note.body = body;
   note.updatedAt = Date.now();
   save();
+  if (typeof noteHistoryCheckpoint === 'function') noteHistoryCheckpoint(note);
   return true;
 }
 
@@ -141,6 +143,19 @@ function toggleNoteTask(noteId, line, done) {
   renderAll();
 }
 
+// Quita de su nota la línea de una tarea (con «Deshacer»). Si la línea cambió, no se toca.
+function deleteNoteTaskLine(t) {
+  const note = noteById(t.noteId);
+  const lines = note && !note.enc ? note.body.split('\n') : [];
+  if (!lines.length || parseNoteTask(note, t.line, lines[t.line] ?? '')?.title !== t.title) return showToastMessage('La línea cambió: ábrela en su nota.');
+  if (typeof noteHistoryCheckpoint === 'function') noteHistoryCheckpoint(note);
+  withUndo('Línea de la nota borrada', () => {
+    lines.splice(t.line, 1);
+    note.body = lines.join('\n');
+    note.updatedAt = Date.now();
+  });
+}
+
 // Abre la nota en modo edición con el cursor en esa línea.
 function openNoteAtLine(noteId, line, { newTab = false } = {}) {
   const note = noteById(noteId);
@@ -180,7 +195,13 @@ function noteTaskItem(t) {
     pc.addEventListener('click', () => openProject(project.id));
     chips.prepend(pc);
   }
-  const li = el('li', { className: `task from-note p${t.priority}${t.done ? ' done' : ''}` }, el('div', { className: 'task-row' }, [check, el('div', { className: 'body' }, [title, meta, chips])]));
+  const row = [check, el('div', { className: 'body' }, [title, meta, chips])];
+  if (t.done) {
+    const drop = el('button', { className: 'done-act danger', title: 'Quitar esta línea de la nota' }, '🗑 Eliminar');
+    drop.addEventListener('click', () => deleteNoteTaskLine(t));
+    row.push(el('span', { className: 'done-acts' }, drop));
+  }
+  const li = el('li', { className: `task from-note p${t.priority}${t.done ? ' done' : ''}` }, el('div', { className: 'task-row' }, row));
   li.dataset.id = t.id;
   return li;
 }

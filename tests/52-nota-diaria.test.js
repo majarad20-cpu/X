@@ -187,5 +187,14 @@ const at = (s) => new Date(s).getTime();
   check('persistido', await p.evaluate(() => { flushLocal(); const s = JSON.parse(localStorage.getItem('enfoque:v1')); return s.journal.length === 0 && s.notes.find((n) => n.id === 'd9').body.includes('Una tarde tranquila') && s.settings.dayPanel === true; }));
   await open('d9');
   await p.screenshot({ path: `${out}/52-nota-diaria.png` });
+  // Una tarea escrita en Tareas sin fecha sale en «Creadas hoy» de la nota diaria
+  const cr = await p.evaluate(() => {
+    addTask('Revisar presupuesto anual');
+    const n = state.notes.find((x) => x.path === 'Diario/' + dateKey());
+    noteMode.set(n.id, 'read'); openNote(n); renderAll();
+    const box = document.querySelector('#day-panel .dp-created');
+    return box ? box.textContent : '';
+  });
+  check('creadas hoy', /Creadas hoy \(\d+\)/.test(cr) && cr.includes('Revisar presupuesto anual') && cr.includes('sin fecha'), cr.slice(0, 120));
   console.log('errors:', errs); await b.close();
 })();

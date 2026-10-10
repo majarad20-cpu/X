@@ -17,6 +17,7 @@
 //   trash-<id>       cada nota en la papelera (57-papelera-captura.js)
 //   fin-AAAA-MM      movimientos de finanzas de ese mes (se fusionan por id: 65-finanzas.js)
 //   fin-meta         categorías, gastos fijos y ajustes de finanzas
+//   pomo-AAAA-MM     sesiones de enfoque de ese mes (se fusionan por id: 03-pomodoro.js)
 // Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
 const sync = { col: null, writing: false, dirty: false, timeout: null };
 
@@ -38,6 +39,7 @@ const monthOf = (date) => date.slice(0, 7);
 const archiveMonth = (t) => dateKey(new Date(t.completedAt || t.createdAt)).slice(0, 7);
 const logOrder = (a, b) => a.at - b.at || String(a.id).localeCompare(String(b.id));
 const isFinMonth = (name) => /^fin-\d/.test(name);
+const isPomoMonth = (name) => /^pomo-\d/.test(name);
 // De dos versiones de un movimiento gana la más reciente (con desempate fijo, igual en todos los dispositivos).
 const finNewer = (a, b) => (a.updatedAt || 0) - (b.updatedAt || 0) || (JSON.stringify(a) > JSON.stringify(b) ? 1 : -1);
 
@@ -54,7 +56,10 @@ function localBuckets() {
   logMonths.forEach((m) => out.set(`log-${m}`, { items: state.log.filter((e) => monthOf(e.date) === m).sort(logOrder) }));
   const archMonths = new Set(state.archive.map((t) => archiveMonth(t)));
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
-  archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
+  archMonths.forEach((m) => {
+    const gone = archiveGone(`archive-${m}`);
+    out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m), ...(gone.length ? { gone } : {}) });
+  });
   // Finanzas: un bloque por mes (los borrados van con marca «del») y fin-meta, solo si ya se usan.
   const fin = state.finance || {};
   const finTx = fin.tx || [];
@@ -65,11 +70,43 @@ function localBuckets() {
     const { tx, ...meta } = fin;
     out.set('fin-meta', meta);
   }
+  // Sesiones de enfoque: un bloque por mes, ordenadas por id.
+  const pomo = state.focusLog || [];
+  const pomoMonths = new Set(pomo.map((r) => monthOf(r.date)));
+  Object.keys(state.syncMeta.sent).filter(isPomoMonth).forEach((n) => pomoMonths.add(n.slice(5)));
+  pomoMonths.forEach((m) => out.set(`pomo-${m}`, { items: pomo.filter((r) => monthOf(r.date) === m).sort((a, b) => String(a.id).localeCompare(String(b.id))) }));
   state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
   state.canvases.forEach((c) => out.set(`canvas-${c.id}`, { canvas: c }));
   state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
   (state.trash || []).forEach((t) => out.set(`trash-${t.id}`, { item: t }));
   return out;
+}
+
+// Archivo: los id de tareas archivadas que se borraron viajan en «gone», para que otro dispositivo
+// (que aún las tenga o gane con su copia) no las devuelva. Salen de lo último enviado de ese mes:
+// lo que se envió y ya no está ni en el archivo ni en la lista (restaurar no cuenta como borrar).
+function archiveGone(name) {
+  let sent = {};
+  try {
+    sent = JSON.parse(state.syncMeta.sent[name] || '{}');
+  } catch {}
+  const live = new Set(allTasks().map((t) => t.id));
+  return [...new Set([...(sent.gone || []), ...(sent.items || []).map((t) => t.id)])].filter((id) => !live.has(id)).sort();
+}
+
+// Llegan borrados de otro dispositivo: se quitan aquí y se recuerdan para seguir enviándolos.
+function archiveTakeGone(name, gone) {
+  if (!gone?.length || state.syncMeta.sent[name] === undefined) return false;
+  const sent = JSON.parse(state.syncMeta.sent[name]);
+  sent.gone = [...new Set([...(sent.gone || []), ...gone])].sort();
+  state.syncMeta.sent[name] = JSON.stringify(sent);
+  const ids = new Set(gone);
+  const n = state.archive.length + state.tasks.length;
+  state.archive = state.archive.filter((t) => !ids.has(t.id));
+  state.tasks = state.tasks.filter((t) => !ids.has(t.id));
+  if (state.archive.length + state.tasks.length === n) return false;
+  dataRev++;
+  return true;
 }
 
 function bucketIsEmpty(name, data) {
@@ -112,10 +149,19 @@ function applyBucket(name, data) {
       if (!mine || finNewer(t, mine) > 0) byId.set(t.id, t);
     });
     state.finance = { ...state.finance, tx: [...byId.values()] };
+  } else if (isPomoMonth(name)) {
+    // Se fusiona por id: gana la versión más reciente de cada sesión (p. ej. con «¿Qué hiciste?»).
+    const byId = new Map((state.focusLog || []).map((r) => [r.id, r]));
+    (data.items || []).forEach((r) => {
+      const mine = byId.get(r.id);
+      if (!mine || finNewer(r, mine) > 0) byId.set(r.id, r);
+    });
+    state.focusLog = [...byId.values()];
   } else if (name.startsWith('archive-')) {
     const m = name.slice(8);
-    const incoming = data.items || [];
-    const ids = new Set(incoming.map((t) => t.id));
+    const gone = new Set([...(data.gone || []), ...archiveGone(name)]);
+    const incoming = (data.items || []).filter((t) => !gone.has(t.id));
+    const ids = new Set([...incoming.map((t) => t.id), ...gone]);
     state.archive = state.archive.filter((t) => archiveMonth(t) !== m).concat(incoming);
     // Si otro dispositivo archivó una tarea, aquí deja de estar en la lista activa.
     state.tasks = state.tasks.filter((t) => !ids.has(t.id));
@@ -273,16 +319,22 @@ function receiveSnapshot(snap, first) {
     if (localDirty && meta.sent[name] === undefined && bucketIsEmpty(name, body) && !bucketIsEmpty(name, localData)) continue;
     // Si este bloque cambió aquí después que en la nube, gana el de aquí (la bitácora siempre se fusiona).
     // La primera vez que llega un bloque no gana nunca la copia de aquí: se junta con la de la nube.
-    const isLog = name.startsWith('log-') || isFinMonth(name);
+    const isLog = name.startsWith('log-') || isFinMonth(name) || isPomoMonth(name);
     const firstSync = meta.sent[name] === undefined;
     const ln = name.startsWith('note-') && localData?.note;
     const localAt = Math.max(state.updatedAt || 0, (ln && ln.updatedAt) || 0);
     const pending = ln && ((noteSaveTimer && activeNote()?.id === ln.id) || encryptTimers.has(ln.id));
-    if (!isLog && localDirty && !firstSync && (localAt > remoteAt || pending)) continue;
+    // Tareas archivadas borradas en otro dispositivo: no vuelven aunque aquí gane la copia local.
+    const goneHere = name.startsWith('archive-') && archiveTakeGone(name, body.gone);
+    if (!isLog && localDirty && !firstSync && (localAt > remoteAt || pending)) {
+      if (goneHere) changed = true;
+      continue;
+    }
 
     const incoming = !isLog && firstSync && localDirty ? mergeByIds(localData, body) : body;
-    const merged = incoming !== body && JSON.stringify(incoming) !== JSON.stringify(body);
     applyBucket(name, incoming);
+    // Si al aplicar se quitaron tareas borradas aquí, la versión de aquí se vuelve a subir.
+    const merged = (incoming !== body && JSON.stringify(incoming) !== JSON.stringify(body)) || (name.startsWith('archive-') && JSON.stringify(localBuckets().get(name)) !== JSON.stringify(body));
     // Tras fusionar (la bitácora o una primera vez), lo que quede distinto de la nube se vuelve a subir.
     meta.sent[name] = isLog || merged ? JSON.stringify(body) : JSON.stringify(localBuckets().get(name) ?? body);
     meta.times[name] = remoteAt;

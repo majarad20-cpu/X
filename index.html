@@ -109,6 +109,11 @@
           <span id="note-crumbs" class="note-crumbs"></span>
           <button id="note-ai-btn" class="side-btn" title="Claude en esta nota (Ctrl+J)" aria-label="Claude en esta nota" hidden><span class="ico" data-icon="sparkle"></span></button>
           <button id="note-split" class="side-btn" hidden aria-pressed="false" title="Editar con vista previa al lado (Ctrl+Mayús+E)" aria-label="Editar con vista previa al lado"><span class="ico" data-icon="columns"></span></button>
+          <span id="note-undo-group" class="note-undo" hidden>
+            <button id="note-undo" class="side-btn undo-btn" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶<span class="undo-label"> Deshacer</span></button>
+            <button id="note-redo" class="side-btn undo-btn" title="Rehacer (Ctrl+Mayús+Z o Ctrl+Y)" aria-label="Rehacer" disabled>↷<span class="undo-label"> Rehacer</span></button>
+            <button id="note-versions" class="side-btn undo-versions" title="Ver versiones anteriores… (historial de la nota)" aria-label="Ver versiones anteriores">🕘</button>
+          </span>
           <button id="note-width" class="side-btn" title="Usar todo el ancho" aria-label="Usar todo el ancho" aria-pressed="false"><span class="ico" data-icon="widen"></span></button>
           <button id="note-mode" class="side-btn" title="Alternar edición / lectura (Ctrl+E)"><span class="ico" data-icon="pencil"></span></button>
           <button id="note-more" class="side-btn" title="Más opciones" aria-label="Más opciones" aria-haspopup="menu"><span class="ico" data-icon="more"></span></button>
@@ -197,7 +202,7 @@
         <div class="stat"><span id="stat-pending" class="num">0</span><span class="label">Para hoy</span></div>
         <div class="stat"><span id="stat-overdue" class="num">0</span><span class="label">Vencidas</span></div>
         <div class="stat"><span id="stat-done" class="num">0</span><span class="label">Hechas hoy</span></div>
-        <div class="stat"><span id="stat-pomos" class="num">0</span><span class="label">Pomodoros</span></div>
+        <div class="stat"><span id="stat-pomos" class="num">0</span><span class="label">Pomodoros</span><span id="stat-pomo-goal" class="stat-goal" hidden><i></i></span></div>
       </div>
 
       <div id="today-calendar" class="today-calendar" hidden></div>
@@ -301,6 +306,7 @@
         </div>
       </div>
 
+      <div id="done-bar" class="done-bar" hidden></div>
       <ul id="task-list" class="list"></ul>
       <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
       <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas · con «Orden: el mío» arrastra ⠿ para reordenar · las tareas 📝 vienen de tus notas (escribe <code>- [ ] tarea 📅 mañana</code> en cualquier nota).</p>
@@ -507,10 +513,13 @@
     <!-- Pomodoro -->
     <section id="view-timer" class="view">
       <div class="card timer-card">
-        <div class="modes" role="group" aria-label="Modo">
-          <button class="chip active" data-mode="focus">Enfoque</button>
-          <button class="chip" data-mode="short">Pausa corta</button>
-          <button class="chip" data-mode="long">Pausa larga</button>
+        <div class="timer-top">
+          <div class="modes" role="group" aria-label="Modo">
+            <button class="chip active" data-mode="focus">Enfoque</button>
+            <button class="chip" data-mode="short">Pausa corta</button>
+            <button class="chip" data-mode="long">Pausa larga</button>
+          </div>
+          <button id="timer-gear" class="chip timer-gear" title="Ajustes del Pomodoro" aria-label="Ajustes del Pomodoro">⚙</button>
         </div>
         <div class="ring">
           <svg viewBox="0 0 120 120" aria-hidden="true">
@@ -519,27 +528,30 @@
           </svg>
           <div id="timer-display" class="time">25:00</div>
         </div>
+        <p id="timer-round" class="muted timer-round"></p>
         <button id="focus-block" class="link focus-block" hidden>🎯 Reservar tiempo de concentración en Google Calendar…</button>
-        <label class="current-task">
-          Trabajando en:
-          <select id="timer-task"><option value="">— ninguna —</option></select>
-        </label>
+        <div class="current-task">
+          <label>Trabajando en:
+            <select id="timer-task"><option value="">— Libre —</option></select>
+          </label>
+          <input id="timer-label" type="text" maxlength="80" placeholder="Etiqueta (opcional)" aria-label="Etiqueta de la sesión libre">
+        </div>
         <div class="row center">
           <button id="timer-start" class="primary big">Iniciar</button>
           <button id="timer-reset">Reiniciar</button>
           <button id="timer-skip">Saltar</button>
+          <button id="timer-plus5" hidden>+5 min</button>
         </div>
+        <div id="pomo-goal" class="pomo-goal"></div>
         <p class="muted">Pomodoros hoy: <strong id="pomo-today">0</strong></p>
       </div>
 
-      <details class="card">
-        <summary>Ajustes (minutos)</summary>
-        <div class="settings">
-          <label>Enfoque <input id="set-focus" type="number" min="1" max="120"></label>
-          <label>Pausa corta <input id="set-short" type="number" min="1" max="60"></label>
-          <label>Pausa larga <input id="set-long" type="number" min="1" max="60"></label>
-        </div>
+      <details id="pomo-quick-box" class="card">
+        <summary>⚙ Ajustes del Pomodoro</summary>
+        <div id="pomo-quick" class="pomo-set"></div>
       </details>
+
+      <div id="pomo-stats" class="card pomo-stats"></div>
     </section>
 
     <!-- Hábitos -->
@@ -773,9 +785,26 @@
 
       <h2 class="section-title">Espacio</h2>
       <div class="card storage">
-        <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas hace más de 7 días se archivan solas y siguen apareciendo en «Hechas».</p>
+        <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas se archivan solas (a los 7 días, o lo que elijas en «Tareas hechas») y siguen apareciendo en «Hechas».</p>
         <div id="storage-meter"></div>
       </div>
+
+      <h2 class="section-title">Tareas hechas</h2>
+      <div class="card">
+        <label class="set-row">Archivar las tareas hechas
+          <select id="set-archive-days" aria-label="Archivar las tareas hechas">
+            <option value="0">al momento</option>
+            <option value="1">después de 1 día</option>
+            <option value="7">después de 7 días</option>
+            <option value="30">después de 30 días</option>
+            <option value="-1">nunca</option>
+          </select>
+        </label>
+        <p class="muted">Las archivadas salen de la lista pero siguen en «Hechas» (filtro «Archivadas»). Cada tarea hecha tiene además «🗄 Archivar» y «🗑 Eliminar».</p>
+      </div>
+
+      <h2 class="section-title">Pomodoro</h2>
+      <div id="pomo-settings" class="card pomo-set"></div>
 
       <h2 class="section-title">Google Calendar</h2>
       <div class="card">
@@ -1121,6 +1150,7 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
+  <div id="pomo-alert" class="pomo-alert" role="status" aria-live="polite" hidden></div>
 
   <script src="js/01-nucleo.js"></script>
   <script src="js/02-tareas.js"></script>
@@ -1184,6 +1214,8 @@
   <script src="js/62-dia.js"></script>
   <script src="js/64-semana.js"></script>
   <script src="js/65-finanzas.js"></script>
+  <script src="js/66-pomodoro-extra.js"></script>
+  <script src="js/67-deshacer.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
