@@ -16,6 +16,9 @@ function parseWikiInner(inner) {
 
 function wikiLinkHtml(rawInner) {
   const { target, heading, alias } = parseWikiInner(rawInner);
+  // [[tarea:ID|…]], [[proyecto:ID|…]]…: ficha con el nombre actual (60-relaciones.js).
+  const typed = entityLinkHtml(target, alias);
+  if (typed) return typed;
   const note = target ? findNoteByName(target) : null;
   const label = alias || (heading ? (target ? `${target} › ${heading}` : heading) : target);
   return `<a href="#" class="wikilink${note || !target ? '' : ' unresolved'}" data-target="${escHtml(target)}" data-heading="${escHtml(heading)}" title="${escHtml(note ? note.path : `Crear «${target}»`)}">${escHtml(label)}</a>`;
@@ -631,6 +634,7 @@ function blockOf(body, id) {
 
 function embedHtml(inner, depth) {
   const { target, heading } = parseWikiInner(inner);
+  if (relParse(target)) return `<p>${wikiLinkHtml(inner)}</p>`;
   const note = findNoteByName(target);
   if (!note || depth >= 2) return `<div class="embed missing">${wikiLinkHtml(inner)} ${note ? '(demasiadas incrustaciones)' : '— la nota no existe todavía'}</div>`;
   const sec = heading ? sectionOf(note.body, heading) : { text: note.body, offset: 0 };

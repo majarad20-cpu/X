@@ -9,7 +9,7 @@
 const PV_DELAY = 400;
 const PV_HIDE = 250;
 const pv = { timer: null, hideTimer: null, anchor: null, graphHover: null, noteId: null };
-const PV_SEL = 'a.wikilink:not(.unresolved), [data-pv-note], .search-hit';
+const PV_SEL = 'a.wikilink:not(.unresolved), a.elink:not(.missing):not(.unresolved), [data-pv-note], .search-hit';
 
 const pvBox = el('div', { id: 'link-preview', className: 'link-preview', hidden: true, role: 'dialog', ariaLabel: 'Vista previa de la nota' });
 document.body.append(pvBox);
@@ -17,6 +17,13 @@ const pvOpen = () => !pvBox.hidden;
 
 // Nota (y sección) a la que apunta un elemento, o null si no hay nada que mostrar.
 function pvTarget(node) {
+  // Ficha [[tarea:…]], [[proyecto:…]]…: tarjeta con estado, fecha y avance (60-relaciones.js).
+  if (node.matches('a.elink')) {
+    const { etype, eid, target } = node.dataset;
+    if (etype !== 'note') return { ent: { type: etype, id: eid } };
+    const note = findNoteByName(target);
+    return note ? { note, heading: '' } : null;
+  }
   if (node.matches('a.wikilink')) {
     const { target, heading } = node.dataset;
     const from = node.closest('[data-note]')?.dataset.note;
@@ -37,6 +44,12 @@ function pvTarget(node) {
 function showLinkPreview(target, rect) {
   const { note, heading } = target;
   clearTimeout(pv.hideTimer);
+  if (target.ent) {
+    pv.noteId = null;
+    pvBox.replaceChildren(...entityPreview(target.ent.type, target.ent.id));
+    pvBox.hidden = false;
+    return pvPlace(rect);
+  }
   pv.noteId = note.id;
   const text = noteText(note);
   const head = el('button', { className: 'lp-head', title: 'Abrir la nota' }, [el('span', { className: 'lp-title' }, baseName(note.path)), heading ? el('span', { className: 'lp-sec' }, `› ${heading}`) : '']);
