@@ -2452,8 +2452,8 @@ body.gs-open #note-menu { z-index: 96; }
 .dp-meta { font-size: .78rem; color: var(--muted); white-space: nowrap; flex: none; }
 .dp-meta.overdue { color: var(--high); }
 .dp-empty { margin: 0; font-size: .85rem; }
-.dp-done { margin-top: 4px; }
-.dp-done summary { cursor: pointer; font-size: .82rem; color: var(--muted); }
+.dp-done, .dp-created { margin-top: 4px; }
+.dp-done summary, .dp-created summary { cursor: pointer; font-size: .82rem; color: var(--muted); }
 .dp-pomos { margin: 0 0 4px; }
 .dp-start { margin-top: 6px; font-size: .85rem; padding: 4px 10px; }
 .dp-sec .cal-block { margin: 0; }
