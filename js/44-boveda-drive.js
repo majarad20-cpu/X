@@ -238,6 +238,7 @@ async function syncVault({ manual = false, adopt = false } = {}) {
   if (!vaultOn() || vault.busy) return;
   vault.busy = true;
   if (manual) vaultStatus('Sincronizando con Drive…');
+  if (typeof renderDriveBtn === 'function') renderDriveBtn();
   try {
     const pulled = Date.now() - (vaultMap().lastPull || 0) > VAULT_PULL_MS || manual ? await pullVault() : 0;
     const pushed = await pushVault({ adopt });
@@ -255,6 +256,7 @@ async function syncVault({ manual = false, adopt = false } = {}) {
 }
 
 function renderVaultSettings() {
+  if (typeof renderDriveBtn === 'function') renderDriveBtn();
   const g = gSettings();
   const ok = gAvailable();
   const mine = g.vaultDevice === deviceId();

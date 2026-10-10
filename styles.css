@@ -2308,3 +2308,14 @@ body.qb-modal-open #note-menu { z-index: 96; }
   /* Por encima del aviso de «Deshacer», que en el móvil ocupa casi todo el ancho */
   .capture-fab { right: 14px; width: 48px; height: 48px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ---------- Atrás / adelante y botón de Drive ---------- */
+.nav-arrows { display: flex; gap: 0; margin-bottom: 4px; flex: none; }
+.nav-arrows .side-btn:disabled { opacity: .35; cursor: default; }
+.drive-sync { position: relative; margin-bottom: 4px; }
+.drive-sync .ds-dot { position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .6; }
+.drive-sync.on .ds-dot { background: #2f9e44; opacity: 1; }
+.drive-sync.error .ds-dot { background: #e03131; opacity: 1; }
+.drive-sync.busy .ico { animation: ds-pulse 1s ease-in-out infinite; }
+@keyframes ds-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .drive-sync.busy .ico { animation: none; opacity: .6; } }

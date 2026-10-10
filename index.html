@@ -89,8 +89,13 @@
         <button id="toggle-right" class="side-btn" aria-label="Abrir panel derecho"><span class="ico" data-icon="panel-right"></span></button>
       </div>
       <div class="ws-tabbar">
+        <div class="nav-arrows">
+          <button id="nav-back" class="side-btn" title="Atrás (Alt+←)" aria-label="Atrás" disabled><span class="ico" data-icon="back"></span></button>
+          <button id="nav-fwd" class="side-btn" title="Adelante (Alt+→)" aria-label="Adelante" disabled><span class="ico" data-icon="forward"></span></button>
+        </div>
         <div id="ws-tabs" class="ws-tabs" role="tablist" aria-label="Pestañas abiertas"></div>
         <button id="ws-new-tab" class="side-btn" title="Nueva nota" aria-label="Nueva nota"><span class="ico" data-icon="plus"></span></button>
+        <button id="drive-sync-btn" class="side-btn drive-sync" title="Sincronizar las notas con Google Drive" aria-label="Sincronizar las notas con Google Drive" hidden><span class="ico" data-icon="cloud-sync"></span><span class="ds-dot" aria-hidden="true"></span></button>
         <button id="toggle-right-desk" class="side-btn desk-only" title="Panel derecho" aria-label="Mostrar u ocultar panel derecho"><span class="ico" data-icon="panel-right"></span></button>
       </div>
       <div id="reminders" class="reminders" aria-live="assertive"></div>
@@ -1114,6 +1119,7 @@
   <script src="js/56-notas-extra.js"></script>
   <script src="js/57-papelera-captura.js"></script>
   <script src="js/58-plan-dia.js"></script>
+  <script src="js/59-navegacion.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
