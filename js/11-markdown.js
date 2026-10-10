@@ -44,8 +44,100 @@ function footnoteRef(def) {
   return `<sup class="fn-ref"${first ? ` id="${f.pre}r${n}"` : ''}><a href="#" data-go="${f.pre}d${n}" title="${escHtml(typeof def === 'string' ? def : f.defs.get(def.id) || '')}">${n}</a></sup>`;
 }
 
-// Etiquetas HTML sencillas que Obsidian también admite (sin atributos, así que no hay riesgo).
-const SAFE_TAGS = /&lt;(\/?)(u|sub|sup|kbd|mark|small|s|b|i|ins|br)\s*\/?&gt;/gi;
+// Etiquetas HTML sencillas que Obsidian también admite. Nunca pasa el HTML original: se lee la
+// etiqueta y se escribe otra nueva, sin atributos salvo un `style` rehecho con lo que se valida.
+const HTML_INLINE_RE = /<(\/?)(u|sub|sup|kbd|mark|small|span|s|b|i|ins|br)(\s[^<>\n]*)?\/?>/gi;
+const CSS_NAMED = new Set('black white gray grey silver red darkred crimson firebrick tomato coral salmon orange darkorange gold yellow khaki olive lime green darkgreen forestgreen seagreen limegreen teal cyan aqua turquoise skyblue lightblue deepskyblue dodgerblue steelblue royalblue blue navy darkblue indigo purple rebeccapurple violet darkviolet plum orchid magenta fuchsia pink hotpink deeppink brown chocolate tan beige maroon goldenrod lavender slategray lightgray lightgrey darkgray darkgrey lightgreen lightyellow lightpink transparent currentcolor'.split(' '));
+const CSS_NUM = '\\d{1,3}(?:\\.\\d+)?%?';
+const CSS_FN_RE = new RegExp(`^(?:rgba?|hsla?)\\(\\s*${CSS_NUM}(?:\\s*[,\\s]\\s*${CSS_NUM}){2}(?:\\s*[,/]\\s*${CSS_NUM})?\\s*\\)$`);
+const cssColorOk = (v) => CSS_NAMED.has(v) || /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(v) || CSS_FN_RE.test(v);
+// Solo color, fondo, tamaño (% o em), grosor y estilo de letra; lo demás se descarta.
+function safeStyle(attrs) {
+  const m = (attrs || '').match(/\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+  if (!m) return '';
+  const out = new Map();
+  for (const decl of (m[1] ?? m[2]).split(';')) {
+    const k = decl.indexOf(':');
+    if (k < 0) continue;
+    let prop = decl.slice(0, k).trim().toLowerCase();
+    const v = decl.slice(k + 1).trim().toLowerCase().replace(/\s*!important$/, '');
+    if (prop === 'background') prop = 'background-color';
+    let ok = false;
+    if (prop === 'color' || prop === 'background-color') ok = cssColorOk(v);
+    else if (prop === 'font-size') {
+      const n = v.match(/^(\d{1,3}(?:\.\d+)?)(%|em)$/);
+      ok = !!n && (n[2] === '%' ? +n[1] >= 50 && +n[1] <= 400 : +n[1] >= 0.5 && +n[1] <= 4);
+    } else if (prop === 'font-weight') ok = /^(normal|bold|bolder|lighter|[1-9]00)$/.test(v);
+    else if (prop === 'font-style') ok = /^(normal|italic|oblique)$/.test(v);
+    if (ok) out.set(prop, v);
+  }
+  return [...out].map(([p, v]) => `${p}:${v}`).join(';');
+}
+function inlineTagHtml(close, tag, attrs) {
+  tag = tag.toLowerCase();
+  if (tag === 'br') return '<br>';
+  if (close) return `</${tag}>`;
+  const style = tag === 'span' || tag === 'mark' ? safeStyle(attrs) : '';
+  return `<${tag}${style ? ` style="${escHtml(style)}"` : ''}>`;
+}
+// Cierra lo que quedó abierto y quita los cierres sueltos (las etiquetas van marcadas con \u0002).
+function balanceTags(s, list) {
+  const stack = [];
+  s = s.replace(/\u0002(\d+)\u0002/g, (_, k) => {
+    const t = list[k];
+    const m = t.match(/^<(\/?)([a-z]+)/);
+    if (m[2] === 'br') return t;
+    if (!m[1]) {
+      stack.push(m[2]);
+      return t;
+    }
+    const at = stack.lastIndexOf(m[2]);
+    if (at < 0) return '';
+    return stack.splice(at).reverse().map((x) => `</${x}>`).join('');
+  });
+  return s + stack.reverse().map((x) => `</${x}>`).join('');
+}
+
+// ---------- Vídeo, audio y enlaces incrustados ----------
+// De YouTube y Vimeo solo se toma el identificador validado; el reproductor lo monta la app.
+function videoId(url) {
+  let m = url.match(/^https?:\/\/(?:www\.|m\.)?youtube\.com\/watch\?(?:[^#\s]*&)?v=([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/i) || url.match(/^https?:\/\/youtu\.be\/([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/i) || url.match(/^https?:\/\/(?:www\.|m\.)?youtube\.com\/(?:shorts|embed|live)\/([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/i);
+  if (m) return { host: 'YouTube', id: m[1], src: `https://www.youtube-nocookie.com/embed/${m[1]}`, open: `https://www.youtube.com/watch?v=${m[1]}` };
+  m = url.match(/^https?:\/\/(?:www\.)?vimeo\.com\/(?:video\/)?(\d{1,12})(?=$|[/?#])/i) || url.match(/^https?:\/\/player\.vimeo\.com\/video\/(\d{1,12})(?=$|[/?#])/i);
+  if (m) return { host: 'Vimeo', id: m[1], src: `https://player.vimeo.com/video/${m[1]}`, open: `https://vimeo.com/${m[1]}` };
+  return null;
+}
+const urlExt = (url) => (url.split(/[?#]/)[0].match(/\.([a-z0-9]{2,5})$/i) || [])[1]?.toLowerCase() || '';
+const urlHost = (url) => (url.match(/^https?:\/\/(?:[^@/]*@)?([^/:?#]+)/i) || [])[1] || url;
+const extLink = (url, label) => `<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">${label}</a>`;
+
+// ![texto|400](https://…): imagen (también sin extensión, como en Obsidian; si no carga, pasa a tarjeta),
+// vídeo, audio o, para lo demás (PDF, páginas), una tarjeta.
+function mediaHtml(raw, url) {
+  const { alt, style } = imgSize(raw);
+  const ext = urlExt(url);
+  const vid = videoId(url);
+  const kind = vid ? 'video' : /^(mp4|webm|mov|m4v)$/.test(ext) ? 'video' : /^(mp3|ogg|oga|wav|m4a|flac|aac|opus)$/.test(ext) ? 'audio' : /^(png|jpe?g|gif|webp|avif|svg|bmp)$/.test(ext) || (!ext && /^https?:\/\/[^/?#]+\/[^?#]*[^/?#]/i.test(url)) ? 'img' : ext === 'pdf' ? 'pdf' : 'link';
+  if (mdNoExtImg) return extLink(url, `${kind === 'img' ? '🖼' : kind === 'link' ? '🔗' : kind === 'pdf' ? '📄' : '▶'} ${escHtml(alt || url)}`);
+  if (kind === 'img') return `<img class="note-img ext" src="${escHtml(url)}" alt="${escHtml(alt)}" loading="lazy" referrerpolicy="no-referrer"${style}>`;
+  const box = (cls, inner, href = url) => `<span class="media-embed ${cls}" data-kind="${kind}" data-url="${escHtml(href)}"${style}>${inner}</span>`;
+  if (vid) {
+    const title = escHtml(alt || `Vídeo de ${vid.host}`);
+    return box('media-frame', `<span class="mf-ratio"><iframe src="${vid.src}" title="${title}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></span><a href="${vid.open}" class="external media-open" target="_blank" rel="noopener noreferrer">Abrir en ${vid.host} ↗</a>`, vid.open);
+  }
+  if (kind === 'video') return box('media-video', `<video controls preload="metadata" src="${escHtml(url)}"${alt ? ` title="${escHtml(alt)}"` : ''}></video>`);
+  if (kind === 'audio') return box('media-audio', `${alt ? `<span class="ma-label">${escHtml(alt)}</span>` : ''}<audio controls preload="metadata" src="${escHtml(url)}"></audio>`);
+  const name = decodeURIComponentSafe(url.split(/[?#]/)[0].split('/').pop() || '');
+  const title = alt || (kind === 'pdf' && name) || urlHost(url);
+  return box('link-card', `<span class="lc-ico" aria-hidden="true">${kind === 'pdf' ? '📄' : '🔗'}</span><span class="lc-text"><span class="lc-title">${escHtml(title)}</span><span class="lc-host">${escHtml(urlHost(url))}</span></span><a href="${escHtml(url)}" class="external lc-open" target="_blank" rel="noopener noreferrer">Abrir ↗</a>`);
+}
+function decodeURIComponentSafe(s) {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
 
 const MD_HOLD = /\u0001(\d+)\u0001/g;
 
@@ -58,12 +150,15 @@ function inlineMd(text) {
     return `\u0001${tokens.push(html) - 1}\u0001`;
   };
   const plain = (t) => t.replace(MD_HOLD, (_, k) => plain(raws[k] || ''));
+  const tagList = [];
   let s = text
     .replace(/`([^`\n]+)`/g, (m, c) => hold(`<code>${escHtml(c)}</code>`, m))
     .replace(/(^|[^\\$])\$\$([^$\n]+?)\$\$/g, (_, pre, tex) => pre + hold(mathHtml(tex, true), `$$${tex}$$`))
     .replace(/(^|[^\\$])\$(?=[^\s$])([^$\n]*?[^\s\\$])\$(?![\d$])/g, (_, pre, tex) => pre + hold(mathHtml(tex, false), `$${tex}$`))
     .replace(/!?\[\[([^\]\n]+?)\]\]/g, (m, inner) => hold(wikiLinkHtml(inner), m))
     .replace(/\\([\\`*_{}\[\]()#+\-.!|~=$%^<>])/g, (m, c) => hold(escHtml(c), m))
+    // HTML permitido: <u>, <sub>, <span style="color:…">… (la etiqueta se rehace, ver inlineTagHtml).
+    .replace(HTML_INLINE_RE, (m, close, tag, attrs) => hold(`\u0002${tagList.push(inlineTagHtml(close, tag, attrs)) - 1}\u0002`, m))
     // Notas al pie: [^id] (definida al final) y ^[texto] (en línea), numeradas por orden de aparición.
     .replace(/\^\[([^\]\n]+)\]|\[\^([^\]\s]+)\]/g, (m, note, id) => {
       if (!mdNotes || (id && !mdNotes.defs.has(id))) return m;
@@ -74,18 +169,19 @@ function inlineMd(text) {
       const { alt, style } = imgSize(raw);
       return hold(`<img class="note-img" data-img="${escHtml(id)}" alt="${escHtml(alt)}" loading="lazy"${style}>`);
     })
-    // Imagen de internet: ![descripción|300](https://…).
-    .replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/gi, (_, raw, url) => {
+    // De internet: ![descripción|300](https://…): imagen, vídeo, audio o tarjeta de enlace.
+    .replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/gi, (_, raw, url) => hold(mediaHtml(raw, url)))
+    // Archivo guardado en la app: ![nombre.pdf](file:ID). Se rellena según su tipo (50-plegado-medios.js).
+    .replace(/!\[([^\]\n]*)\]\(file:([a-z0-9]+)\)/gi, (_, raw, id) => {
       const { alt, style } = imgSize(raw);
-      if (mdNoExtImg) return hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">🖼 ${escHtml(alt || url)}</a>`);
-      return hold(`<img class="note-img ext" src="${escHtml(url)}" alt="${escHtml(alt)}" loading="lazy" referrerpolicy="no-referrer"${style}>`);
+      return hold(`<span class="note-file" data-file="${escHtml(id)}" data-name="${escHtml(alt || 'archivo')}"${style}>📎 ${escHtml(alt || 'archivo')}</span>`);
     })
     // Nota de voz: ![🎤 Nota de voz · 0:42](audio:ID).
     .replace(/!\[([^\]\n]*)\]\(audio:([a-z0-9]+)\)/gi, (_, label, id) => hold(`<span class="note-audio"><span class="na-label">${escHtml(label || '🎤 Nota de voz')}</span><audio controls preload="metadata" data-audio="${escHtml(id)}"></audio></span>`))
     .replace(/(!?)\[([^\]\n]*)\]\((\S+?)\)/g, (m, bang, label, url) => {
       if (/^(https?:|mailto:)/i.test(url)) return hold(`<a href="${escHtml(url)}" class="external" target="_blank" rel="noopener noreferrer">${escHtml(label || url)}</a>`);
       // Enlace de Markdown a otra nota: [texto](Carpeta/Nota.md#Sección) o [texto](#Sección).
-      if (bang || /^(img|audio|data|javascript):/i.test(url)) return m;
+      if (bang || /^(img|audio|file|data|javascript):/i.test(url)) return m;
       let target = url;
       try {
         target = decodeURIComponent(url.replace(/^<|>$/g, ''));
@@ -105,19 +201,19 @@ function inlineMd(text) {
     .replace(/(^|[^*\w])\*(?=\S)(.+?)(?<=\S)\*(?!\*)/g, '$1<em>$2</em>')
     .replace(/(^|[^\w])_(?=\S)(.+?)(?<=\S)_(?!\w)/g, '$1<em>$2</em>')
     .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '<del>$1</del>')
-    .replace(/==(?=\S)(.+?)(?<=\S)==/g, '<mark>$1</mark>')
-    .replace(SAFE_TAGS, '<$1$2>');
+    .replace(/==(?=\S)(.+?)(?<=\S)==/g, '<mark>$1</mark>');
   // Los trozos pueden llevar otros dentro ([`código`](url), [[Nota|`alias`]]); en los atributos va el texto original.
   while (/\u0001\d+\u0001/.test(s)) s = s.replace(/="[^"]*"/g, (a) => a.replace(MD_HOLD, (_, k) => escHtml(plain(raws[k] || '')))).replace(MD_HOLD, (_, k) => tokens[k]);
-  return s;
+  return tagList.length ? balanceTags(s, tagList) : s;
 }
 
 // Fórmula en bloque: una línea que abre con «$$» (sin cerrar en ella) o que es exactamente «$$…$$».
 const MATH_BLOCK_RE = /^\s*\$\$(?:(?:(?!\$\$).)*|(?:(?!\$\$).)+\$\$\s*)$/;
-const BLOCK_START = /^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|>|```|\$\$(?:(?:(?!\$\$).)*|(?:(?!\$\$).)+\$\$\s*)$|(-{3,}|\*{3,}|_{3,})\s*$|!\[\[[^\]]+\]\]\s*$)/;
-const CALLOUT_ICONS = { note: 'ℹ️', info: 'ℹ️', abstract: '📋', tip: '💡', hint: '💡', important: '❗', warning: '⚠️', caution: '⚠️', danger: '⛔', failure: '❌', bug: '🐞', success: '✅', check: '✅', done: '✅', question: '❓', quote: '❝', example: '📑', todo: '☑️' };
+const BLOCK_START = /^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|>|```|\$\$(?:(?:(?!\$\$).)*|(?:(?!\$\$).)+\$\$\s*)$|(-{3,}|\*{3,}|_{3,})\s*$|!\[\[[^\]]+\]\]\s*$|\s*<(?:details|center|(?:p|div)\s+align)\b)/i;
+// Avisos de Obsidian: cada tipo base con su icono (y su color en styles.css); los desconocidos son «note».
+const CALLOUT_ICONS = { note: '✏️', abstract: '📋', info: 'ℹ️', todo: '☑️', tip: '🔥', success: '✅', question: '❓', warning: '⚠️', failure: '❌', danger: '⚡', bug: '🐞', example: '📑', quote: '❝' };
 // Nombres alternativos de los avisos de Obsidian -> tipo base (para el color y el icono).
-const CALLOUT_ALIAS = { summary: 'abstract', tldr: 'abstract', help: 'question', faq: 'question', attention: 'warning', fail: 'failure', missing: 'failure', error: 'danger', cite: 'quote' };
+const CALLOUT_ALIAS = { summary: 'abstract', tldr: 'abstract', hint: 'tip', important: 'tip', check: 'success', done: 'success', help: 'question', faq: 'question', caution: 'warning', attention: 'warning', fail: 'failure', missing: 'failure', error: 'danger', cite: 'quote' };
 // Estados de tarea extra de Obsidian (y de muchos temas): se muestran, pero no se marcan con un toque.
 const TASK_STATES = { '-': ['cancelled', '✕', 'Cancelada'], '>': ['forwarded', '➜', 'Pospuesta'], '<': ['scheduled', '📅', 'Programada'], '!': ['important', '!', 'Importante'], '?': ['question', '?', 'Pregunta'], '*': ['star', '★', 'Destacada'] };
 // Identificador de bloque al final de un párrafo o elemento: «texto ^mi-id».
@@ -265,6 +361,59 @@ function renderBlocks(src, ctx) {
     mdNotes.defs.set(m[1], text);
   }
 
+  // <details> (con <summary>) y alineación: el contenido se lee como Markdown. Sin cierre no hay bloque.
+  const htmlBlock = () => {
+    const m = lines[i].match(/^\s*<(details|center|div|p)(\s[^<>]*)?>(.*)$/i);
+    if (!m) return false;
+    const tag = m[1].toLowerCase();
+    const attrs = (m[2] || '').trim();
+    let align = '';
+    if (tag === 'details' ? attrs && !/^open$/i.test(attrs) : tag === 'center' ? attrs : !(align = (attrs.match(/^align\s*=\s*(["']?)(left|center|right|justify)\1$/i) || [])[2])) return false;
+    if (tag === 'center') align = 'center';
+    const openRe = new RegExp(`<${tag}(?:\\s[^<>]*)?>`, 'gi');
+    const closeRe = new RegExp(`</${tag}\\s*>`, 'gi');
+    const body = [m[3]];
+    let level = 1;
+    let tail = '';
+    let fenced = false;
+    for (let k = i; k < lines.length; k++) {
+      const text = k === i ? m[3] : lines[k];
+      if (k > i) body.push(text);
+      if (/^\s*```/.test(text)) fenced = !fenced;
+      if (fenced) continue;
+      // Se recorren aperturas y cierres en orden hasta volver al nivel 0.
+      const marks = [...text.matchAll(new RegExp(`${openRe.source}|${closeRe.source}`, 'gi'))];
+      for (const x of marks) {
+        level += x[0][1] === '/' ? -1 : 1;
+        if (!level) {
+          body[body.length - 1] = text.slice(0, x.index);
+          tail = text.slice(x.index + x[0].length);
+          const start = i;
+          i = k + 1;
+          const sub = { depth, noteId: ctx.noteId, noTasks: ctx.noTasks, lineOffset: start + offset };
+          let src = body;
+          let summary = '';
+          if (tag === 'details') {
+            const at = src.findIndex((l) => l.trim());
+            const sm = at >= 0 && src[at].match(/^\s*<summary>(.*?)<\/summary>\s*(.*)$/i);
+            if (sm) {
+              summary = sm[1].trim();
+              src = [...src];
+              src[at] = sm[2];
+            }
+          }
+          const inner = src.join('\n').trim() ? renderMd(src.join('\n'), sub) : '';
+          html += tag === 'details'
+            ? `<details class="md-details"${attrs ? ' open' : ''}><summary>${summary ? inlineMd(summary) : 'Detalles'}</summary><div class="details-body">${inner}</div></details>`
+            : `<div class="md-align align-${align.toLowerCase()}" data-align="${align.toLowerCase()}">${inner}</div>`;
+          if (tail.trim()) html += renderMd(tail, { ...sub, lineOffset: k + offset });
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
   // Cada bloque de primer nivel guarda de qué líneas sale (data-src="desde-hasta"), para poder
   // editar solo ese bloque desde la vista de lectura (40-edicion-bloques.js).
   const block = () => {
@@ -317,6 +466,8 @@ function renderBlocks(src, ctx) {
       html += `<pre class="code"><code${fence[1] ? ` data-lang="${escHtml(fence[1])}"` : ''}>${escHtml(body.join('\n'))}</code></pre>`;
       return;
     }
+    // HTML de bloque permitido: <details>, <p|div align="…">, <center> (cada etiqueta en su línea).
+    if (htmlBlock()) return;
     // Título
     const h = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/);
     if (h) {
@@ -349,8 +500,8 @@ function renderBlocks(src, ctx) {
       const call = body[0].match(/^\[!([\w-]+)\]([+-]?)\s*(.*)$/);
       if (call) {
         const type = call[1].toLowerCase();
-        const base = CALLOUT_ALIAS[type] || type;
-        const title = `<span aria-hidden="true">${CALLOUT_ICONS[type] || CALLOUT_ICONS[base] || 'ℹ️'}</span> ${inlineMd(call[3] || type.charAt(0).toUpperCase() + type.slice(1))}`;
+        const base = CALLOUT_ALIAS[type] || (CALLOUT_ICONS[type] ? type : 'note');
+        const title = `<span aria-hidden="true">${CALLOUT_ICONS[base]}</span> ${inlineMd(call[3] || type.charAt(0).toUpperCase() + type.slice(1))}`;
         const inner = body.slice(1).join('\n').trim() ? `<div class="callout-body">${renderMd(body.slice(1).join('\n'), { depth, noTasks: true })}</div>` : '';
         const cls = `callout callout-${escHtml(type)}${base !== type ? ` callout-${escHtml(base)}` : ''}`;
         // [!tipo]- empieza plegado y [!tipo]+ desplegado; los dos se pueden abrir y cerrar.

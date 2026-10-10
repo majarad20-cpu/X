@@ -19,7 +19,7 @@ const PDF_SUBS = { '★': '*', '✕': 'x', '➜': '>', '◐': '', '↩': '', '�
 const PDF_STRIP = /[★✕➜◐↩→←☐☑✓✔©®™]|[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}‍︎️⃣]/gu;
 const pdfText = (s) => String(s).replace(PDF_STRIP, (c) => PDF_SUBS[c] ?? '');
 
-const PDF_CALLOUT = { note: '#2563eb', info: '#2563eb', todo: '#2563eb', abstract: '#0891b2', important: '#0891b2', tip: '#059669', hint: '#059669', success: '#16a34a', check: '#16a34a', done: '#16a34a', question: '#ca8a04', warning: '#d97706', caution: '#d97706', danger: '#dc2626', failure: '#dc2626', bug: '#dc2626', example: '#7c3aed', quote: '#6b7280' };
+const PDF_CALLOUT = { note: '#2563eb', info: '#0284c7', todo: '#4f46e5', abstract: '#0891b2', important: '#059669', tip: '#059669', hint: '#059669', success: '#16a34a', check: '#16a34a', done: '#16a34a', question: '#ca8a04', warning: '#d97706', caution: '#d97706', danger: '#dc2626', failure: '#dc2626', bug: '#dc2626', example: '#7c3aed', quote: '#6b7280' };
 // Color mezclado con blanco (fondo suave de los avisos).
 const pdfTint = (hex, k = 0.9) => `#${[1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - k) + 255 * k).toString(16).padStart(2, '0')).join('')}`;
 
@@ -41,7 +41,18 @@ function pdfRuns(nodes, st, ctx, out = []) {
       out.push({ text: '\n' });
       continue;
     }
-    if (/^(img|input|audio|script|style)$/.test(tag) || c.contains('fn-back') || c.contains('block-anchor')) continue;
+    if (/^(img|input|audio|video|iframe|button|script|style)$/.test(tag) || c.contains('fn-back') || c.contains('block-anchor') || c.contains('fold-toggle')) continue;
+    // Vídeo, audio o tarjeta de enlace: va como texto con el enlace. Archivo de la app: su nombre.
+    if (c.contains('media-embed')) {
+      const url = n.dataset.url || '';
+      const label = { video: 'Vídeo', audio: 'Audio', pdf: 'PDF' }[n.dataset.kind] || 'Enlace';
+      if (/^https?:/i.test(url)) out.push({ text: `\n${label}: ${url}\n`, ...st, code: undefined, link: url, color: '#2563eb' });
+      continue;
+    }
+    if (c.contains('note-file')) {
+      out.push({ text: pdfText(n.dataset.name || 'archivo'), ...st, code: undefined, italics: true, color: '#374151' });
+      continue;
+    }
     // Fórmula en línea: pdfmake no mete SVG dentro del texto, así que va el TeX.
     if (c.contains('math')) {
       out.push({ text: pdfText(n.dataset.tex || n.textContent), ...st, code: undefined, italics: true, color: '#374151' });
@@ -66,8 +77,29 @@ function pdfRuns(nodes, st, ctx, out = []) {
         if (target && ctx.dests?.has(target.id)) s.linkToDestination = ctx.dests.get(target.id);
       } else if (c.contains('tag-link')) s.color = '#7c3aed';
     }
+    if ((tag === 'span' || tag === 'mark') && n.getAttribute('style')) Object.assign(s, pdfInlineStyle(n));
     pdfRuns(n.childNodes, s, ctx, out);
   }
+  return out;
+}
+
+// Estilo permitido en <span>/<mark> (ya validado por renderMd): color, fondo, tamaño, grosor, cursiva.
+const pdfHex = (v) => {
+  const m = String(v).match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/);
+  if (!m || m[4] === '0') return null;
+  return `#${m.slice(1, 4).map((x) => (+x).toString(16).padStart(2, '0')).join('')}`;
+};
+function pdfInlineStyle(n) {
+  const out = {};
+  const st = n.style;
+  const cs = n.isConnected ? getComputedStyle(n) : null;
+  if (st.color && cs) out.color = pdfHex(cs.color) || undefined;
+  if (st.backgroundColor && cs) out.background = pdfHex(cs.backgroundColor) || undefined;
+  const fs = st.fontSize.match(/^([\d.]+)(%|em)$/);
+  if (fs) out.fontSize = Math.max(5, Math.min(40, 10.5 * (fs[2] === '%' ? fs[1] / 100 : +fs[1])));
+  if (/^(bold|bolder|[6-9]00)$/.test(st.fontWeight)) out.bold = true;
+  if (/^(italic|oblique)$/.test(st.fontStyle)) out.italics = true;
+  Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
   return out;
 }
 
@@ -185,6 +217,16 @@ function pdfBlock(n, ctx) {
     return pdfBar([...(title ? [{ text: pdfTrim(pdfRuns(title.childNodes, {}, ctx)), bold: true, color, margin: [0, 0, 0, 4] }] : []), ...(body ? pdfBlocks(body, ctx) : [])], color, pdfTint(color));
   }
   if (tag === 'blockquote') return pdfBar(pdfBlocks(n, ctx), '#d1d5db', null);
+  // <details>: siempre abierto, con el resumen en negrita. Alineación: la de pdfmake.
+  if (tag === 'details') {
+    const sum = n.querySelector(':scope > summary');
+    const rest = [...n.childNodes].filter((x) => x !== sum);
+    return { stack: [...(sum ? [{ text: pdfTrim(pdfRuns(sum.childNodes, {}, ctx)) || ' ', bold: true, margin: [0, 0, 0, 4] }] : []), ...pdfBlocks(rest, ctx)] };
+  }
+  if (c.contains('md-align')) {
+    const a = n.dataset.align;
+    return { stack: pdfBlocks(n, ctx), alignment: ['left', 'center', 'right', 'justify'].includes(a) ? a : 'left' };
+  }
   if (c.contains('embed')) {
     const title = n.querySelector(':scope > .embed-title');
     const rest = [...n.childNodes].filter((x) => x !== title);

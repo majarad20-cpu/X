@@ -481,18 +481,28 @@ Al escribir:
 | Ctrl+Mayús+C · Ctrl+Mayús+M | \`código\` · fórmula $x$ |
 | Ctrl+K · Ctrl+L | Enlace web · casilla de tarea (otra vez: marcada) |
 | Seleccionar y escribir \`*\` \`=\` \`~\` \`[\` | Envuelve la selección (dos veces: \`**…**\`, \`[[…]]\`) |
-| \`/\` al empezar una línea | Menú de bloques: títulos, tareas, tablas, imágenes… |
+| \`/\` al empezar una línea | Menú de bloques: títulos, recuadros, estilos, tablas, imágenes, vídeos, archivos… |
 
-Al seleccionar texto aparece también una barra con estos formatos.
+Al seleccionar texto aparece también una barra con estos formatos; **Aa** añade subíndice, superíndice, tecla, tamaño y colores, y **¶** (o el clic derecho en el editor) cambia el párrafo a título, cita, recuadro, lista o sección desplegable, o lo alinea.
 
 ## Texto
 
 **negrita** · *cursiva* · ~~tachado~~ · ==resaltado== · \`código\` · <u>subrayado</u> · H<sub>2</sub>O · x<sup>2</sup> · <kbd>Ctrl</kbd>
 
+<small>texto pequeño</small> · <span style="font-size: 130%">texto grande</span> · <span style="color: #1c7ed6">texto en color</span> · <mark style="background: #69db7c66">resaltado verde</mark>
+
 \`\`\`
 **negrita**  *cursiva*  ~~tachado~~  ==resaltado==  \`código\`
-<u>subrayado</u>  <sub>sub</sub>  <sup>sup</sup>  <kbd>Ctrl</kbd>
+<u>subrayado</u>  <sub>sub</sub>  <sup>sup</sup>  <kbd>Ctrl</kbd>  <small>pequeño</small>
+<span style="font-size: 130%">grande</span>  <span style="color: #e5484d">rojo</span>
+<mark style="background: #ffd43b66">resaltado de color</mark>
 \\*esto no es cursiva\\*   (la barra invertida desactiva un símbolo)
+\`\`\`
+
+<p align="center">Párrafo centrado</p>
+
+\`\`\`
+<p align="center">centrado</p>   <p align="right">a la derecha</p>   <p align="justify">justificado</p>
 \`\`\`
 
 ## Títulos
@@ -501,7 +511,10 @@ Al seleccionar texto aparece también una barra con estos formatos.
 # Título 1
 ## Título 2
 ### Título 3
+#### Título 4 (hasta ###### Título 6)
 \`\`\`
+
+En la lectura, cada título se puede plegar y desplegar (con lo que hay debajo).
 
 ## Enlaces e incrustaciones
 
@@ -511,6 +524,9 @@ Al seleccionar texto aparece también una barra con estos formatos.
 - Enlace de Markdown a otra nota: \`[texto](Carpeta/Nota.md)\`
 - Enlace web: [Obsidian](https://obsidian.md) → \`[texto](https://…)\`
 - Imagen con tamaño: \`![descripción|300](…)\`
+- Vídeo de YouTube o Vimeo (se reproduce en la nota): \`![título](https://www.youtube.com/watch?v=…)\`; con ancho: \`![título|400](…)\`
+- Un \`.mp4\` o \`.mp3\` de la web se reproduce: \`![](https://…/clip.mp4)\`. Un PDF u otra web se ve como una tarjeta con «Abrir ↗»
+- Audio, vídeo o PDF de tu dispositivo (\`/archivo\`, o pegarlo o arrastrarlo): \`![nombre.pdf](file:ID)\`. Hasta 15 MB; los de más de 250 KB se quedan solo en este dispositivo (no se sincronizan). Los PDF se ven como tarjeta con «Abrir PDF» y «Descargar»
 
 Este párrafo se puede citar desde otra nota con [[Guía de sintaxis#^ejemplo-bloque]]. ^ejemplo-bloque
 
@@ -539,6 +555,24 @@ Este párrafo se puede citar desde otra nota con [[Guía de sintaxis#^ejemplo-bl
 
 > [!warning]- Aviso plegado (pulsa para abrirlo)
 > Con \`-\` empieza cerrado; con \`+\`, abierto.
+
+## Secciones desplegables
+
+<details>
+<summary>Pulsa para ver más</summary>
+
+Contenido escondido: **Markdown** normal, listas, imágenes…
+</details>
+
+\`\`\`
+<details>
+<summary>Título</summary>
+
+Contenido
+</details>
+\`\`\`
+
+Cada etiqueta va en su propia línea.
 
 ## Tablas
 

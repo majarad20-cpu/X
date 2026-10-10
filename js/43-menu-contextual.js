@@ -157,6 +157,12 @@ function readingItems(e, note) {
 
 document.addEventListener('contextmenu', (e) => {
   const t = e.target;
+  // Editor de la nota: cortar, copiar, pegar y estilo del párrafo (51-formato.js). Con Mayús, el del navegador.
+  if (t.id === 'note-editor' && !e.shiftKey && typeof editorMenuItems === 'function') {
+    e.preventDefault();
+    const c = !e.clientX && !e.clientY ? caretCoords(t, t.selectionStart) : null;
+    return showMenuAt(c ? c.left : e.clientX, c ? c.top + c.lh : e.clientY, editorMenuItems(t));
+  }
   // Campos de texto: el menú del navegador. El lienzo de los Lienzos tiene su propio manejo.
   if (t.closest('input, textarea, select, [contenteditable="true"], #cv-viewport, .xd-text')) return;
   // Con teclado (tecla de menú o Mayús+F10) el menú sale junto al elemento con el foco.

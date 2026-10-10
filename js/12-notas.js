@@ -886,7 +886,11 @@ function scrollToHeading(note, heading) {
     const scroller = $('#note-scroll');
     scroller.scrollTop = ta.offsetTop + (h.line / Math.max(1, note.body.split('\n').length)) * ta.scrollHeight - 40;
   } else {
-    setTimeout(() => reveal(document.getElementById(h.id), { block: 'start', smooth: true }));
+    setTimeout(() => {
+      const target = document.getElementById(h.id);
+      if (target && typeof unfoldTo === 'function') unfoldTo(target); // si está plegado, se abre
+      reveal(target, { block: 'start', smooth: true });
+    });
   }
 }
 
@@ -907,6 +911,8 @@ const noteText = (note) => (note.enc ? unlockedNotes.get(note.id) ?? null : note
 const NOTE_MENU_EXTRA = [];
 // Comandos que añaden otros módulos a la paleta: (nota activa) => [comandos].
 const COMMANDS_EXTRA = [];
+// Lo que otros módulos rematan tras dibujar la lectura (p. ej. títulos plegables): (lectura, nota).
+const READING_EXTRA = [];
 
 function renderNotePane(note) {
   // Mientras se edita un bloque en la vista de lectura no se redibuja (se perdería el cursor);
@@ -968,6 +974,7 @@ function renderReading(note, text) {
   endBlockEdit();
   reading.innerHTML = text.trim() ? renderMd(text, { noteId: note.id, noTasks: !!note.enc, blocks: true }) : '<p class="muted note-empty">Nota vacía. Haz doble clic aquí para escribir.</p>';
   hydrateQueries(reading, note.id);
+  READING_EXTRA.forEach((f) => f(reading, note));
 }
 
 // En la vista dividida, la vista previa se actualiza poco después de cada cambio.
