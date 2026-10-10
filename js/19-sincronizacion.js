@@ -14,6 +14,7 @@
 //   canvas-<id>      cada lienzo
 //   file-<id>        cada imagen (26-imagenes.js)
 //   note-<id>        cada nota
+//   trash-<id>       cada nota en la papelera (57-papelera-captura.js)
 // Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
 const sync = { col: null, writing: false, dirty: false, timeout: null };
 
@@ -52,6 +53,7 @@ function localBuckets() {
   state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
   state.canvases.forEach((c) => out.set(`canvas-${c.id}`, { canvas: c }));
   state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
+  (state.trash || []).forEach((t) => out.set(`trash-${t.id}`, { item: t }));
   return out;
 }
 
@@ -60,6 +62,7 @@ function bucketIsEmpty(name, data) {
   if (name.startsWith('map-')) return !data.map;
   if (name.startsWith('canvas-')) return !data.canvas;
   if (name.startsWith('note-')) return !data.note;
+  if (name.startsWith('trash-')) return !data.item;
   return !data.items?.length;
 }
 
@@ -109,6 +112,11 @@ function applyBucket(name, data) {
     const i = state.maps.findIndex((x) => x.id === data.map.id);
     if (i >= 0) state.maps[i] = data.map;
     else state.maps.push(data.map);
+  } else if (name.startsWith('trash-') && data.item) {
+    const list = (state.trash ||= []);
+    const i = list.findIndex((x) => x.id === data.item.id);
+    if (i >= 0) list[i] = data.item;
+    else list.push(data.item);
   }
 }
 
@@ -130,6 +138,7 @@ function removeBucket(name) {
   if (name.startsWith('map-')) state.maps = state.maps.filter((m) => `map-${m.id}` !== name);
   if (name.startsWith('canvas-')) state.canvases = state.canvases.filter((c) => `canvas-${c.id}` !== name);
   if (name.startsWith('note-')) state.notes = state.notes.filter((n) => `note-${n.id}` !== name);
+  if (name.startsWith('trash-')) state.trash = (state.trash || []).filter((t) => `trash-${t.id}` !== name);
 }
 
 function dedupeNotes() {
@@ -188,9 +197,9 @@ async function pushState() {
       meta.sent[name] = json;
       meta.times[name] = now;
     }
-    // Mapas borrados en este dispositivo.
+    // Mapas, notas, lienzos y elementos de la papelera borrados en este dispositivo.
     for (const name of Object.keys(meta.sent)) {
-      if (/^(map|note|canvas)-/.test(name) && !buckets.has(name) && meta.sent[name] === startSent[name] && !localBuckets().has(name)) {
+      if (/^(map|note|canvas|trash)-/.test(name) && !buckets.has(name) && meta.sent[name] === startSent[name] && !localBuckets().has(name)) {
         await sync.col.doc(name).delete();
         delete meta.sent[name];
         delete meta.times[name];
@@ -255,7 +264,7 @@ function receiveSnapshot(snap, first) {
 
   // Mapas que ya no están en la nube: otro dispositivo los borró (si aquí no cambiaron).
   for (const name of Object.keys(meta.sent)) {
-    if (remoteNames.has(name) || !/^(map|note|canvas)-/.test(name)) continue;
+    if (remoteNames.has(name) || !/^(map|note|canvas|trash)-/.test(name)) continue;
     const localData = local.get(name);
     if (localData && JSON.stringify(localData) !== meta.sent[name]) continue;
     removeBucket(name);

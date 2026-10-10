@@ -43,6 +43,7 @@ const SLASH_ITEMS = [
   { group: 'Insertar', icon: '⇄', label: 'Diagrama', detail: 'Mermaid: flujos, secuencias…', keys: 'diagrama mermaid flujo grafico', text: '```mermaid\ngraph TD\n  A[‸Inicio] --> B[Fin]\n```' },
   { group: 'Insertar', icon: '¹', label: 'Nota al pie', keys: 'nota pie footnote referencia', run: () => insertFootnote() },
   { group: 'Insertar', icon: '🖼', label: 'Imagen…', detail: 'Desde tu dispositivo (también puedes pegarla o arrastrarla)', keys: 'imagen foto picture image', run: () => pickImageForNote() },
+  { group: 'Insertar', icon: '🎙', label: 'Dictar', detail: 'Escribe lo que dices, sin guardar audio', keys: 'dictar dictado hablar transcribir voz', when: () => !activeNote()?.enc, run: () => openDictation() },
   { group: 'Insertar', icon: '📆', label: 'Fecha de hoy', keys: 'fecha hoy dia', text: () => `${new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}‸` },
   { group: 'Insertar', icon: '🕒', label: 'Hora actual', keys: 'hora ahora reloj', text: () => `${new Date().toTimeString().slice(0, 5)}‸` },
   { group: 'Insertar', icon: '📄', label: 'Plantilla…', keys: 'plantilla template', run: () => insertTemplate() },

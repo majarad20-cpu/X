@@ -268,8 +268,10 @@ function renameNote(note, title) {
   return movePath(note, joinPath(folderOf(note.path), name));
 }
 
+// La nota va a la papelera (57-papelera-captura.js) durante 30 días.
 function deleteNote(note) {
-  withUndo(`Nota «${baseName(note.path)}» eliminada`, () => {
+  withUndo(`Nota «${baseName(note.path)}» movida a la papelera`, () => {
+    trashNotes([note]);
     state.notes = state.notes.filter((n) => n.id !== note.id);
   });
 }
@@ -562,7 +564,8 @@ function renameFolder(oldPath, newName) {
 function deleteFolder(path) {
   const prefix = `${path}/`;
   const inside = state.notes.filter((n) => n.path.startsWith(prefix)).length;
-  withUndo(inside ? `Carpeta «${baseName(path)}» y ${plural(inside, 'nota', 'notas')} eliminadas` : `Carpeta «${baseName(path)}» eliminada`, () => {
+  withUndo(inside ? `Carpeta «${baseName(path)}» eliminada: ${plural(inside, 'nota', 'notas')} en la papelera` : `Carpeta «${baseName(path)}» eliminada`, () => {
+    trashNotes(state.notes.filter((n) => n.path.startsWith(prefix)));
     state.notes = state.notes.filter((n) => !n.path.startsWith(prefix));
     state.folders = state.folders.filter((f) => f !== path && !f.startsWith(prefix));
   });

@@ -225,6 +225,7 @@ function mergeNotes(keep, gone) {
     });
     keep.body = `${keep.body.replace(/\s+$/, '')}\n\n## ${baseName(gone.path)}\n\n${rest}\n`;
     keep.updatedAt = Date.now();
+    trashNotes([gone]); // por si hace falta recuperarla tal como estaba
     state.notes = state.notes.filter((n) => n !== gone);
     noteIndex.key = '';
     dataRev++;
