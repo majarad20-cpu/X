@@ -78,7 +78,7 @@ const seed = {
   // Agrupar y orden de los grupos
   await type('ana');
   check('grupos en orden', await groups(), ['note', 'task', 'idea', 'journal', 'canvas', 'view']); // «Revisión sem-ana-l»
-  check('cabeceras con cuenta', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-group')].map((g) => g.textContent)), ['Notas4', 'Tareas1', 'Ideas1', 'Diario1', 'Lienzos1', 'Secciones1']);
+  check('cabeceras con cuenta', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-group')].map((g) => g.textContent)), ['Notas4', 'Tareas1', 'Ideas1', 'Diario1', 'Lienzos1', 'Secciones2']); // «Revisión sem-ana-l» y «Planificar sem-ana»
   // Orden: título igual > empieza por > contiene > contenido
   check('ranking notas', await titles('note'), ['Ana', 'Anatomía', 'Reunión con Ana', 'Presupuesto 2027']);
   check('fragmento: línea que coincide', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-item')].find((n) => n.textContent.includes('Presupuesto 2027')).querySelector('.gs-snip').textContent), 'Revisar con Ana las cifras');

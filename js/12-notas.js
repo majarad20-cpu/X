@@ -281,8 +281,8 @@ function deleteNote(note) {
 
 // ---------- Pestañas del espacio de trabajo ----------
 const TABS_KEY = 'enfoque:tabs';
-const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', ask: 'Preguntar', canvas: 'Lienzos', shared: 'Listas compartidas', settings: 'Ajustes' };
-const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', ask: 'sparkle', canvas: 'canvas', shared: 'users', settings: 'gear' };
+const VIEW_TITLES = { today: 'Hoy', tasks: 'Tareas', projects: 'Proyectos', journal: 'Diario', ideas: 'Ideas', timer: 'Pomodoro', habits: 'Hábitos', progress: 'Progreso', review: 'Revisión semanal', plan: 'Planificar semana', finanzas: 'Finanzas', ask: 'Preguntar', canvas: 'Lienzos', shared: 'Listas compartidas', settings: 'Ajustes' };
+const VIEW_ICONS = { today: 'sun', tasks: 'check', projects: 'briefcase', journal: 'book', ideas: 'bulb', timer: 'timer', habits: 'flame', progress: 'chart', review: 'review', plan: 'plan-week', finanzas: 'coin', ask: 'sparkle', canvas: 'canvas', shared: 'users', settings: 'gear' };
 const noteMode = new Map(); // id -> 'edit' | 'read' | 'split' (edición con vista previa al lado)
 const isEditing = (id) => noteMode.get(id) === 'edit' || noteMode.get(id) === 'split';
 // Modo de edición preferido (con o sin vista previa), recordado en la apariencia.
@@ -1718,6 +1718,8 @@ const VIEW_RENDER = {
   habits: () => renderHabits(),
   progress: () => renderProgress(),
   review: () => renderReviewStep(),
+  plan: () => renderPlanWeek(),
+  finanzas: () => renderFinance(),
   shared: () => renderShared(),
   canvas: () => {
     renderCanvasView();

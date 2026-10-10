@@ -174,6 +174,8 @@ const INBOX_TAG = 'bandeja';
 const INBOX_NOTE = 'Bandeja de entrada';
 const INBOX_STAMP = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · /;
 const CAPTURE_KINDS = [['task', '✅', 'Tarea'], ['note', '📝', 'Nota'], ['idea', '💡', 'Idea']];
+// Otros módulos añaden tipos: CAPTURE_KINDS.push([kind, icono, nombre, etiqueta del menú]) y CAPTURE_HOOKS[kind] = (texto) => guardado.
+const CAPTURE_HOOKS = {};
 const hasInboxTag = (x) => (x.tags || []).includes(INBOX_TAG);
 const untagInbox = (x) => (x.tags = (x.tags || []).filter((g) => g !== INBOX_TAG));
 const inboxNote = () => state.notes.find((n) => n.path === INBOX_NOTE && !n.enc) || null;
@@ -223,6 +225,7 @@ function captureNote(text) {
 function captureItem(kind, text) {
   text = text.trim();
   if (!text) return false;
+  if (CAPTURE_HOOKS[kind]) return CAPTURE_HOOKS[kind](text);
   if (kind === 'note') captureNote(text);
   else if (kind === 'idea') {
     const idea = { id: uid(), ...extractTags(`${text} #${INBOX_TAG}`), pinned: false, createdAt: Date.now(), updatedAt: Date.now() };
@@ -475,6 +478,7 @@ function setCaptureKind(k) {
     b.classList.toggle('active', b.dataset.kind === k);
     b.ariaPressed = String(b.dataset.kind === k);
   });
+  $('#capture-save').textContent = CAPTURE_HOOKS[k] ? 'Guardar' : 'Guardar en la bandeja';
 }
 
 function openCapture(kind = 'task') {
@@ -555,7 +559,7 @@ captureFab.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   e.stopPropagation();
   showMenu(captureFab, [
-    ...CAPTURE_KINDS.map(([k, icon, name]) => ({ label: `${icon} Nueva ${name.toLowerCase()}…`, action: () => openCapture(k) })),
+    ...CAPTURE_KINDS.map(([k, icon, name, menu]) => ({ label: menu || `${icon} Nueva ${name.toLowerCase()}…`, action: () => openCapture(k) })),
     { sep: true },
     { label: '📥 Abrir la bandeja', action: () => showView('inbox') },
   ]);

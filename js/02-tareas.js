@@ -881,6 +881,7 @@ function renderToday() {
 
   $('#today-journal').hidden = journalWroteOn(today); // diario antiguo o sección Diario de la nota de hoy
   renderReviewNudge();
+  $('#today-planweek').hidden = ![0, 1].includes(new Date().getDay()); // domingo y lunes: «Planifica tu semana» (64-semana.js)
   renderSuggestions();
   renderTodayCalendar();
   if (typeof renderTodayNotes === 'function') renderTodayNotes(today);

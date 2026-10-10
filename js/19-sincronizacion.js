@@ -15,6 +15,8 @@
 //   file-<id>        cada imagen (26-imagenes.js)
 //   note-<id>        cada nota
 //   trash-<id>       cada nota en la papelera (57-papelera-captura.js)
+//   fin-AAAA-MM      movimientos de finanzas de ese mes (se fusionan por id: 65-finanzas.js)
+//   fin-meta         categorías, gastos fijos y ajustes de finanzas
 // Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
 const sync = { col: null, writing: false, dirty: false, timeout: null };
 
@@ -35,6 +37,9 @@ function setSyncStatus(status) {
 const monthOf = (date) => date.slice(0, 7);
 const archiveMonth = (t) => dateKey(new Date(t.completedAt || t.createdAt)).slice(0, 7);
 const logOrder = (a, b) => a.at - b.at || String(a.id).localeCompare(String(b.id));
+const isFinMonth = (name) => /^fin-\d/.test(name);
+// De dos versiones de un movimiento gana la más reciente (con desempate fijo, igual en todos los dispositivos).
+const finNewer = (a, b) => (a.updatedAt || 0) - (b.updatedAt || 0) || (JSON.stringify(a) > JSON.stringify(b) ? 1 : -1);
 
 function localBuckets() {
   const out = new Map();
@@ -50,6 +55,16 @@ function localBuckets() {
   const archMonths = new Set(state.archive.map((t) => archiveMonth(t)));
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
   archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
+  // Finanzas: un bloque por mes (los borrados van con marca «del») y fin-meta, solo si ya se usan.
+  const fin = state.finance || {};
+  const finTx = fin.tx || [];
+  const finMonths = new Set(finTx.map((t) => monthOf(t.date)));
+  Object.keys(state.syncMeta.sent).filter(isFinMonth).forEach((n) => finMonths.add(n.slice(4)));
+  finMonths.forEach((m) => out.set(`fin-${m}`, { items: finTx.filter((t) => monthOf(t.date) === m).sort((a, b) => String(a.id).localeCompare(String(b.id))) }));
+  if (finTx.length || fin.edited || state.syncMeta.sent['fin-meta'] !== undefined) {
+    const { tx, ...meta } = fin;
+    out.set('fin-meta', meta);
+  }
   state.maps.forEach((m) => out.set(`map-${m.id}`, { map: m }));
   state.canvases.forEach((c) => out.set(`canvas-${c.id}`, { canvas: c }));
   state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
@@ -63,6 +78,7 @@ function bucketIsEmpty(name, data) {
   if (name.startsWith('canvas-')) return !data.canvas;
   if (name.startsWith('note-')) return !data.note;
   if (name.startsWith('trash-')) return !data.item;
+  if (name === 'fin-meta') return !data.categories?.length && !data.recurring?.length;
   return !data.items?.length;
 }
 
@@ -85,6 +101,17 @@ function applyBucket(name, data) {
       byId.set(e.id, mine ? { ...mine, removed: mine.removed || e.removed } : e);
     });
     state.log = state.log.filter((e) => monthOf(e.date) !== name.slice(4)).concat([...byId.values()].sort(logOrder));
+  } else if (name === 'fin-meta') {
+    const { updatedAt, ...meta } = data;
+    state.finance = { ...meta, tx: state.finance?.tx || [] };
+  } else if (isFinMonth(name)) {
+    // Se fusiona por id: gana la versión más reciente de cada movimiento (aunque cambiara de mes).
+    const byId = new Map((state.finance?.tx || []).map((t) => [t.id, t]));
+    (data.items || []).forEach((t) => {
+      const mine = byId.get(t.id);
+      if (!mine || finNewer(t, mine) > 0) byId.set(t.id, t);
+    });
+    state.finance = { ...state.finance, tx: [...byId.values()] };
   } else if (name.startsWith('archive-')) {
     const m = name.slice(8);
     const incoming = data.items || [];
@@ -246,7 +273,7 @@ function receiveSnapshot(snap, first) {
     if (localDirty && meta.sent[name] === undefined && bucketIsEmpty(name, body) && !bucketIsEmpty(name, localData)) continue;
     // Si este bloque cambió aquí después que en la nube, gana el de aquí (la bitácora siempre se fusiona).
     // La primera vez que llega un bloque no gana nunca la copia de aquí: se junta con la de la nube.
-    const isLog = name.startsWith('log-');
+    const isLog = name.startsWith('log-') || isFinMonth(name);
     const firstSync = meta.sent[name] === undefined;
     const ln = name.startsWith('note-') && localData?.note;
     const localAt = Math.max(state.updatedAt || 0, (ln && ln.updatedAt) || 0);
