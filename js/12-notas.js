@@ -35,6 +35,9 @@ const ICONS = {
   read: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
+  forward: '<path d="m9 18 6-6-6-6"/>',
+  'cloud-sync': '<path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 12.5 3.5 3.5 0 0 0 6.5 19z"/><path d="m10 13 2-2 2 2M12 11v5"/>',
   graph: '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="9" cy="18" r="2.5"/><circle cx="19" cy="18" r="2"/><path d="M8.3 7l7.4.6M7 8.3l1.5 7.3M11.3 17.2l5.8.6M17.7 10.4l.9 5.6"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
 };
@@ -1631,6 +1634,7 @@ function renderWorkspace() {
     saveTabs();
   }
   const tab = activeTab();
+  if (typeof navTrack === 'function') navTrack(tab);
 
   $('#ws-tabs').replaceChildren(
     ...ws.tabs.map((t, i) => {
