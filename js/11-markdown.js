@@ -458,8 +458,8 @@ function renderBlocks(src, ctx) {
         html += `<div class="mermaid-box" data-code="${encodeURIComponent(body.join('\n'))}"><pre class="code"><code data-lang="mermaid">${escHtml(body.join('\n'))}</code></pre></div>`;
         return;
       }
-      if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table'].includes(lang)) {
-        const kind = lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
+      if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table', 'tablero', 'kanban'].includes(lang)) {
+        const kind = lang === 'tablero' || lang === 'kanban' ? 'tablero' : lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
         html += `<div class="query" data-kind="${kind}" data-code="${encodeURIComponent(body.join('\n'))}"></div>`;
         return;
       }

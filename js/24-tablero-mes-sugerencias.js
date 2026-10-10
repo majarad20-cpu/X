@@ -274,6 +274,7 @@ function renderMonth() {
       cell.append(chip);
     });
     if (items.length > 3) cell.append(el('div', { className: 'mg-more' }, `+${items.length - 3}`));
+    if (typeof npMonthChips === 'function') cell.append(...npMonthChips(key)); // notas con fecha (52)
     cell.addEventListener('click', () => {
       selectMonthDay(key);
       openDayView(key);
@@ -321,9 +322,11 @@ function renderMonthDay(byDay) {
     $('#month-day .day-form input')?.focus();
   });
   const evs = calendarBlock(key, { compact: true });
+  const notes = typeof npDayList === 'function' && npDayList(key);
   $('#month-day').replaceChildren(
     el('h3', { className: 'md-title' }, [name.charAt(0).toUpperCase() + name.slice(1), key === dateKey() ? el('span', { className: 'today-badge' }, 'Hoy') : '']),
     ...(evs ? [evs] : []),
+    ...(notes ? [notes] : []),
     items.length ? el('ul', { className: 'list' }, items.map(({ t, ghost }) => (ghost ? ghostItem(t) : taskItem(t)))) : el('p', { className: 'day-free' }, 'Sin tareas este día.'),
     form
   );

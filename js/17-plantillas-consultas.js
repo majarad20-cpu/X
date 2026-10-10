@@ -86,20 +86,26 @@ $('#note-editor').addEventListener('focus', (e) => delete e.target.dataset.caret
 //   pendientes | hechas | todas      enlaza: Web nueva
 //   hoy | vencidas | semana | sin fecha
 //   carpeta: Proyectos   límite: 10
-//   ```                  ```
+//   ```                  estado: pendiente   (o !leído, >7, >=, <, <=, * la tiene, - no la tiene)
+//                        orden: puntuación desc   mostrar: autor, estado
+//                        ```
 function parseQuery(src) {
-  const q = { tags: [], project: null, status: 'pending', when: null, folder: null, links: null, limit: 50 };
+  const q = { tags: [], project: null, status: 'pending', when: null, folder: null, links: null, limit: 50, filters: [], sort: null, desc: false, show: [] };
   src.split('\n').forEach((raw) => {
     const line = raw.trim();
     if (!line) return;
-    const kv = line.match(/^(carpeta|folder|enlaza|links|l[ií]mite|limit)\s*:\s*(.+)$/i);
+    const kv = line.match(/^(carpeta|folder|enlaza|links|l[ií]mite|limit|orden|sort|mostrar|show)\s*:\s*(.+)$/i);
     if (kv) {
       const k = kv[1].toLowerCase();
       if (k.startsWith('carp') || k === 'folder') q.folder = kv[2].trim();
       else if (k.startsWith('enl') || k === 'links') q.links = kv[2].trim();
+      else if (k === 'orden' || k === 'sort') Object.assign(q, parseQuerySort(kv[2]));
+      else if (k === 'mostrar' || k === 'show') q.show = splitList(kv[2]);
       else q.limit = Math.max(1, Math.min(500, Number(kv[2]) || 50));
       return;
     }
+    const f = parsePropFilter(line);
+    if (f) return q.filters.push(f);
     line.split(/\s+/).forEach((w) => {
       const lw = w.toLowerCase();
       if (lw.startsWith('#') && lw.length > 1) q.tags.push(lw.slice(1));
@@ -140,19 +146,95 @@ function runTaskQuery(q) {
 
 function runNoteQuery(q, self) {
   const target = q.links ? findNoteByName(q.links) : null;
-  return state.notes
+  const list = state.notes
     .filter((n) => n.id !== self)
     .filter((n) => !q.folder || n.path.toLowerCase().startsWith(`${q.folder.toLowerCase()}/`))
     .filter((n) => q.tags.every((tag) => tagsIn(n.body).some((x) => x === tag || x.startsWith(`${tag}/`))))
     .filter((n) => !q.links || (target && linksIn(n.body).some((l) => findNoteByName(l.target)?.id === target.id)))
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, q.limit);
+    .filter((n) => matchPropFilters(n, q.filters));
+  return (q.sort ? sortNotesBy(list, q.sort, q.desc) : list.sort((a, b) => b.updatedAt - a.updatedAt)).slice(0, q.limit);
+}
+
+// ---------- Filtros y orden por propiedad (```notas, ```tabla y ```tablero) ----------
+// Cualquier línea «clave: valor» que no sea una opción del bloque filtra por esa propiedad.
+const QUERY_RESERVED = /^(carpeta|folder|enlaza|links|l[ií]mite|limit|orden|sort|mostrar|show|columnas|columns|agrupar|group)$/i;
+const splitList = (v) => String(v).split(',').map((x) => x.trim()).filter(Boolean);
+
+function parseQuerySort(v) {
+  const m = String(v).trim().match(/^(.*?)(?:\s+(asc|desc))?$/i);
+  return { sort: m[1].trim() || null, desc: /desc/i.test(m[2] || '') };
+}
+
+function parsePropFilter(line) {
+  const m = line.match(/^([^\s:#+][^:]*?)\s*:\s*(.*)$/u);
+  if (!m || QUERY_RESERVED.test(m[1].trim())) return null;
+  const v = m[2].trim();
+  if (v === '*' || v === '-') return { key: m[1].trim(), op: v === '*' ? 'has' : 'lacks', value: '' };
+  const op = v.match(/^(!=|!|>=|<=|>|<|=)/)?.[1] || '';
+  return { key: m[1].trim(), op: op === '!=' ? '!' : op || '=', value: yamlUnquote(v.slice(op.length).trim()) };
+}
+
+// Valores de una propiedad (una lista da varios). Vacía = no la tiene.
+function propValues(n, key) {
+  const p = parseProps(n.body).props.find((x) => x.key.toLowerCase() === key.toLowerCase());
+  return p ? (p.items || [p.value]).map((x) => String(x).trim()).filter(Boolean) : [];
+}
+
+// Números como números y fechas (AAAA-MM-DD…) como fechas; otra cosa no se compara (NaN).
+function propCompare(a, b) {
+  const na = Number(String(a).replace(',', '.'));
+  const nb = Number(String(b).replace(',', '.'));
+  if (a !== '' && b !== '' && !Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+  const iso = /^\d{4}-\d{2}-\d{2}/;
+  if (iso.test(a) && iso.test(b)) return a < b ? -1 : a > b ? 1 : 0;
+  return NaN;
+}
+
+function matchPropFilter(n, f) {
+  const vals = propValues(n, f.key);
+  if (f.op === 'has') return vals.length > 0;
+  if (f.op === 'lacks') return !vals.length;
+  const eq = vals.some((v) => v.toLowerCase() === f.value.toLowerCase());
+  if (f.op === '=') return eq;
+  if (f.op === '!') return !eq;
+  const want = /^(hoy|today)$/i.test(f.value) ? dateKey() : f.value;
+  return vals.some((v) => {
+    const c = propCompare(v, want);
+    return !Number.isNaN(c) && (f.op === '>' ? c > 0 : f.op === '>=' ? c >= 0 : f.op === '<' ? c < 0 : c <= 0);
+  });
+}
+const matchPropFilters = (n, filters) => !filters?.length || filters.every((f) => matchPropFilter(n, f));
+
+// Valor para ordenar: nombre, creada, modificada, carpeta o una propiedad (las vacías, al final).
+function noteSortValue(n, key) {
+  const k = fold(key);
+  if (['nombre', 'name', 'nota', 'note', 'titulo', 'title'].includes(k)) return baseName(n.path);
+  if (['creada', 'created'].includes(k)) return n.createdAt || n.updatedAt || 0;
+  if (['modificada', 'modified', 'actualizada', 'updated'].includes(k)) return n.updatedAt || 0;
+  if (['carpeta', 'folder'].includes(k)) return folderOf(n.path);
+  return propOf(n, key);
+}
+function sortNotesBy(list, key, desc) {
+  const vals = new Map(list.map((n) => [n.id, noteSortValue(n, key)]));
+  return list.sort((a, b) => {
+    const va = vals.get(a.id);
+    const vb = vals.get(b.id);
+    if ((va === '') !== (vb === '')) return va === '' ? 1 : -1;
+    return compareCells(va, vb) * (desc ? -1 : 1) || baseName(a.path).localeCompare(baseName(b.path), 'es', { numeric: true });
+  });
+}
+
+// «autor: Borges · estado: leído» junto a cada nota (lo que pide «mostrar:»).
+function queryPropsView(n, keys) {
+  const bits = (keys || []).map((k) => [k, propValues(n, k).join(', ')]).filter(([, v]) => v);
+  return bits.length ? el('span', { className: 'query-props' }, bits.map(([k, v]) => el('span', { className: 'query-prop' }, [el('span', { className: 'muted' }, `${k}: `), v]))) : '';
 }
 
 // Sustituye los marcadores de consulta del texto ya pintado por listas reales (con sus botones).
 function hydrateQueries(container, selfId) {
   container.querySelectorAll('.query[data-kind]').forEach((box) => {
     if (box.dataset.kind === 'tabla') return renderNoteTable(box, decodeURIComponent(box.dataset.code), selfId);
+    if (box.dataset.kind === 'tablero') return renderNoteBoard(box, decodeURIComponent(box.dataset.code), selfId);
     const q = parseQuery(decodeURIComponent(box.dataset.code));
     const head = el('div', { className: 'query-head' });
     if (box.dataset.kind === 'tareas') {
@@ -169,7 +251,7 @@ function hydrateQueries(container, selfId) {
               const a = el('a', { href: '#', className: 'wikilink', title: n.path }, baseName(n.path));
               a.dataset.target = n.path;
               a.dataset.heading = '';
-              return el('li', {}, [a, folderOf(n.path) ? el('span', { className: 'muted' }, ` · ${folderOf(n.path)}`) : '']);
+              return el('li', {}, [a, folderOf(n.path) ? el('span', { className: 'muted' }, ` · ${folderOf(n.path)}`) : '', queryPropsView(n, q.show)]);
             }))
           : el('p', { className: 'muted' }, 'Ninguna nota cumple esta consulta.')
       );

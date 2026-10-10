@@ -573,12 +573,14 @@ function moveNoteToFolder(note, folder) {
 }
 
 let treeKey = '';
+// Adornos según las propiedades de la nota (52-propiedades-app.js): icono, color, fijada, clases.
+const NOTE_DECOR = { sig: () => '', rank: () => 0, row: () => {}, tabIcon: () => null, pane: () => {} };
 
 function renderTree() {
   const current = activeNote();
   const folders = allFolders();
   // Si no cambió ninguna ruta, ni la nota activa, ni las carpetas plegadas, el árbol se deja como está.
-  const key = [[...collapsedFolders].join('|'), folders.join('|'), state.notes.map((n) => n.path).join('\n')].join('\u0000');
+  const key = [[...collapsedFolders].join('|'), folders.join('|'), state.notes.map((n) => n.path).join('\n'), NOTE_DECOR.sig()].join('\u0000');
   if (key === treeKey && $('#file-tree').childElementCount) {
     // Solo cambió la nota abierta: se mueve el resaltado.
     $$('#file-tree .tree-row.file.active').forEach((r) => r.classList.remove('active'));
@@ -601,6 +603,7 @@ function renderTree() {
   }
   const build = (folder, depth) => {
     const nodes = [];
+    const pinned = []; // notas fijadas: arriba de su carpeta, antes de las subcarpetas
     folders
       .filter((f) => folderOf(f) === folder)
       .forEach((f) => {
@@ -641,12 +644,13 @@ function renderTree() {
       });
     (byFolder.get(folder) || [])
       .slice()
-      .sort((a, b) => baseName(a.path).localeCompare(baseName(b.path), 'es', { numeric: true }))
+      .sort((a, b) => NOTE_DECOR.rank(a) - NOTE_DECOR.rank(b) || baseName(a.path).localeCompare(baseName(b.path), 'es', { numeric: true }))
       .forEach((n) => {
         const row = el('button', { className: `tree-row file${current && current.id === n.id ? ' active' : ''}`, role: 'treeitem', title: n.path, draggable: true }, [
           el('span', { className: 'tree-name' }, baseName(n.path)),
         ]);
         row.dataset.id = n.id;
+        NOTE_DECOR.row(row, n);
         row.style.paddingLeft = `${22 + depth * 14}px`;
         row.addEventListener('click', (e) => openNote(n, { newTab: e.ctrlKey || e.metaKey }));
         row.addEventListener('auxclick', (e) => {
@@ -656,9 +660,9 @@ function renderTree() {
           e.dataTransfer.setData('text/x-note', n.id);
           e.dataTransfer.effectAllowed = 'move';
         });
-        nodes.push(row);
+        (NOTE_DECOR.rank(n) ? nodes : pinned).push(row);
       });
-    return nodes;
+    return [...pinned, ...nodes];
   };
   const tree = $('#file-tree');
   tree.replaceChildren(...build('', 0));
@@ -918,6 +922,7 @@ function renderNotePane(note) {
   // Mientras se edita un bloque en la vista de lectura no se redibuja (se perdería el cursor);
   // si se dibuja otra cosa, el bloque se cierra antes.
   if (blockEditKeeps(note)) return;
+  NOTE_DECOR.pane(note);
   syncNoteAI(note);
   const text = noteText(note);
   const locked = text === null || (lockUI.mode === 'setup' && lockUI.noteId === note.id);
@@ -1625,7 +1630,7 @@ function renderWorkspace() {
       const note = t.type === 'note' ? noteById(t.id) : null;
       const label = note ? baseName(note.path) : t.type === 'graph' ? 'Grafo' : VIEW_TITLES[t.view];
       const b = el('div', { className: `ws-tab${i === ws.active ? ' active' : ''}`, role: 'tab', ariaSelected: String(i === ws.active), title: note ? note.path : label, tabIndex: 0 }, [
-        ico(note ? 'note' : t.type === 'graph' ? 'graph' : VIEW_ICONS[t.view]),
+        (note && NOTE_DECOR.tabIcon(note)) || ico(note ? 'note' : t.type === 'graph' ? 'graph' : VIEW_ICONS[t.view]),
         el('span', { className: 'ws-tab-label' }, label),
       ]);
       const x = el('button', { className: 'ws-tab-close', ariaLabel: `Cerrar ${label}`, title: 'Cerrar' }, ico('x'));

@@ -66,7 +66,7 @@ function renderDayView({ scroll = false } = {}) {
   // Eventos de Google Calendar de todo el día
   const evs = calEnabled() ? cal.byDay.get(dv.key) || [] : [];
   const allDay = evs.filter((e) => !e.start);
-  $('#dv-events').replaceChildren(...(allDay.length ? [el('h4', {}, 'Todo el día'), ...allDay.map((e) => el('a', { className: 'dv-allday', href: e.link || '#', target: '_blank', rel: 'noopener noreferrer' }, `📅 ${e.title}`))] : []));
+  $('#dv-events').replaceChildren(...(allDay.length ? [el('h4', {}, 'Todo el día'), ...allDay.map((e) => el('a', { className: 'dv-allday', href: e.link || '#', target: '_blank', rel: 'noopener noreferrer' }, `📅 ${e.title}`))] : []), ...(typeof npDvAllDay === 'function' ? npDvAllDay(dv.key) : []));
 
   // Rejilla de horas
   const grid = $('#dv-grid');
@@ -94,9 +94,10 @@ function renderDayView({ scroll = false } = {}) {
         const end = dateKey(en) > dv.key ? 24 * 60 : en.getHours() * 60 + en.getMinutes();
         return { kind: 'event', e, start, end: Math.max(end, start + 15) };
       }),
+    ...(typeof npDvBlocks === 'function' ? npDvBlocks(dv.key) : []), // notas con fecha y hora (52)
   ].sort((a, b) => a.start - b.start || b.end - a.end);
   dvLayout(blocks);
-  for (const b of blocks) lane.append(b.kind === 'task' ? dvTaskBlock(b) : dvEventBlock(b));
+  for (const b of blocks) lane.append(b.kind === 'task' ? dvTaskBlock(b) : b.kind === 'note' ? npDvBlock(b) : dvEventBlock(b));
   if (dv.creating) lane.append(dvCreateBox(dv.creating));
   const nodes = [...hours, lane];
   if (dv.key === today) {

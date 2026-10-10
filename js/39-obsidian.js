@@ -621,7 +621,30 @@ Con \`aliases\`, \`[[Otro nombre]]\` también lleva a la nota.
 
 ## Consultas de Enfoque
 
-Un bloque de código con el lenguaje \`tareas\`, \`notas\` o \`tabla\` muestra una lista viva de tus tareas o notas (por ejemplo, las pendientes con una etiqueta).
+Un bloque de código con el lenguaje \`tareas\`, \`notas\`, \`tabla\` o \`tablero\` muestra una lista viva de tus tareas o notas (por ejemplo, las pendientes con una etiqueta).
+
+En \`notas\`, \`tabla\` y \`tablero\` cualquier línea \`clave: valor\` filtra por esa propiedad:
+
+| Línea | Qué notas salen |
+| --- | --- |
+| \`estado: pendiente\` | Con ese valor (sin distinguir mayúsculas; en una lista, si lo contiene) |
+| \`estado: !leído\` | Sin ese valor |
+| \`puntuación: >7\` | Mayor que 7 (también \`>=\`, \`<\`, \`<=\`; números o fechas, \`hoy\` vale como fecha) |
+| \`autor: *\` | Que tienen la propiedad |
+| \`autor: -\` | Que no la tienen |
+
+Además: \`orden: puntuación desc\` (o \`nombre\`, \`creada\`, \`modificada\`) y \`mostrar: autor, estado\` en \`notas\`; \`columnas: Nota, autor, Carpeta, Creada\` en \`tabla\` (Carpeta, Creada y Modificada son de la nota y no se editan).
+
+Un tablero (bloque \`tablero\`) con estas líneas:
+
+\`\`\`
+carpeta: Proyectos
+agrupar: estado
+columnas: pendiente, en curso, hecho
+mostrar: autor
+\`\`\`
+
+pone una columna por valor (más «Sin estado»); arrastrar una tarjeta cambia la propiedad y el «+» crea una nota con ese valor.
 
 ## Etiquetas y otros
 
