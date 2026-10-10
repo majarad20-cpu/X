@@ -1,6 +1,6 @@
 # Ideas para el futuro: integrar notas, tareas, proyectos, ideas y hábitos
 
-Guardado el 10/10/2026 a petición del usuario. **No está implementado.** Antes de hacerlo, la idea es usar la app una o dos semanas y ver qué falta de verdad.
+Guardado el 10/10/2026 a petición del usuario. La fase 1 ya está hecha; la fase 2 no está implementada. Antes de hacerla, la idea es usar la app una o dos semanas y ver qué falta de verdad.
 
 ## Situación actual
 - **Ya conectado:**
@@ -33,8 +33,8 @@ NOTAS e IDEAS ── no están "dentro" de nada: se ENLAZAN con cualquier cosa
 - **Regla:** se enlaza en un sentido y la app muestra el otro sola, como los enlaces entrantes.
 
 ## Fase 1: lo recomendado, poco riesgo y mucho efecto
-1. **Panel «Relacionado»** en notas, tareas, proyectos e ideas, con las conexiones en ambos sentidos.
-2. **Enlaces universales:** `[[` sugiere también tareas, proyectos, ideas y hábitos, cada uno con su icono. Además, un menú «Enlazar con…» en cualquier elemento.
+1. ✅ **Hecho:** **Panel «Relacionado»** en notas (panel derecho, pestaña Enlaces), tareas (formulario), proyectos (detalle), ideas (al editarlas) y hábitos (al editarlos), y «🔗 Ver relacionado…» en el clic derecho. Agrupa proyecto (con avance), tareas (con casilla), ideas, hábitos (con la casilla de hoy) y notas, en ambos sentidos, con la línea «📁 Proyecto › ☑ Tarea · 📝 nota» arriba (`js/60-relaciones.js`).
+2. ✅ **Hecho:** **Enlaces universales** `[[tarea:ID|Título]]`, `[[proyecto:ID|Nombre]]`, `[[idea:ID|Texto]]` y `[[habito:ID|Nombre]]`: usan el id (renombrar no rompe nada), se leen como fichas con icono y el nombre actual, y tachadas si la cosa ya no existe. `[[` los sugiere junto a las notas, y «🔗 Enlazar con…» está en el menú de la nota y en el clic derecho de tareas, proyectos, ideas y hábitos (estos guardan sus enlaces en `links`). En Obsidian se ven como enlaces sin resolver con su texto; en el PDF, como su texto.
 3. ✅ **Hecho:** **Búsqueda global (Ctrl+K)** en notas, tareas, ideas, proyectos y hábitos, y también en diario, lienzos, marcadores y secciones (`js/61-busqueda-global.js`). En el editor, Ctrl+K sigue insertando un enlace; ahí se usa Ctrl+Mayús+K.
 
 ## Fase 2: opcional
