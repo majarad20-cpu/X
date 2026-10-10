@@ -7,7 +7,16 @@ function applySettings() {
   document.documentElement.dataset.accent = ACCENTS[state.settings.accent] ? state.settings.accent : 'indigo';
   applyLook();
   refreshSettingsInputs();
+  $('#set-archive-days').value = String(archiveAfterDays());
 }
+
+// Cuándo pasan al archivo las tareas hechas (02-tareas.js): al momento, 1, 7, 30 días o nunca.
+$('#set-archive-days').addEventListener('change', (e) => {
+  state.settings.archiveDays = Number(e.target.value);
+  archiveOldTasks();
+  save();
+  renderAll();
+});
 
 function renderAccents() {
   $('#accent-picker').replaceChildren(

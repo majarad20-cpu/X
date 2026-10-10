@@ -73,12 +73,16 @@ function taskMenuItems(t) {
     ...[3, 2, 1].map((p) => ({ label: `${t.priority === p ? '● ' : '○ '}Prioridad ${PRIORITY_LABEL[p].toLowerCase()}`, action: () => setPriority(t, p) }))
   );
   items.push(...ctxExtra('task', t)); // «Enlazar con…», «Ver relacionado…» (60-relaciones.js)
+  // Hecha en una nota: quitar su línea (con «Deshacer»).
+  if (t.virtual && t.done) items.push({ sep: true }, { label: '🗑 Eliminar la línea', danger: true, action: () => deleteNoteTaskLine(t) });
   if (!t.virtual) {
     items.push({ sep: true });
     if (cal.mcp) items.push({ label: '📅 Agendar en Google Calendar…', action: () => openSchedule({ task: t, minutes: Number(t.duration) || 30 }) });
     items.push(
       { label: '⧉ Duplicar', action: () => duplicateTask(t) },
       { label: 'Copiar el título', action: () => copyText(t.title, 'Título copiado') },
+      // Hechas: archivar ya o, si está archivada, devolverla a la lista.
+      ...(t.done ? [state.archive.includes(t) ? { label: '↩ Restaurar a la lista', action: () => restoreTask(t) } : { label: '🗄 Archivar', action: () => archiveTasks([t]) }] : []),
       { label: 'Eliminar', danger: true, action: () => deleteTask(t) }
     );
   }

@@ -56,7 +56,10 @@ function localBuckets() {
   logMonths.forEach((m) => out.set(`log-${m}`, { items: state.log.filter((e) => monthOf(e.date) === m).sort(logOrder) }));
   const archMonths = new Set(state.archive.map((t) => archiveMonth(t)));
   Object.keys(state.syncMeta.sent).filter((n) => n.startsWith('archive-')).forEach((n) => archMonths.add(n.slice(8)));
-  archMonths.forEach((m) => out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m) }));
+  archMonths.forEach((m) => {
+    const gone = archiveGone(`archive-${m}`);
+    out.set(`archive-${m}`, { items: state.archive.filter((t) => archiveMonth(t) === m), ...(gone.length ? { gone } : {}) });
+  });
   // Finanzas: un bloque por mes (los borrados van con marca «del») y fin-meta, solo si ya se usan.
   const fin = state.finance || {};
   const finTx = fin.tx || [];
@@ -77,6 +80,33 @@ function localBuckets() {
   state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
   (state.trash || []).forEach((t) => out.set(`trash-${t.id}`, { item: t }));
   return out;
+}
+
+// Archivo: los id de tareas archivadas que se borraron viajan en «gone», para que otro dispositivo
+// (que aún las tenga o gane con su copia) no las devuelva. Salen de lo último enviado de ese mes:
+// lo que se envió y ya no está ni en el archivo ni en la lista (restaurar no cuenta como borrar).
+function archiveGone(name) {
+  let sent = {};
+  try {
+    sent = JSON.parse(state.syncMeta.sent[name] || '{}');
+  } catch {}
+  const live = new Set(allTasks().map((t) => t.id));
+  return [...new Set([...(sent.gone || []), ...(sent.items || []).map((t) => t.id)])].filter((id) => !live.has(id)).sort();
+}
+
+// Llegan borrados de otro dispositivo: se quitan aquí y se recuerdan para seguir enviándolos.
+function archiveTakeGone(name, gone) {
+  if (!gone?.length || state.syncMeta.sent[name] === undefined) return false;
+  const sent = JSON.parse(state.syncMeta.sent[name]);
+  sent.gone = [...new Set([...(sent.gone || []), ...gone])].sort();
+  state.syncMeta.sent[name] = JSON.stringify(sent);
+  const ids = new Set(gone);
+  const n = state.archive.length + state.tasks.length;
+  state.archive = state.archive.filter((t) => !ids.has(t.id));
+  state.tasks = state.tasks.filter((t) => !ids.has(t.id));
+  if (state.archive.length + state.tasks.length === n) return false;
+  dataRev++;
+  return true;
 }
 
 function bucketIsEmpty(name, data) {
@@ -129,8 +159,9 @@ function applyBucket(name, data) {
     state.focusLog = [...byId.values()];
   } else if (name.startsWith('archive-')) {
     const m = name.slice(8);
-    const incoming = data.items || [];
-    const ids = new Set(incoming.map((t) => t.id));
+    const gone = new Set([...(data.gone || []), ...archiveGone(name)]);
+    const incoming = (data.items || []).filter((t) => !gone.has(t.id));
+    const ids = new Set([...incoming.map((t) => t.id), ...gone]);
     state.archive = state.archive.filter((t) => archiveMonth(t) !== m).concat(incoming);
     // Si otro dispositivo archivó una tarea, aquí deja de estar en la lista activa.
     state.tasks = state.tasks.filter((t) => !ids.has(t.id));
@@ -293,11 +324,17 @@ function receiveSnapshot(snap, first) {
     const ln = name.startsWith('note-') && localData?.note;
     const localAt = Math.max(state.updatedAt || 0, (ln && ln.updatedAt) || 0);
     const pending = ln && ((noteSaveTimer && activeNote()?.id === ln.id) || encryptTimers.has(ln.id));
-    if (!isLog && localDirty && !firstSync && (localAt > remoteAt || pending)) continue;
+    // Tareas archivadas borradas en otro dispositivo: no vuelven aunque aquí gane la copia local.
+    const goneHere = name.startsWith('archive-') && archiveTakeGone(name, body.gone);
+    if (!isLog && localDirty && !firstSync && (localAt > remoteAt || pending)) {
+      if (goneHere) changed = true;
+      continue;
+    }
 
     const incoming = !isLog && firstSync && localDirty ? mergeByIds(localData, body) : body;
-    const merged = incoming !== body && JSON.stringify(incoming) !== JSON.stringify(body);
     applyBucket(name, incoming);
+    // Si al aplicar se quitaron tareas borradas aquí, la versión de aquí se vuelve a subir.
+    const merged = (incoming !== body && JSON.stringify(incoming) !== JSON.stringify(body)) || (name.startsWith('archive-') && JSON.stringify(localBuckets().get(name)) !== JSON.stringify(body));
     // Tras fusionar (la bitácora o una primera vez), lo que quede distinto de la nube se vuelve a subir.
     meta.sent[name] = isLog || merged ? JSON.stringify(body) : JSON.stringify(localBuckets().get(name) ?? body);
     meta.times[name] = remoteAt;

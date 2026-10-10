@@ -109,6 +109,11 @@
           <span id="note-crumbs" class="note-crumbs"></span>
           <button id="note-ai-btn" class="side-btn" title="Claude en esta nota (Ctrl+J)" aria-label="Claude en esta nota" hidden><span class="ico" data-icon="sparkle"></span></button>
           <button id="note-split" class="side-btn" hidden aria-pressed="false" title="Editar con vista previa al lado (Ctrl+Mayús+E)" aria-label="Editar con vista previa al lado"><span class="ico" data-icon="columns"></span></button>
+          <span id="note-undo-group" class="note-undo" hidden>
+            <button id="note-undo" class="side-btn undo-btn" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶<span class="undo-label"> Deshacer</span></button>
+            <button id="note-redo" class="side-btn undo-btn" title="Rehacer (Ctrl+Mayús+Z o Ctrl+Y)" aria-label="Rehacer" disabled>↷<span class="undo-label"> Rehacer</span></button>
+            <button id="note-versions" class="side-btn undo-versions" title="Ver versiones anteriores… (historial de la nota)" aria-label="Ver versiones anteriores">🕘</button>
+          </span>
           <button id="note-width" class="side-btn" title="Usar todo el ancho" aria-label="Usar todo el ancho" aria-pressed="false"><span class="ico" data-icon="widen"></span></button>
           <button id="note-mode" class="side-btn" title="Alternar edición / lectura (Ctrl+E)"><span class="ico" data-icon="pencil"></span></button>
           <button id="note-more" class="side-btn" title="Más opciones" aria-label="Más opciones" aria-haspopup="menu"><span class="ico" data-icon="more"></span></button>
@@ -301,6 +306,7 @@
         </div>
       </div>
 
+      <div id="done-bar" class="done-bar" hidden></div>
       <ul id="task-list" class="list"></ul>
       <p id="task-empty" class="empty">No hay tareas aquí. ¡Añade una arriba!</p>
       <p class="muted hint">Toca el texto de una tarea para editarla · ☰ abre sus subtareas · con «Orden: el mío» arrastra ⠿ para reordenar · las tareas 📝 vienen de tus notas (escribe <code>- [ ] tarea 📅 mañana</code> en cualquier nota).</p>
@@ -779,8 +785,22 @@
 
       <h2 class="section-title">Espacio</h2>
       <div class="card storage">
-        <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas hace más de 7 días se archivan solas y siguen apareciendo en «Hechas».</p>
+        <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas se archivan solas (a los 7 días, o lo que elijas en «Tareas hechas») y siguen apareciendo en «Hechas».</p>
         <div id="storage-meter"></div>
+      </div>
+
+      <h2 class="section-title">Tareas hechas</h2>
+      <div class="card">
+        <label class="set-row">Archivar las tareas hechas
+          <select id="set-archive-days" aria-label="Archivar las tareas hechas">
+            <option value="0">al momento</option>
+            <option value="1">después de 1 día</option>
+            <option value="7">después de 7 días</option>
+            <option value="30">después de 30 días</option>
+            <option value="-1">nunca</option>
+          </select>
+        </label>
+        <p class="muted">Las archivadas salen de la lista pero siguen en «Hechas» (filtro «Archivadas»). Cada tarea hecha tiene además «🗄 Archivar» y «🗑 Eliminar».</p>
       </div>
 
       <h2 class="section-title">Pomodoro</h2>
@@ -1195,6 +1215,7 @@
   <script src="js/64-semana.js"></script>
   <script src="js/65-finanzas.js"></script>
   <script src="js/66-pomodoro-extra.js"></script>
+  <script src="js/67-deshacer.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

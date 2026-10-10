@@ -2745,3 +2745,25 @@ body.gs-open #note-menu { z-index: 96; }
 @media (forced-colors: active) {
   .pomo-bars .pomo-bar-mark, .pomo-bar i, .stat-goal i { fill: Highlight; background: Highlight; }
 }
+
+/* ---------- Tareas hechas: archivar, restaurar, eliminar (02-tareas.js) ---------- */
+.done-acts { display: inline-flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .12s; }
+.task:hover .done-acts, .task:focus-within .done-acts { opacity: 1; }
+@media (hover: none) { .done-acts { opacity: 1; } }
+.done-act { border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 2px 8px; font-size: .78rem; white-space: nowrap; }
+.done-act:hover, .done-act:focus-visible { color: var(--text); border-color: var(--accent); }
+.done-act.danger:hover, .done-act.danger:focus-visible { color: var(--high); border-color: var(--high); }
+.task .meta .archived-badge { color: var(--muted); font-style: italic; }
+.done-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }
+.done-bar[hidden] { display: none; }
+.done-bar .done-scope { margin-right: auto; }
+.set-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+@media (max-width: 600px) { .done-act { padding: 4px 8px; } .done-bar .done-scope { margin-right: 0; width: 100%; } }
+
+/* ---------- Deshacer / rehacer en el editor (67-deshacer.js) ---------- */
+.note-undo { display: inline-flex; align-items: center; gap: 2px; }
+.note-undo[hidden] { display: none; }
+.note-undo .undo-btn, .note-undo .undo-versions { line-height: 1.2; font-size: .95rem; padding: 4px 8px; white-space: nowrap; }
+.note-undo .undo-label { font-size: .8rem; }
+.note-undo .undo-btn:disabled { opacity: .4; cursor: default; background: none; }
+@media (max-width: 700px) { .note-undo .undo-label { display: none; } }
