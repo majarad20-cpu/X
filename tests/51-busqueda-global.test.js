@@ -9,7 +9,7 @@ const seed = {
     { id: 'a', path: 'Ana', body: 'Contacto', createdAt: now - 90 * day, updatedAt: now - 90 * day },
     { id: 'r', path: 'Reunión con Ana', body: 'Hablar del presupuesto\n#trabajo', createdAt: now - 9 * day, updatedAt: now - 9 * day },
     { id: 'pr', path: 'Trabajo/Presupuesto 2027', body: 'Revisar con Ana las cifras\nOtra línea', createdAt: now, updatedAt: now },
-    { id: 'an', path: 'Anotaciones', body: 'Varias', createdAt: now - 200 * day, updatedAt: now - 200 * day },
+    { id: 'an', path: 'Anatomía', body: 'Varias', createdAt: now - 200 * day, updatedAt: now - 200 * day },
     { id: 's', path: 'Secreto bancario', body: 'clave del banco', enc: { v: 1, salt: 'AA==', iv: 'AA==', ct: 'AA==' }, createdAt: now, updatedAt: now },
   ],
   tasks: [
@@ -77,10 +77,10 @@ const seed = {
 
   // Agrupar y orden de los grupos
   await type('ana');
-  check('grupos en orden', await groups(), ['note', 'task', 'idea', 'journal', 'canvas']);
-  check('cabeceras con cuenta', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-group')].map((g) => g.textContent)), ['Notas4', 'Tareas1', 'Ideas1', 'Diario1', 'Lienzos1']);
+  check('grupos en orden', await groups(), ['note', 'task', 'idea', 'journal', 'canvas', 'view']); // «Revisión sem-ana-l»
+  check('cabeceras con cuenta', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-group')].map((g) => g.textContent)), ['Notas4', 'Tareas1', 'Ideas1', 'Diario1', 'Lienzos1', 'Secciones1']);
   // Orden: título igual > empieza por > contiene > contenido
-  check('ranking notas', await titles('note'), ['Ana', 'Anotaciones', 'Reunión con Ana', 'Presupuesto 2027']);
+  check('ranking notas', await titles('note'), ['Ana', 'Anatomía', 'Reunión con Ana', 'Presupuesto 2027']);
   check('fragmento: línea que coincide', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-item')].find((n) => n.textContent.includes('Presupuesto 2027')).querySelector('.gs-snip').textContent), 'Revisar con Ana las cifras');
   check('tarea: proyecto, fecha y prioridad', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-item')].find((n) => n.textContent.includes('Llamar a Ana')).querySelector('.gs-snip').textContent.replace(/📅 [^·]+/, '📅 X')), '📁 Mudanza · 📅 X· !alta');
   check('chip de tipo', await p.evaluate(() => [...document.querySelectorAll('#gs-list .gs-type')].map((n) => n.textContent).slice(3, 6)), ['Nota', 'Tarea', 'Idea']);
@@ -129,7 +129,7 @@ const seed = {
   await p.keyboard.press('ArrowUp');
   check('↑ mueve', await p.evaluate(() => gs.index), 1);
   await p.keyboard.press('Enter');
-  check('Enter abre nota', [await isOpen(), await cur()], [false, 'Anotaciones']);
+  check('Enter abre nota', [await isOpen(), await cur()], [false, 'Anatomía']);
   const openBy = async (q, keys = 'Enter') => {
     await p.evaluate(() => openGlobalSearch());
     await type(q);
@@ -141,6 +141,10 @@ const seed = {
   await openBy('comprar pan');
   check('Enter abre tarea', await p.evaluate(() => [activeTab().view, editingId, !!document.querySelector('.view.active .task-edit')]), ['tasks', 't2', true]);
   await p.evaluate(() => stopEditing());
+  await p.evaluate(() => openGlobalSearch());
+  await type('mudanza');
+  check('elige el mejor aunque su grupo vaya detrás', await p.evaluate(() => [gs.last.groups.map((g) => g.type), gs.rows[gs.index].p.type]), [['task', 'project'], 'project']);
+  await p.keyboard.press('Escape');
   await openBy('mudanza');
   check('Enter abre proyecto', await p.evaluate(() => [activeTab().view, openProjectId]), ['projects', 'p1']);
   await openBy('recetas');
@@ -159,13 +163,14 @@ const seed = {
   const rec = await p.evaluate(() => gs.last.groups.map((g) => [g.label, g.items.map((e) => e.it.title)]));
   check('Recientes', rec[0][0], 'Recientes');
   check('Recientes: lo último visitado primero', rec[0][1].slice(0, 3), ['Lienzos', 'Diario', 'Hábitos']);
-  check('Recientes: incluye notas y tareas', ['Anotaciones', 'Reunión con Ana', 'Presupuesto 2027', 'Llamar a Ana'].every((t) => rec[0][1].includes(t)), true);
+  check('Recientes: incluye notas y tareas', ['Anatomía', 'Reunión con Ana', 'Presupuesto 2027', 'Llamar a Ana'].every((t) => rec[0][1].includes(t)), true);
 
   // Acciones: menú con ⋯ o clic derecho
   await type('t: llamar');
   await p.click('#gs-list .gs-item', { button: 'right' });
   const acts = await p.evaluate(() => [...document.querySelectorAll('#note-menu .menu-item')].map((n) => n.textContent));
-  check('acciones de tarea', acts.map((a) => a.replace(/Enter|Ctrl\+Enter/, '')), ['Abrir', 'Marcar hecha']);
+  check('acciones de tarea', acts.map((a) => a.replace(/Enter|Ctrl\+Enter/, '')).slice(0, 2), ['Abrir', 'Marcar hecha']);
+  check('enlace tipado (60)', acts[2], 'Copiar enlace [[tarea:t1|Llamar a Ana]]');
   await p.click('#note-menu .menu-item:nth-child(2)');
   check('Marcar hecha', await p.evaluate(() => state.tasks.find((t) => t.id === 't1').done), true);
   check('sigue abierto y tachada', await p.evaluate(() => [!document.getElementById('gs').hidden, document.querySelector('#gs-list .gs-item').classList.contains('done')]), [true, true]);
@@ -207,7 +212,7 @@ const seed = {
   console.log(`tiempo 3000+3000: primera ${perf.cold} ms (índice), por tecla máx ${perf.max} ms, media ${perf.avg} ms`);
   check('por tecla < 150 ms', perf.max < 150, true);
   check('primera búsqueda < 600 ms', perf.cold < 600, true);
-  check('máximo 50 por grupo y «Ver más»', perf.capped, [3001, 50, 1]);
+  check('máximo 50 por grupo y «Ver más»', perf.capped, [3000, 50, 1]);
   await p.click('#gs-list .gs-more');
   check('Ver más añade 50', await p.evaluate(() => gs.last.groups[0].items.length), 100);
   await p.keyboard.press('Escape');

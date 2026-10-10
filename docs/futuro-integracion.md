@@ -35,7 +35,7 @@ NOTAS e IDEAS ── no están "dentro" de nada: se ENLAZAN con cualquier cosa
 ## Fase 1: lo recomendado, poco riesgo y mucho efecto
 1. **Panel «Relacionado»** en notas, tareas, proyectos e ideas, con las conexiones en ambos sentidos.
 2. **Enlaces universales:** `[[` sugiere también tareas, proyectos, ideas y hábitos, cada uno con su icono. Además, un menú «Enlazar con…» en cualquier elemento.
-3. **Búsqueda global (Ctrl+K)** en notas, tareas, ideas, proyectos y hábitos.
+3. ✅ **Hecho:** **Búsqueda global (Ctrl+K)** en notas, tareas, ideas, proyectos y hábitos, y también en diario, lienzos, marcadores y secciones (`js/61-busqueda-global.js`). En el editor, Ctrl+K sigue insertando un enlace; ahí se usa Ctrl+Mayús+K.
 
 ## Fase 2: opcional
 4. **Áreas** como nivel nuevo, cada una con su página: proyectos, hábitos, notas y avance. Mientras tanto se puede usar una carpeta o la propiedad `area:`.
