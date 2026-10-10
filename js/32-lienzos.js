@@ -877,7 +877,7 @@ viewport.addEventListener('contextmenu', (e) => {
   let { clientX: x, clientY: y } = e;
   const keyboard = !x && !y;
   // Con teclado (tecla de menú o Mayús+F10): lo elegido.
-  let id = cardNode?.dataset.id || edgeNode?.dataset.id || (keyboard ? cv.selected : null);
+  const id = cardNode?.dataset.id || edgeNode?.dataset.id || (keyboard ? cv.selected : null);
   if (keyboard) {
     const r = (id && $(`#cv-world [data-id="${CSS.escape(id)}"]`))?.getBoundingClientRect() || viewportRect();
     x = r.left + Math.min(r.width / 2, 40);
@@ -887,7 +887,6 @@ viewport.addEventListener('contextmenu', (e) => {
   const k = c.cards.find((o) => o.id === id);
   const ed = !k && c.edges.find((o) => o.id === id);
   if (k || ed) selectCard(id);
-  else id = null;
   showMenu(at, k ? canvasCardItems(c, k, at) : ed ? canvasEdgeItems(c, ed, at) : canvasBackgroundItems(c, toWorldPoint(x, y)));
 });
 

@@ -450,13 +450,13 @@ function renderBlocks(src, ctx) {
       return;
     }
     // Bloque de código
-    const fence = line.match(/^```\s*([\w-]*)/);
+    const fence = line.match(/^```\s*([\p{L}\w-]*)/u);
     if (fence) {
       const body = [];
       i++;
       while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
       i++;
-      const lang = fence[1].toLowerCase();
+      const lang = fence[1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       if (lang === 'math' || lang === 'latex') {
         html += `<div class="math-block">${mathHtml(body.join('\n'), true)}</div>`;
         return;

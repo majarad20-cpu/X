@@ -88,6 +88,8 @@ const isOpenInTab = (tab) => ws.tabs.some((x) => sameTab(x, tab));
 // Otros módulos añaden opciones a estos menús (p. ej. los marcadores): (tipo, cosa) => [opciones].
 const CTX_MENU_EXTRA = [];
 const ctxExtra = (kind, x) => CTX_MENU_EXTRA.flatMap((f) => f(kind, x) || []);
+// Lienzos hechos con las notas de una carpeta o con los enlaces de una nota (32-lienzos.js).
+if (typeof canvasCtxItems === 'function') CTX_MENU_EXTRA.push(canvasCtxItems);
 
 function treeNoteItems(note) {
   return [
@@ -145,6 +147,8 @@ function readingItems(e, note) {
     } });
     items.push(...ctxExtra('block', { note, block }));
   }
+  // Vistas (⚙), estilo del bloque e «Insertar…» (54-constructor-consultas.js).
+  items.push(...ctxExtra('reading', { note, e }));
   items.push(
     { label: isEditing(note.id) ? 'Modo lectura' : 'Editar la nota entera', kbd: 'Ctrl+E', action: toggleNoteMode },
     { label: '✏️ Nuevo dibujo…', action: () => openDrawing() },

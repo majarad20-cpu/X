@@ -605,6 +605,9 @@
           <input id="canvas-name" class="map-name" type="text" maxlength="80" aria-label="Nombre del lienzo">
           <button id="cv-add-text" class="chip">+ Texto</button>
           <button id="cv-add-note" class="chip">+ Nota</button>
+          <button id="cv-add-image" class="chip">+ Imagen</button>
+          <button id="cv-add-link" class="chip">+ Enlace</button>
+          <button id="cv-add-group" class="chip">+ Grupo</button>
           <span id="cv-selection" class="cv-selection" hidden>
             <button id="cv-color" class="chip" title="Color de la tarjeta">🎨</button>
             <button id="cv-open-note" class="chip" hidden>Abrir nota</button>
@@ -615,12 +618,13 @@
             <span id="cv-zoom" class="muted cv-zoom">100 %</span>
             <button id="cv-zoom-in" class="chip" aria-label="Acercar">+</button>
             <button id="cv-fit" class="chip">Ajustar</button>
+            <button id="cv-export" class="chip" title="Exportar como .canvas (Obsidian)">⤓ .canvas</button>
             <button id="cv-delete-canvas" class="link danger-link">Borrar lienzo</button>
           </span>
         </div>
         <div id="cv-viewport" class="cv-viewport" tabindex="0" aria-label="Lienzo: arrastra el fondo para moverte, Ctrl+rueda o pellizca para ampliar">
           <div id="cv-world" class="cv-world"><svg id="cv-edges" class="cv-edges" aria-hidden="true"></svg></div>
-          <p id="cv-hint" class="cv-hint muted">Doble clic en el fondo: tarjeta nueva · arrastra desde un punto de una tarjeta: flecha (o tarjeta nueva unida) · doble clic en una tarjeta: editar · Supr: borrar</p>
+          <p id="cv-hint" class="cv-hint muted">Doble clic en el fondo: tarjeta nueva · clic derecho: más opciones · arrastra desde un punto de una tarjeta: flecha (o tarjeta nueva unida) · doble clic en una tarjeta: editar · Supr: borrar</p>
         </div>
       </div>
     </section>
@@ -789,7 +793,7 @@
         <p>Trae tu bóveda de Obsidian con sus carpetas e imágenes, o llévate tus notas como bóveda. Las notas se escriben igual que en Obsidian: abre la guía para ver toda la sintaxis.</p>
         <div class="row">
           <label class="file-btn primary">Importar carpeta<input id="vault-folder" type="file" webkitdirectory multiple></label>
-          <label class="file-btn">Importar .zip o archivos .md<input id="vault-files" type="file" multiple accept=".md,.markdown,.zip,.excalidraw,image/*"></label>
+          <label class="file-btn">Importar .zip o archivos .md<input id="vault-files" type="file" multiple accept=".md,.markdown,.zip,.excalidraw,.canvas,image/*"></label>
           <button id="vault-export">Exportar como bóveda (.zip)</button>
           <button id="vault-guide">Guía de sintaxis</button>
         </div>
@@ -1099,6 +1103,7 @@
   <script src="js/51-formato.js"></script>
   <script src="js/52-propiedades-app.js"></script>
   <script src="js/53-tablero-notas.js"></script>
+  <script src="js/54-constructor-consultas.js"></script>
   <script src="js/55-vistas.js"></script>
   <script src="js/56-notas-extra.js"></script>
   <script src="js/99-inicio.js"></script>
