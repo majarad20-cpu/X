@@ -2305,5 +2305,6 @@ body.qb-modal-open #note-menu { z-index: 96; }
   .trash-preview { position: static; max-height: none; }
 }
 @media (max-width: 899px) {
-  .capture-fab { right: 14px; width: 48px; height: 48px; }
+  /* Por encima del aviso de «Deshacer», que en el móvil ocupa casi todo el ancho */
+  .capture-fab { right: 14px; width: 48px; height: 48px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 }
