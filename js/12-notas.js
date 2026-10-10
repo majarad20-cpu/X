@@ -1145,6 +1145,10 @@ function renderNotePane(note) {
       editorBase = { id: note.id, text };
     }
     autosize(ta);
+  } else if (ta.dataset.note === note.id && ta.value !== text && !blockEdit && document.activeElement !== ta) {
+    // En lectura no se escribe en el editor: se pone al día para que al volver a editar no parezca un cambio propio.
+    ta.value = text;
+    editorBase = { id: note.id, text };
   }
   if (mode !== 'edit') renderReading(note, mode === 'split' && ta.dataset.note === note.id ? ta.value : text);
   const words = text.split(/\s+/).filter(Boolean).length;

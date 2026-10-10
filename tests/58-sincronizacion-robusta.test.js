@@ -60,12 +60,15 @@ const mock = ([initial, skew]) => {
     await deliver(A, await dump(B));
     // B se queda sin conexión; A edita t1 y sincroniza.
     await A.evaluate(() => { state.tasks.find((t) => t.id === 't1').title = 'Uno (escritorio)'; save(); });
-    await A.waitForTimeout(1200);
+    // Espera a que la edición llegue a la nube (con la máquina cargada puede tardar más de 1,2 s).
+    await A.waitForFunction(() => JSON.stringify(window.__docs.get('state') || '').includes('Uno (escritorio)'), null, { timeout: 15000 }).catch(() => {});
+    await A.waitForTimeout(300);
     const cloud = await dump(A);
     // B vuelve a abrir días después: al arrancar archiva «Vieja» (save()) y luego llega la nube.
     await B.evaluate((d) => localStorage.setItem('__cloud', JSON.stringify(d)), cloud);
     await B.evaluate(() => flushLocal());
     await B.reload(); await B.waitForTimeout(1500);
+    await B.waitForFunction(() => state.tasks.find((t) => t.id === 't1')?.title === 'Uno (escritorio)' && JSON.stringify(window.__docs.get('state') || '').includes('Uno (escritorio)'), null, { timeout: 15000 }).catch(() => {});
     check('1A B conserva la edición del escritorio', (await titles(B)).t1, 'Uno (escritorio)');
     check('1A «Vieja» archivada en B', await B.evaluate(() => state.archive.map((t) => t.id)), ['old']);
     const after = await dump(B);
