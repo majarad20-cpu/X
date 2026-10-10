@@ -115,6 +115,7 @@
           <div class="note-inner">
             <nav id="periodic-bar" class="periodic-bar" aria-label="Notas periódicas" hidden></nav>
             <input id="note-title" class="note-title" type="text" maxlength="120" aria-label="Título de la nota" spellcheck="false">
+            <section id="day-panel" class="day-panel" aria-label="Resumen del día" hidden></section>
             <textarea id="note-editor" class="note-editor" spellcheck="true" aria-label="Contenido de la nota" hidden></textarea>
             <div id="note-lock" class="note-lock" hidden></div>
           <div id="note-reading" class="note-reading md" hidden></div>
@@ -422,6 +423,7 @@
           <span class="muted">¿Cómo te sientes?</span>
           <div id="mood-picker" class="mood-picker" role="radiogroup" aria-label="Ánimo"></div>
         </div>
+        <p class="muted journal-where">Se guarda en la nota diaria de hoy, en la sección «Diario».</p>
         <div class="row">
           <button type="submit" class="primary">Guardar entrada</button>
           <span id="journal-draft" class="muted"></span>
@@ -430,6 +432,7 @@
 
       <div id="dump-convert" class="card dump-convert" hidden></div>
 
+      <div id="journal-migrate" class="row journal-migrate" hidden></div>
       <div class="row journal-search">
         <input id="journal-search" type="search" placeholder="Buscar en el diario" aria-label="Buscar en el diario">
       </div>
@@ -780,6 +783,12 @@
         <div id="gweekly-sample" class="g-sample" hidden></div>
       </div>
 
+      <h2 class="section-title">Notas diarias</h2>
+      <div class="card">
+        <label class="switch"><input id="set-day-panel" type="checkbox" checked> Mostrar el resumen del día en las notas diarias</label>
+        <p class="muted">Arriba de cada nota diaria (en lectura y en la vista dividida): hábitos para marcar, tareas, pomodoros, ideas y eventos de ese día. No se guarda en el texto de la nota.</p>
+      </div>
+
       <h2 class="section-title">Pasar a notas</h2>
       <div class="card">
         <p>Copia tu diario (cada entrada en la nota diaria de su día), tus ideas (una nota por idea en «Ideas») y tus mapas mentales (como esquema en «Mapas»). Los originales se quedan donde están. Si lo vuelves a usar, solo copia lo nuevo.</p>
@@ -1125,6 +1134,8 @@
   <script src="js/59-navegacion.js"></script>
   <script src="js/60-relaciones.js"></script>
   <script src="js/61-busqueda-global.js"></script>
+  <script src="js/63-tarea-nota.js"></script>
+  <script src="js/62-dia.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

@@ -10,7 +10,7 @@
 // `links: [{ type, id }]` (va con los datos: se sincroniza y se deshace como el resto).
 //
 // relIndex(): índice en memoria (se rehace al cambiar dataRev) 'tipo:id' -> { out, in } con los
-// enlaces de las notas, los `links` y la jerarquía (tarea→proyecto, proyecto↔nota, tareas de una nota).
+// enlaces de las notas, los `links` y la jerarquía (tarea→proyecto, proyecto↔nota, tarea↔su nota, tareas de una nota).
 //
 // entityList() -> [{ type, id, title, subtitle, icon, open() }] con todas las notas, tareas, proyectos,
 // ideas y hábitos (type: 'note' | 'task' | 'project' | 'idea' | 'habit'). La usa la búsqueda global (61).
@@ -350,6 +350,7 @@ function relIndex() {
         }
       }
       if (type === 'task' && x.projectId) edge(`task:${x.id}`, `project:${x.projectId}`);
+      if (type === 'task' && x.noteId) edge(`task:${x.id}`, `note:${x.noteId}`); // nota de la tarea (63)
       if (type === 'project' && x.noteId) edge(`project:${x.id}`, `note:${x.noteId}`);
     }
   }

@@ -42,7 +42,7 @@ function editTaskInList(t) {
 function duplicateTask(t) {
   const copy = JSON.parse(JSON.stringify(t));
   Object.assign(copy, { id: uid(), done: false, completedAt: null, createdAt: Date.now(), order: Date.now(), pomodoros: 0 });
-  for (const k of ['calEventId', 'status', 'remindedFor', 'snoozeUntil']) delete copy[k];
+  for (const k of ['calEventId', 'status', 'remindedFor', 'snoozeUntil', 'noteId']) delete copy[k]; // la copia no comparte la nota
   copy.subtasks = (copy.subtasks || []).map((st) => ({ ...st, id: uid(), done: false }));
   state.tasks.push(copy);
   save();
