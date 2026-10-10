@@ -94,6 +94,13 @@ function cardDrag(e, card, { targets, onDrop, onClick }) {
     const pane = $('#views-pane');
     if (ev.clientY < 70) pane.scrollBy(0, -14);
     else if (ev.clientY > window.innerHeight - 70) pane.scrollBy(0, 14);
+    // Un tablero más ancho que su sitio se desplaza solo al llevar la tarjeta a un borde.
+    const strip = card.closest('.board, .nb-board');
+    if (strip && strip.scrollWidth > strip.clientWidth) {
+      const r = strip.getBoundingClientRect();
+      if (ev.clientX < r.left + 40) strip.scrollBy(-16, 0);
+      else if (ev.clientX > r.right - 40) strip.scrollBy(16, 0);
+    }
   };
   const onUp = () => {
     document.removeEventListener('pointermove', onMove);

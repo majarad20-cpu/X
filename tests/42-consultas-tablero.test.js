@@ -138,11 +138,24 @@ const day = 864e5;
   await tp.evaluate((bl) => { const n = createNote({ title: 'Tablero táctil', body: bl, open: false }); createNote({ folder: 'Proyectos', title: 'Toque', body: '---\nestado: pendiente\n---\n', open: false }); noteMode.set(n.id, 'read'); openNote(n); renderAll(); }, board);
   await tp.waitForSelector('#note-reading .nb-card .nb-handle');
   const h = await (await tp.$('#note-reading .nb-col:nth-child(1) .nb-card .nb-handle')).boundingBox();
-  const to = await (await tp.$('#note-reading .nb-col:nth-child(2)')).boundingBox();
+  // El tablero puede ser más estrecho que sus columnas: se lleva la tarjeta al borde (se desplaza solo) y luego a la 2.ª columna.
   const cdp = await tc.newCDPSession(tp);
   const at = (x, y) => [{ x, y }];
+  const v = await tp.evaluate(() => { const r = document.querySelector('#note-reading .nb-board').getBoundingClientRect(); return { right: r.right, left: r.left }; });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(h.x + 4, h.y + 4) });
-  for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(h.x + 4 + (to.x + 30 - h.x) * i / 10, h.y + 4 + (to.y + 50 - h.y) * i / 10) });
+  for (let i = 1; i <= 5; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(h.x + 4 + (v.right - 15 - h.x) * i / 5, h.y + 4) });
+  const col2In = () => tp.evaluate(() => {
+    const c = document.querySelector('#note-reading .nb-col:nth-child(2)').getBoundingClientRect();
+    const r = document.querySelector('#note-reading .nb-board').getBoundingClientRect();
+    return Math.min(c.right, r.right) - Math.max(c.left, r.left) > 60;
+  });
+  for (let i = 0; i < 60 && !(await col2In()); i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(v.right - 15 + (i % 2), h.y + 4) });
+  const to = await tp.evaluate(() => {
+    const c = document.querySelector('#note-reading .nb-col:nth-child(2)').getBoundingClientRect();
+    const r = document.querySelector('#note-reading .nb-board').getBoundingClientRect();
+    return { x: (Math.max(c.left, r.left) + Math.min(c.right, r.right)) / 2, y: c.top + 30 };
+  });
+  for (let i = 1; i <= 5; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(v.right - 15 + (to.x - v.right + 15) * i / 5, h.y + 4 + (to.y - h.y - 4) * i / 5) });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await tp.waitForTimeout(200);
   check('arrastre táctil', await tp.evaluate(() => propOf(state.notes.find((n) => n.path === 'Proyectos/Toque'), 'estado')), 'en curso');
