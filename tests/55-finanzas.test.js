@@ -211,9 +211,6 @@ const mock = (initial) => {
   await B.evaluate(() => finAddTx({ cents: 2000, kind: 'gasto', categoryId: 'c-ocio', note: 'desde B', date: '2026-10-08' }));
   await A.clock.runFor(2500); await B.clock.runFor(2500);
   await relay();
-  console.log('DBG', await dbg(A), await dbg(B));
-  for (const pg of [A, B]) pg.on('console', (m) => console.log('PG', m.text()));
-  await B.evaluate(() => { const o = applyBucket; window.applyBucket = (n, d) => { console.log('apply', n, JSON.stringify(d).length); return o(n, d); }; const r = receiveSnapshot; window.receiveSnapshot = (s, f) => { console.log('recv', s.docs.map(d => d.id + ':' + d.data().updatedAt + ':' + state.syncMeta.times[d.id]).join(' ')); return r(s, f); }; });
   await relay();
   const want = ['común', 'desde A', 'desde B', 'rec-gym-2026-09', 'rec-gym-2026-10'].sort();
   check('A fusionado', await live(A), want);
