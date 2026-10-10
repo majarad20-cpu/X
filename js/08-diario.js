@@ -464,7 +464,7 @@ function entryCard(entry) {
 
   return el('article', { className: 'card entry' }, [
     el('header', { className: 'entry-head' }, [
-      el('span', { className: `entry-kind kind-${entry.kind}` }, JOURNAL_KINDS[entry.kind].label),
+      el('span', { className: `entry-kind kind-${entry.kind}` }, JOURNAL_KINDS[entry.kind]?.label || 'Entrada'),
       el('span', { className: 'muted' }, time),
       mood ? el('span', { className: 'entry-mood', title: mood.l }, mood.e) : '',
     ]),

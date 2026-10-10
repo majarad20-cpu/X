@@ -70,7 +70,7 @@ function dpNav(key) {
 function renderDayPanel(note) {
   const box = $('#day-panel');
   const key = note && dayPanelOn() && noteText(note) !== null ? djKeyOf(note) : null;
-  const show = !!key && noteMode.get(note.id) !== 'edit';
+  const show = !!key; // también al editar: el resumen va fuera del texto de la nota
   box.hidden = !show;
   if (!show) return box.replaceChildren();
   const today = dateKey();
