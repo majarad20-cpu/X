@@ -56,6 +56,8 @@ const SLASH_ITEMS = [
   { group: 'Consultas', icon: '📝?', label: 'Consulta de notas', keys: 'consulta notas query dataview', text: '```notas\n#‸\n```' },
   { group: 'Consultas', icon: '▤', label: 'Tabla de notas', detail: 'Notas con sus propiedades en columnas', keys: 'tabla notas consulta propiedades dataview', text: '```tabla\ncarpeta: ‸\n```' },
   { group: 'Consultas', icon: '▥', label: 'Tablero de notas', detail: 'Notas en columnas según una propiedad', keys: 'tablero kanban notas columnas propiedades estado', text: '```tablero\ncarpeta: ‸\nagrupar: estado\n```' },
+  { group: 'Consultas', icon: '▦', label: 'Galería de notas', detail: 'Notas como tarjetas con portada', keys: 'galeria galería tarjetas portada imagenes gallery cards', text: '```galeria\ncarpeta: ‸\nmostrar: autor\n```' },
+  { group: 'Consultas', icon: '📅', label: 'Calendario de notas', detail: 'Notas en un mes según su fecha', keys: 'calendario mes fecha notas calendar', text: '```calendario\ncarpeta: ‸\nfecha: fecha\n```' },
 ];
 // Bloques que empiezan línea (se colocan en una línea propia).
 const SLASH_LINE_RE = /^(#|- |1\. |> |\||```|---|<details|<p |\$\$)/;

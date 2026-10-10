@@ -69,7 +69,43 @@ function parseProps(body) {
   return { props, end };
 }
 
-const propOf = (note, key) => parseProps(note.body).props.find((p) => p.key.toLowerCase() === key.toLowerCase())?.value ?? '';
+// ---------- Campos en línea (como Dataview) ----------
+// «autor:: Frank Herbert» en su propia línea (o en una viñeta) y «[autor:: Frank Herbert]» dentro del
+// texto cuentan como propiedades si entre los --- no hay una con ese nombre. No cuentan en `código`.
+const INLINE_LINE_RE = /^(\s*(?:[-*+]\s+(?:\[.\]\s+)?)?)([\p{L}_][\p{L}\p{N}_ -]*?)::(?:[ \t]+|$)(.*)$/u;
+const INLINE_BRACKET_RE = /\[([\p{L}_][\p{L}\p{N}_ -]*?)::([^\]\n]*)\]/gu;
+function inlineFields(body) {
+  const out = [];
+  const { end } = parseProps(body);
+  let fence = false;
+  body.split('\n').forEach((line, i) => {
+    if (i <= end) return;
+    if (/^\s*(```|~~~)/.test(line)) return (fence = !fence);
+    if (fence) return;
+    const bare = line.replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
+    const m = bare.match(INLINE_LINE_RE);
+    if (m) return out.push({ key: m[2].trim(), value: line.slice(bare.length - m[3].length).trim(), line: i, colon: m[1].length + m[2].length, inline: true });
+    for (const b of bare.matchAll(INLINE_BRACKET_RE)) {
+      const raw = line.slice(b.index, b.index + b[0].length);
+      out.push({ key: b[1].trim(), value: raw.slice(raw.indexOf('::') + 2, -1).trim(), line: i, at: b.index, len: b[0].length, inline: true });
+    }
+  });
+  return out;
+}
+
+// Propiedades de una nota (clave en minúsculas -> { key, value, items? }): primero las de ---, luego los campos en línea.
+const fieldsCache = new WeakMap();
+function noteFields(note) {
+  const body = note?.body || '';
+  const hit = note && fieldsCache.get(note);
+  if (hit && hit.body === body) return hit.map;
+  const map = new Map();
+  [...parseProps(body).props, ...inlineFields(body)].forEach((p) => map.has(p.key.toLowerCase()) || map.set(p.key.toLowerCase(), p));
+  if (note) fieldsCache.set(note, { body, map });
+  return map;
+}
+
+const propOf = (note, key) => noteFields(note).get(String(key).toLowerCase())?.value ?? '';
 
 // Cambia (o añade) una propiedad. Si era una lista, se reescribe entera como lista con guiones.
 function setProp(note, rawKey, value) {
@@ -79,7 +115,12 @@ function setProp(note, rawKey, value) {
   const { props, end } = parseProps(note.body);
   const clean = String(value).replace(/\n/g, ' ').trim();
   const found = props.find((p) => p.key.toLowerCase() === key.toLowerCase());
-  if (found) {
+  const inl = !found && noteFields(note).get(key.toLowerCase());
+  if (inl?.inline) {
+    // Campo en línea: se cambia ahí mismo.
+    const l = lines[inl.line];
+    lines[inl.line] = inl.at == null ? `${l.slice(0, inl.colon)}:: ${clean}`.trimEnd() : `${l.slice(0, inl.at)}[${inl.key}:: ${clean.replace(/\]/g, '')}]${l.slice(inl.at + inl.len)}`;
+  } else if (found) {
     const items = clean.split(',').map((x) => x.trim()).filter(Boolean);
     const rows = found.items ? (items.length ? [`${found.key}:`, ...items.map((x) => `  - ${yamlScalar(x)}`)] : [`${found.key}: []`]) : [`${found.key}: ${yamlScalar(clean)}`];
     lines.splice(found.line, found.to - found.line + 1, ...rows);
@@ -90,14 +131,19 @@ function setProp(note, rawKey, value) {
 }
 
 function parseTableQuery(src) {
-  const q = { folder: null, tags: [], columns: null, sort: null, desc: false, limit: 200, filters: [] };
+  const q = { folder: null, tags: [], columns: null, sort: null, desc: false, limit: 200, filters: [], totals: new Map(), group: null };
   src.split('\n').forEach((raw) => {
     const line = raw.trim();
-    const kv = line.match(/^(carpeta|folder|columnas|columns|orden|sort|l[ií]mite|limit)\s*:\s*(.*)$/i);
+    const kv = line.match(/^(carpeta|folder|columnas|columns|orden|sort|l[ií]mite|limit|totales|totals|agrupar|group(?: by)?)\s*:\s*(.*)$/i);
     if (kv) {
       const k = fold(kv[1]);
       const v = kv[2].trim();
       if (k.startsWith('carp') || k === 'folder') q.folder = v;
+      else if (k.startsWith('tot')) splitList(v).forEach((x) => {
+        const [col, fn] = x.split('=').map((y) => y.trim());
+        if (col && totalFn(fn)) q.totals.set(col.toLowerCase(), { col, fn: totalFn(fn) });
+      });
+      else if (k.startsWith('agr') || k.startsWith('group')) q.group = v || null;
       else if (k.startsWith('col')) q.columns = v.split(',').map((c) => c.trim()).filter(Boolean);
       else if (k === 'orden' || k === 'sort') {
         const m = v.match(/^(.*?)(?:\s+(asc|desc))?$/i);
@@ -125,6 +171,28 @@ function compareCells(a, b) {
   return String(a).localeCompare(String(b), 'es', { numeric: true });
 }
 
+// ---------- Totales y grupos ----------
+//   totales: precio=suma, puntuación=promedio, autor=recuento      agrupar: estado
+const TABLE_TOTALS = { suma: 'Suma', promedio: 'Promedio', 'mín': 'Mín.', 'máx': 'Máx.', recuento: 'Recuento', 'vacíos': 'Vacíos', rellenos: 'Rellenos' };
+const TOTAL_ALIAS = { sum: 'suma', avg: 'promedio', average: 'promedio', media: 'promedio', min: 'mín', max: 'máx', count: 'recuento', empty: 'vacíos', filled: 'rellenos' };
+const totalFn = (v) => (v ? Object.keys(TABLE_TOTALS).find((f) => fold(f) === fold(v)) || TOTAL_ALIAS[fold(v)] || null : null);
+const fmtTotal = (x) => String(Math.round(x * 100) / 100).replace('.', ',');
+const tableGroupsShut = new Set(); // grupos plegados (por bloque, mientras dura la sesión)
+
+function tableTotal(fn, vals) {
+  const full = vals.map((v) => String(v ?? '').trim()).filter(Boolean);
+  if (fn === 'recuento') return String(vals.length);
+  if (fn === 'vacíos') return String(vals.length - full.length);
+  if (fn === 'rellenos') return String(full.length);
+  const nums = full.map((v) => Number(v.replace(',', '.'))).filter(Number.isFinite);
+  const sum = nums.reduce((a, b) => a + b, 0);
+  if (fn === 'suma') return nums.length ? fmtTotal(sum) : '';
+  if (fn === 'promedio') return nums.length ? fmtTotal(sum / nums.length) : '';
+  if (!full.length) return '';
+  const v = [...full].sort(compareCells)[fn === 'mín' ? 0 : full.length - 1];
+  return /^-?\d+([.,]\d+)?$/.test(v) ? fmtTotal(Number(v.replace(',', '.'))) : v;
+}
+
 function renderNoteTable(box, src, selfId) {
   const q = parseTableQuery(src);
   const rows = state.notes
@@ -133,7 +201,7 @@ function renderNoteTable(box, src, selfId) {
     .filter((n) => q.tags.every((tag) => tagsIn(n.body).some((x) => x === tag || x.startsWith(`${tag}/`))))
     .filter((n) => matchPropFilters(n, q.filters));
   const seen = new Map();
-  rows.forEach((n) => parseProps(n.body).props.forEach((p) => !seen.has(p.key.toLowerCase()) && !builtinCol(p.key) && seen.set(p.key.toLowerCase(), p.key)));
+  rows.forEach((n) => noteFields(n).forEach((p) => !seen.has(p.key.toLowerCase()) && !builtinCol(p.key) && seen.set(p.key.toLowerCase(), p.key)));
   const explicit = !!q.columns?.some(builtinCol);
   // Columnas visibles tras «Nota» (que siempre va primera, con el enlace).
   const view = q.columns ? q.columns.map((c) => builtinCol(c) || c).filter((c) => c !== 'Nota') : [...seen.values()].slice(0, 10);
@@ -159,7 +227,7 @@ function renderNoteTable(box, src, selfId) {
   };
   // Cómo se ve una celda según su tipo: casilla (true/false), fecha o lista (chips).
   const cellView = (n, col) => {
-    const p = parseProps(n.body).props.find((x) => x.key.toLowerCase() === col.toLowerCase());
+    const p = noteFields(n).get(col.toLowerCase());
     if (!p) return '';
     if (p.items) return p.items.map((x) => el('span', { className: 'prop-chip' }, x));
     if (/^(true|false)$/i.test(p.value)) {
@@ -219,10 +287,68 @@ function renderNoteTable(box, src, selfId) {
     return a;
   };
 
-  const head = el('div', { className: 'query-head' }, `Tabla de notas${q.folder ? ` · ${q.folder}` : ''} · ${plural(rows.length, 'fila', 'filas')}`);
-  const table = el('table', { className: 'note-table' }, [
+  const head = el('div', { className: 'query-head' }, `Tabla de notas${q.folder ? ` · ${q.folder}` : ''}${q.group ? ` · por ${q.group}` : ''} · ${plural(rows.length, 'fila', 'filas')}`);
+  const row = (n) => el('tr', {}, [el('td', { className: 'nt-name' }, link(n)), ...view.map((c) => (builtinCol(c) ? builtinCell(n, c) : editable(n, c)))]);
+  // Valor para los totales y los grupos (las fechas propias, como AAAA-MM-DD).
+  const tval = (n, col) => {
+    const b = builtinCol(col);
+    const v = cell(n, col);
+    return b === 'Creada' || b === 'Modificada' ? (v ? dateKey(new Date(v)) : '') : b ? v : noteFields(n).get(col.toLowerCase())?.items?.[0] ?? v;
+  };
+  const totalOf = (col, list) => {
+    const t = q.totals.get(col.toLowerCase());
+    return t ? tableTotal(t.fn, list.map((n) => (t.fn === 'recuento' || t.fn === 'vacíos' || t.fn === 'rellenos' ? cell(n, col) : tval(n, col)))) : '';
+  };
+  // Escribe «totales:» en el bloque (sin la línea si no queda ninguno).
+  const setTotals = (col, fn) => {
+    const next = new Map(q.totals);
+    if (fn) next.set(col.toLowerCase(), { col, fn });
+    else next.delete(col.toLowerCase());
+    const t = [...next.values()].map((x) => `${x.col}=${x.fn}`).join(', ');
+    const lines = src.split('\n').filter((l) => l.trim() && !/^\s*(totales|totals)\s*:/i.test(l));
+    if (!replaceTableBlock(selfId, src, [...lines, ...(t ? [`totales: ${t}`] : [])].join('\n'))) showToastMessage('Esta tabla está incrustada: cambia los totales en su nota.');
+  };
+  const foot = el('tfoot', {}, el('tr', { className: 'nt-foot' }, [
+    el('td', { className: 'muted nt-foot-label' }, q.totals.size ? 'Total' : ''),
+    ...view.map((c) => {
+      const fn = q.totals.get(c.toLowerCase())?.fn || '';
+      const pick = el('select', { className: `nt-total-fn${fn ? ' on' : ''}`, ariaLabel: `Total de ${c}`, title: 'Calcular' }, [el('option', { value: '' }, 'Calcular'), ...Object.entries(TABLE_TOTALS).map(([k, label]) => el('option', { value: k, selected: k === fn }, label))]);
+      pick.addEventListener('change', () => setTotals(c, pick.value));
+      return el('td', { className: 'nt-total' }, [pick, fn ? el('span', { className: 'nt-total-val' }, totalOf(c, rows)) : '']);
+    }),
+  ]));
+  // «agrupar:»: un tbody por valor, con su cabecera plegable, su recuento y sus totales.
+  const groups = [];
+  if (q.group) {
+    const byKey = new Map();
+    shown.forEach((n) => {
+      const v = String(tval(n, q.group) ?? '').trim();
+      if (!byKey.has(v.toLowerCase())) groups.push(byKey.set(v.toLowerCase(), { value: v, notes: [] }).get(v.toLowerCase()));
+      byKey.get(v.toLowerCase()).notes.push(n);
+    });
+    groups.sort((a, b) => (!a.value !== !b.value ? (a.value ? -1 : 1) : compareCells(a.value, b.value)));
+  }
+  const groupBody = (g) => {
+    const id = `${sortKey}|${q.group.toLowerCase()}|${g.value.toLowerCase()}`;
+    const shut = tableGroupsShut.has(id);
+    const label = g.value || `Sin ${q.group}`;
+    const toggle = el('button', { className: 'nt-group-toggle', ariaExpanded: String(!shut), title: shut ? 'Desplegar' : 'Plegar' }, [el('span', { className: 'nt-group-caret', ariaHidden: 'true' }, shut ? '▸' : '▾'), el('span', { className: 'nt-group-name' }, label), el('span', { className: 'kcol-count nt-group-count' }, String(g.notes.length))]);
+    toggle.addEventListener('click', () => {
+      if (shut) tableGroupsShut.delete(id);
+      else tableGroupsShut.add(id);
+      renderNoteTable(box, src, selfId);
+    });
+    const tb = el('tbody', { className: `nt-group${shut ? ' shut' : ''}` }, el('tr', { className: 'nt-group-head' }, el('td', { colSpan: view.length + 1 }, toggle)));
+    tb.dataset.group = g.value;
+    if (shut) return tb;
+    tb.append(...g.notes.map(row));
+    if (q.totals.size) tb.append(el('tr', { className: 'nt-group-total' }, [el('td', { className: 'muted' }, 'Subtotal'), ...view.map((c) => el('td', { className: 'nt-total' }, totalOf(c, g.notes)))]));
+    return tb;
+  };
+  const table = el('table', { className: `note-table${q.group ? ' grouped' : ''}` }, [
     el('thead', {}, el('tr', {}, [th('Nota'), ...view.map(th)])),
-    el('tbody', {}, shown.map((n) => el('tr', {}, [el('td', { className: 'nt-name' }, link(n)), ...view.map((c) => (builtinCol(c) ? builtinCell(n, c) : editable(n, c)))]))),
+    ...(q.group ? groups.map(groupBody) : [el('tbody', {}, shown.map(row))]),
+    foot,
   ]);
   const addRow = el('button', { className: 'chip' }, '+ Fila');
   addRow.addEventListener('click', () =>

@@ -14,6 +14,9 @@
         <div class="rib-gitems">
           <button class="rib" id="rib-files" title="Explorador de notas" aria-label="Explorador de notas"><span class="ico" data-icon="files"></span><span class="rib-label">Notas</span></button>
           <button class="rib" id="rib-daily" title="Nota diaria (Alt+D)" aria-label="Nota diaria"><span class="ico" data-icon="calendar"></span><span class="rib-label">Nota diaria</span></button>
+          <button class="rib" id="rib-weekly" title="Nota de esta semana" aria-label="Nota de esta semana"><span class="ico" data-icon="cal-week"></span><span class="rib-label">Nota semanal</span></button>
+          <button class="rib" id="rib-monthly" title="Nota de este mes" aria-label="Nota de este mes"><span class="ico" data-icon="cal-month"></span><span class="rib-label">Nota mensual</span></button>
+          <button class="rib" id="rib-random" title="Nota aleatoria" aria-label="Nota aleatoria"><span class="ico" data-icon="dice"></span><span class="rib-label">Nota aleatoria</span></button>
           <button class="rib" id="rib-bookmarks" title="Marcadores" aria-label="Marcadores"><span class="ico rib-star" aria-hidden="true">⭐</span><span class="rib-label">Marcadores</span></button>
           <button class="rib" id="rib-switcher" title="Abrir nota (Ctrl+O)" aria-label="Abrir nota"><span class="ico" data-icon="search"></span><span class="rib-label">Abrir nota</span></button>
           <button class="rib" id="rib-graph" title="Vista de grafo (Ctrl+G)" aria-label="Vista de grafo"><span class="ico" data-icon="graph"></span><span class="rib-label">Grafo</span></button>
@@ -103,6 +106,7 @@
         </div>
         <div id="note-scroll" class="note-scroll">
           <div class="note-inner">
+            <nav id="periodic-bar" class="periodic-bar" aria-label="Notas periódicas" hidden></nav>
             <input id="note-title" class="note-title" type="text" maxlength="120" aria-label="Título de la nota" spellcheck="false">
             <textarea id="note-editor" class="note-editor" spellcheck="true" aria-label="Contenido de la nota" hidden></textarea>
             <div id="note-lock" class="note-lock" hidden></div>
@@ -175,6 +179,8 @@
       <div class="today-head">
         <p id="today-date" class="today-date"></p>
         <button id="today-daily" class="chip">📓 Nota diaria</button>
+        <button id="today-weekly" class="chip">🗓️ Semana</button>
+        <button id="today-monthly" class="chip">📆 Mes</button>
       </div>
       <div class="stats">
         <div class="stat"><span id="stat-pending" class="num">0</span><span class="label">Para hoy</span></div>
@@ -815,6 +821,7 @@
       <div class="statusbar">
         <span id="sync-status" class="sync" data-state="local"></span>
         <span id="status-note" class="status-note"></span>
+        <span id="status-goal" class="status-goal" hidden></span>
       </div>
     </div>
 
@@ -1031,6 +1038,15 @@
     </div>
     <p id="image-viewer-caption" class="iv-caption"></p>
   </div>
+  <div id="present" class="present" role="dialog" aria-modal="true" aria-label="Presentación" tabindex="-1" hidden>
+    <div id="present-slide" class="present-slide md"></div>
+    <div class="present-bar">
+      <button id="present-prev" class="present-btn" title="Anterior (←)" aria-label="Diapositiva anterior">‹</button>
+      <span id="present-count" class="present-count" aria-live="polite"></span>
+      <button id="present-next" class="present-btn" title="Siguiente (→ o espacio)" aria-label="Diapositiva siguiente">›</button>
+      <button id="present-close" class="present-btn" title="Salir (Esc)" aria-label="Salir de la presentación">✕</button>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="js/01-nucleo.js"></script>
@@ -1083,6 +1099,8 @@
   <script src="js/51-formato.js"></script>
   <script src="js/52-propiedades-app.js"></script>
   <script src="js/53-tablero-notas.js"></script>
+  <script src="js/55-vistas.js"></script>
+  <script src="js/56-notas-extra.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

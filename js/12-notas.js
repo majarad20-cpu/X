@@ -917,6 +917,8 @@ const NOTE_MENU_EXTRA = [];
 const COMMANDS_EXTRA = [];
 // Lo que otros módulos rematan tras dibujar la lectura (p. ej. títulos plegables): (lectura, nota).
 const READING_EXTRA = [];
+// Lo que otros módulos dibujan alrededor de la nota abierta (cabecera, barra de estado): (nota, texto | null).
+const NOTE_PANE_EXTRA = [];
 
 function renderNotePane(note) {
   // Mientras se edita un bloque en la vista de lectura no se redibuja (se perdería el cursor);
@@ -936,6 +938,7 @@ function renderNotePane(note) {
     $('#note-reading').hidden = true;
     renderLockPanel(note);
     $('#status-note').textContent = text === null ? 'Nota protegida con contraseña' : '';
+    NOTE_PANE_EXTRA.forEach((f) => f(note, null));
     return;
   }
   ensureBaseline(note);
@@ -971,6 +974,7 @@ function renderNotePane(note) {
   const words = text.split(/\s+/).filter(Boolean).length;
   const { linked } = backlinksOf(note);
   $('#status-note').textContent = `${note.enc ? '🔒 ' : ''}${plural(words, 'palabra', 'palabras')} · ${plural(text.length, 'carácter', 'caracteres')} · ${plural(linked.length, 'enlace entrante', 'enlaces entrantes')}`;
+  NOTE_PANE_EXTRA.forEach((f) => f(note, text));
 }
 
 function renderReading(note, text) {

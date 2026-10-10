@@ -2,8 +2,9 @@
 
 // ---------- Plantillas ----------
 // Las notas de la carpeta «Plantillas» son plantillas. Variables: {{fecha}}, {{fecha_larga}},
-// {{hora}}, {{título}} (o {{titulo}}) y {{semana}}. Si existe «Plantillas/Nota diaria», se usa
-// para las notas diarias nuevas.
+// {{hora}}, {{título}} (o {{titulo}}), {{semana}} (AAAA-Wss), {{mes}} (AAAA-MM), {{año}},
+// {{inicio_semana}} y {{fin_semana}} (lunes y domingo). Si existe «Plantillas/Nota diaria», se usa
+// para las notas diarias nuevas («Plantillas/Semanal» y «Plantillas/Mensual», en 56-notas-extra.js).
 const TEMPLATE_FOLDER = 'Plantillas';
 const EXAMPLE_TEMPLATES = {
   Reunión: `---\nfecha: {{fecha}}\nasistentes: \n---\n\n## Objetivo\n\n## Puntos\n- \n\n## Acuerdos\n- \n\n## Tareas\n- [ ] \n`,
@@ -14,11 +15,17 @@ const EXAMPLE_TEMPLATES = {
 
 const templateNotes = () => state.notes.filter((n) => n.path.startsWith(`${TEMPLATE_FOLDER}/`)).sort((a, b) => a.path.localeCompare(b.path, 'es'));
 
-function fillTemplate(body, title = '') {
+// `when`: el día al que se refieren semana, mes y año (por defecto, hoy).
+function fillTemplate(body, title = '', when = new Date()) {
   const now = new Date();
   const long = now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const { year, week } = isoWeek(now);
+  const { year, week } = isoWeek(when);
+  const mon = addDays(when, -((when.getDay() + 6) % 7));
   return body
+    .replace(/\{\{\s*mes\s*\}\}/gi, dateKey(when).slice(0, 7))
+    .replace(/\{\{\s*a[ñn]o\s*\}\}/gi, String(when.getFullYear()))
+    .replace(/\{\{\s*inicio_semana\s*\}\}/gi, dateKey(mon))
+    .replace(/\{\{\s*fin_semana\s*\}\}/gi, dateKey(addDays(mon, 6)))
     .replace(/\{\{\s*fecha\s*\}\}/gi, dateKey(now))
     .replace(/\{\{\s*fecha_larga\s*\}\}/gi, long.charAt(0).toUpperCase() + long.slice(1))
     .replace(/\{\{\s*hora\s*\}\}/gi, nowHM())
@@ -157,7 +164,7 @@ function runNoteQuery(q, self) {
 
 // ---------- Filtros y orden por propiedad (```notas, ```tabla y ```tablero) ----------
 // Cualquier línea «clave: valor» que no sea una opción del bloque filtra por esa propiedad.
-const QUERY_RESERVED = /^(carpeta|folder|enlaza|links|l[ií]mite|limit|orden|sort|mostrar|show|columnas|columns|agrupar|group)$/i;
+const QUERY_RESERVED = /^(carpeta|folder|enlaza|links|l[ií]mite|limit|orden|sort|mostrar|show|columnas|columns|agrupar|group|totales|totals)$/i;
 const splitList = (v) => String(v).split(',').map((x) => x.trim()).filter(Boolean);
 
 function parseQuerySort(v) {
@@ -174,9 +181,9 @@ function parsePropFilter(line) {
   return { key: m[1].trim(), op: op === '!=' ? '!' : op || '=', value: yamlUnquote(v.slice(op.length).trim()) };
 }
 
-// Valores de una propiedad (una lista da varios). Vacía = no la tiene.
+// Valores de una propiedad o campo en línea (una lista da varios). Vacía = no la tiene.
 function propValues(n, key) {
-  const p = parseProps(n.body).props.find((x) => x.key.toLowerCase() === key.toLowerCase());
+  const p = noteFields(n).get(String(key).toLowerCase());
   return p ? (p.items || [p.value]).map((x) => String(x).trim()).filter(Boolean) : [];
 }
 
@@ -234,6 +241,9 @@ function hydrateQueries(container, selfId) {
   container.querySelectorAll('.query[data-kind]').forEach((box) => {
     if (box.dataset.kind === 'tabla') return renderNoteTable(box, decodeURIComponent(box.dataset.code), selfId);
     if (box.dataset.kind === 'tablero') return renderNoteBoard(box, decodeURIComponent(box.dataset.code), selfId);
+    // Vistas registradas por otros módulos (```galeria, ```calendario… en 55-vistas.js).
+    const view = typeof QUERY_KINDS !== 'undefined' && Object.hasOwn(QUERY_KINDS, box.dataset.kind) && QUERY_KINDS[box.dataset.kind];
+    if (view) return view.render(box, decodeURIComponent(box.dataset.code), selfId);
     const q = parseQuery(decodeURIComponent(box.dataset.code));
     const head = el('div', { className: 'query-head' });
     if (box.dataset.kind === 'tareas') {

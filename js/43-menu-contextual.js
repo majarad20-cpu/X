@@ -143,6 +143,7 @@ function readingItems(e, note) {
       const [from, to] = target.dataset.src.split('-').map(Number);
       startBlockEdit(note, from, to, target, point);
     } });
+    items.push(...ctxExtra('block', { note, block }));
   }
   items.push(
     { label: isEditing(note.id) ? 'Modo lectura' : 'Editar la nota entera', kbd: 'Ctrl+E', action: toggleNoteMode },
@@ -161,7 +162,7 @@ document.addEventListener('contextmenu', (e) => {
   if (t.id === 'note-editor' && !e.shiftKey && typeof editorMenuItems === 'function') {
     e.preventDefault();
     const c = !e.clientX && !e.clientY ? caretCoords(t, t.selectionStart) : null;
-    return showMenuAt(c ? c.left : e.clientX, c ? c.top + c.lh : e.clientY, editorMenuItems(t));
+    return showMenuAt(c ? c.left : e.clientX, c ? c.top + c.lh : e.clientY, [...editorMenuItems(t), ...ctxExtra('editor', t)]);
   }
   // Campos de texto: el menú del navegador. El lienzo de los Lienzos tiene su propio manejo.
   if (t.closest('input, textarea, select, [contenteditable="true"], #cv-viewport, .xd-text')) return;
