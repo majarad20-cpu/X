@@ -30,8 +30,8 @@ const mock = (initial) => {
   console.log('A keeps legacy:', await A.evaluate(() => state.tasks.map(t => t.title)), '| cloud state tasks:', (await dump(A)).state.tasks.map(t => t.title));
 
   // 2) A crea diario, idea y mapa.
-  await A.evaluate(() => showView('journal')); await A.fill('#journal-fields textarea', 'Probando la sincronización'); await A.click('#journal-form button[type=submit]');
-  await A.click('#dump-convert button:has-text("Ahora no")');
+  // Las entradas nuevas del diario van a la nota diaria; aquí se prueba que las antiguas (state.journal) siguen sincronizándose.
+  await A.evaluate(() => { state.journal.push({ id: uid(), date: dateKey(), createdAt: Date.now(), updatedAt: Date.now(), kind: 'dump', text: 'Probando la sincronización' }); save(); });
   await A.evaluate(() => showView('ideas')); await A.fill('#idea-text', 'Idea sincronizada'); await A.click('#idea-form button');
   await A.click('[data-ideaview=maps]'); await A.fill('#map-title', 'Mapa compartido'); await A.click('#map-form button');
   await A.click('#mm-child'); await A.keyboard.type('Rama 1'); await A.keyboard.press('Enter');

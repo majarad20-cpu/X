@@ -190,6 +190,10 @@ function renderProjectDetail(p) {
   detail.dataset.relId = p.id;
   let rel = $('#pd-related');
   if (!rel) $('#pd-tasks-empty').after((rel = el('div', { id: 'pd-related', className: 'pd-related' })));
+  // Todas sus notas: principal, de sus tareas, de su carpeta, que lo enlazan o con `proyecto:` (63-tarea-nota.js).
+  const notes = projectNotesBlock(p);
+  if ($('#pd-notes')) $('#pd-notes').replaceWith(notes);
+  else rel.before(notes);
   rel.replaceChildren(relItemPanel('project', p, { skipChildren: true }));
 }
 

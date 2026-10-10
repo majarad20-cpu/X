@@ -39,10 +39,10 @@ NOTAS e IDEAS ── no están "dentro" de nada: se ENLAZAN con cualquier cosa
 
 ## Fase 2: opcional
 4. **Áreas** como nivel nuevo, cada una con su página: proyectos, hábitos, notas y avance. Mientras tanto se puede usar una carpeta o la propiedad `area:`.
-5. **Nota diaria como centro del día:** hábitos para marcar, que se sincronizan con Hábitos, tareas, Pomodoros e ideas capturadas. Unificar el Diario con las notas diarias.
+5. ✅ **Hecho:** **Nota diaria como centro del día:** panel vivo arriba de cada nota diaria (no se guarda en el texto) con hábitos para marcar (sincronizados con Hábitos), tareas del día y hechas, Pomodoros con su tiempo, ideas capturadas ese día y eventos del calendario, con ‹ día anterior · siguiente › y un ajuste para quitarlo. El Diario escribe en la nota diaria (`## ✍️ Diario` y la propiedad `animo:`), su sección es una línea de tiempo de notas diarias con las entradas antiguas, y estas se pasan a las notas con un botón y «Deshacer» (`js/62-dia.js`, `js/08-diario.js`).
 6. **Bloques vivos desde «Insertar…»:** hábitos (casillas o mapa de calor), tarjeta de proyecto, ideas con etiqueta y botón de Pomodoro.
 7. **Ideas ↔ notas:** convertir en ambos sentidos y conservar el enlace a su origen.
-8. **Tarea con nota vinculada** (botón 📝), y que el proyecto liste todas sus notas.
+8. ✅ **Hecho:** **Tarea con nota vinculada** (botón 📝 en la tarea, fila «📝 Nota» en su formulario y clic derecho), y el proyecto lista todas sus notas en su detalle, con «+ Nueva nota del proyecto» (`js/63-tarea-nota.js`). La tarea guarda `noteId`; la nota lleva `tarea:` y `proyecto:` y muestra arriba «☑ Nota de la tarea». Una tarea que se repite conserva la misma nota (una reunión semanal lleva una sola nota). Si la nota está en la carpeta general «Proyectos» (o la comparte con otro proyecto), la carpeta del proyecto es «Proyectos/Nombre».
 9. **Pomodoro con contexto:** el tiempo queda registrado en la tarea o nota y se suma en el proyecto.
 10. **Grafo «neuronal»:** todos los tipos con colores y filtros; líneas continuas para la jerarquía y punteadas para los enlaces.
 

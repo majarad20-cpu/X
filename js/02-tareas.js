@@ -304,7 +304,7 @@ function taskItem(t, { draggable = false } = {}) {
   const del = el('button', { className: 'del', title: 'Eliminar', ariaLabel: 'Eliminar' }, '✕');
   del.addEventListener('click', () => deleteTask(t));
 
-  const row = [check, body, toggle, del];
+  const row = [check, body, taskNoteButton(t), toggle, del]; // 📝 nota de la tarea (63-tarea-nota.js)
   if (draggable && !t.done) row.unshift(dragHandle(t));
   const li = el('li', { className: `task p${t.priority}${t.done ? ' done' : ''}` }, el('div', { className: 'task-row' }, row));
   li.dataset.id = t.id;
@@ -423,6 +423,7 @@ function taskEditor(t) {
     title,
     el('div', { className: 'row' }, [priority, due, time, repeat, ...(state.projects.length ? [project] : [])]),
     el('div', { className: 'row' }, [el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
+    taskNoteRow(t), // «📝 Nota»: abrir, cambiar, desvincular (63-tarea-nota.js)
     relItemPanel('task', t), // enlaces y «Relacionado» (60-relaciones.js)
   ]);
   form.addEventListener('submit', (e) => {
@@ -878,7 +879,7 @@ function renderToday() {
   $('#today-list').replaceChildren(...dueToday.map((t) => taskItem(t)));
   $('#today-empty').hidden = dueToday.length > 0;
 
-  $('#today-journal').hidden = state.journal.some((e) => e.date === today);
+  $('#today-journal').hidden = journalWroteOn(today); // diario antiguo o sección Diario de la nota de hoy
   renderReviewNudge();
   renderSuggestions();
   renderTodayCalendar();
