@@ -188,6 +188,7 @@ function renderReviewStep() {
   $('#review-prev').disabled = review.step === 0;
   $('#review-next').hidden = review.step === REVIEW_STEPS.length - 1;
   $('#review-finish').hidden = review.step !== REVIEW_STEPS.length - 1;
+  $('#review-plan').hidden = review.step !== REVIEW_STEPS.length - 1; // «Planificar la semana siguiente» (64-semana.js)
 }
 
 function finishReview() {

@@ -30,6 +30,7 @@
           <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
           <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
           <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
+          <button class="rib" data-view="plan" title="Planificar semana" aria-label="Planificar semana"><span class="ico" data-icon="plan-week"></span><span class="rib-label">Planificar semana</span></button>
         </div>
       </div>
       <div class="rib-group" data-group="focus">
@@ -38,6 +39,7 @@
           <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
           <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
           <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
+          <button class="rib" data-view="finanzas" title="Finanzas" aria-label="Finanzas"><span class="ico" data-icon="coin"></span><span class="rib-label">Finanzas</span></button>
         </div>
       </div>
       <div class="rib-group" data-group="write">
@@ -189,6 +191,7 @@
         <button id="today-daily" class="chip">📓 Nota diaria</button>
         <button id="today-weekly" class="chip">🗓️ Semana</button>
         <button id="today-monthly" class="chip">📆 Mes</button>
+        <button id="today-planweek" class="chip" hidden>📋 Planifica tu semana</button>
       </div>
       <div class="stats">
         <div class="stat"><span id="stat-pending" class="num">0</span><span class="label">Para hoy</span></div>
@@ -717,6 +720,49 @@
         <button id="review-prev">‹ Anterior</button>
         <button id="review-next" class="primary">Siguiente ›</button>
         <button id="review-finish" class="primary" hidden>Terminar y guardar</button>
+        <button id="review-plan" hidden>📋 Planificar la semana siguiente</button>
+      </div>
+    </section>
+
+    <!-- Finanzas (65-finanzas.js: se dibuja al abrirla) -->
+    <section id="view-finanzas" class="view"></section>
+
+    <!-- Planificar la semana (64-semana.js) -->
+    <section id="view-plan" class="view">
+      <div class="pw-top">
+        <h2 class="section-title first">📋 Planificar la semana</h2>
+        <div class="pw-nav">
+          <button id="pw-prev" class="nav-btn" aria-label="Semana anterior">‹</button>
+          <span id="pw-title" class="pw-title" aria-live="polite"></span>
+          <button id="pw-next" class="nav-btn" aria-label="Semana siguiente">›</button>
+          <button id="pw-now" class="chip" hidden>Esta semana</button>
+        </div>
+        <div class="pw-tools">
+          <label class="pw-cap">Capacidad diaria <input id="pw-cap" type="number" min="0.5" max="24" step="0.5" aria-label="Capacidad diaria en horas"> h</label>
+          <button id="pw-auto" class="chip" title="Reparte las tareas sin planificar por prioridad, sin pasar de la capacidad y saltando los días libres">⚡ Reparto automático</button>
+        </div>
+      </div>
+      <div id="pw-goals" class="card pw-goals"></div>
+      <div id="pw-preview" class="card pw-preview" hidden></div>
+      <div class="pw-main">
+        <div id="pw-days" class="pw-days"></div>
+        <aside id="pw-side" class="pw-side" data-key="" aria-label="Sin planificar">
+          <div class="pw-side-head">
+            <h3>Sin planificar <span id="pw-side-count" class="muted"></span></h3>
+            <button id="pw-side-toggle" class="chip pw-side-toggle" aria-expanded="false" aria-controls="pw-side-body">Ver</button>
+          </div>
+          <div id="pw-side-body" class="pw-side-body">
+            <div class="pw-side-tools">
+              <input id="pw-filter" type="search" placeholder="Filtrar…" aria-label="Filtrar tareas sin planificar">
+              <select id="pw-sort" aria-label="Ordenar">
+                <option value="priority">Prioridad</option>
+                <option value="created">Más antiguas</option>
+                <option value="title">Título</option>
+              </select>
+            </div>
+            <div id="pw-side-list" class="pw-side-list"></div>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -1136,6 +1182,8 @@
   <script src="js/61-busqueda-global.js"></script>
   <script src="js/63-tarea-nota.js"></script>
   <script src="js/62-dia.js"></script>
+  <script src="js/64-semana.js"></script>
+  <script src="js/65-finanzas.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

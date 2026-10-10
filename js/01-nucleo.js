@@ -19,13 +19,14 @@ const defaults = () => ({
   log: [], // bitácora: hitos de cada día
   notes: [], // notas en Markdown: { id, path: 'Carpeta/Título', body }
   folders: [], // carpetas de notas (también las vacías)
+  finance: { categories: [], tx: [], recurring: [], currency: '' }, // finanzas (65-finanzas.js)
   updatedAt: 0, // última modificación local
   syncMeta: { sent: {}, times: {} }, // estado de la sincronización por bloques (solo de este dispositivo)
 });
 
 // Datos del usuario (lo que se sincroniza, se exporta y se puede deshacer).
 const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', 'completions', 'projects', 'folders'];
-const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes', 'canvases'];
+const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes', 'canvases', 'finance'];
 
 // Datos guardados → estado completo, con los valores por defecto de lo que falte.
 function normalize(data) {
