@@ -295,7 +295,7 @@ function resumeTimer() {
   }
   if (pomoOtherOwns()) return pomoFollow(run);
   Object.assign(timer, run);
-  if (timer.lastDay === undefined) timer.lastDay = lastFocusDay();
+  if (!('lastDay' in run)) timer.lastDay = lastFocusDay();
   renderModeChips();
   if (typeof renderTimerTaskOptions === 'function') renderTimerTaskOptions();
   if (timer.endsAt) {
@@ -342,6 +342,7 @@ function pomoFollow(run) {
   releaseScreen();
   const total = modeDuration('focus');
   Object.assign(timer, { mode: 'focus', total, remaining: total, endsAt: null, focusCount: 0, lastDay: null, ctx: null, startedAt: null, spent: 0, runFrom: null, warned: false }, run || {});
+  if (run && !('lastDay' in run)) timer.lastDay = lastFocusDay();
   if (timer.endsAt) timer.interval = setInterval(tick, 250);
   $('#timer-start').textContent = timer.endsAt ? 'Pausar' : 'Iniciar';
   renderModeChips();

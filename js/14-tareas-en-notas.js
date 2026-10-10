@@ -157,7 +157,7 @@ function findNoteTaskLine(noteId, line, title = null) {
   });
   if (!code.has(line) && ok(line)) return line;
   if (title === null || title === undefined) return -1;
-  for (let d = 1; d < lines.length; d++) {
+  for (let d = 1, end = Math.max(line + 1, lines.length); d < end; d++) {
     for (const i of [line - d, line + d]) if (!code.has(i) && ok(i)) return i;
   }
   return -1;

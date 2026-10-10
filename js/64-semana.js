@@ -477,7 +477,7 @@ function pwAutoPlan() {
     if (!fits.length) return void left++;
     const k = t.priority === 3 ? fits[0] : fits.reduce((a, b) => (load.get(b) < load.get(a) ? b : a));
     load.set(k, load.get(k) + d);
-    plan.push({ ref: pwRef(t), key: k });
+    plan.push({ ref: pwRef(t), key: k, t }); // t: solo la tarea de cuando se calculó; al aplicar se usa ref
   });
   if (!plan.length) return showToastMessage(tasks.length ? 'No cabe nada más: los días ya están llenos' : 'No hay tareas sin planificar');
   pw.preview = { plan, left, offset: pw.offset, rev: dataRev };
@@ -488,7 +488,7 @@ function pwAutoPlan() {
 const pwRef = (t) => (t.virtual ? { virtual: true, noteId: t.noteId, line: t.line, title: t.title } : { id: t.id });
 function pwResolve(ref) {
   if (!ref.virtual) return state.tasks.find((t) => t.id === ref.id && !t.done) || null;
-  const i = findNoteTaskLine(ref.noteId, ref.line, ref.title);
+  const i = noteTaskLineNow(ref);
   const note = noteById(ref.noteId);
   const t = i < 0 ? null : parseNoteTask(note, i, note.body.split('\n')[i]);
   return t && !t.done ? t : null;

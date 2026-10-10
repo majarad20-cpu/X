@@ -187,14 +187,17 @@ const seedNotes = {
   await c2.route(/fonts\.g/, (r) => r.abort());
   await c2.clock.install({ time: new Date(now) });
   // Cada pestaña lleva su reloj simulado: se avanza a pasos cortos para que vayan a la par.
-  const step = async (ms) => { for (let t = 0; t < ms; t += 2000) await c2.clock.runFor(Math.min(2000, ms - t)); };
+  // localStorage llega a la otra pestaña con algo de retraso real: se espera un poco en cada paso.
+  const pause = (ms = 40) => new Promise((res) => setTimeout(res, ms));
+  const step = async (ms) => { for (let t = 0; t < ms; t += 2000) { await c2.clock.runFor(Math.min(2000, ms - t)); await pause(); } };
   const a = await c2.newPage(); watch(a);
   await a.goto(url); await c2.clock.runFor(800);
   await a.evaluate(() => { showView('timer'); startTimer(); });
-  await c2.clock.runFor(2000);
+  await step(2000); await pause(300);
   const bb = await c2.newPage(); watch(bb);
   await bb.goto(url); await c2.clock.runFor(1500);
-  r = await bb.evaluate(() => ({ following: pomoFollowing, endsAt: timer.endsAt, btn: $('#timer-start').textContent }));
+  r = await bb.evaluate(() => ({ following: pomoFollowing, endsAt: timer.endsAt, btn: $('#timer-start').textContent, run: localStorage.getItem(POMO_RUN_KEY), own: localStorage.getItem('enfoque:pomo-owner'), now: Date.now(), res: timerResumed }));
+  r.a = await a.evaluate(() => ({ run: localStorage.getItem(POMO_RUN_KEY), own: localStorage.getItem('enfoque:pomo-owner'), now: Date.now(), endsAt: timer.endsAt }));
   const endsA = await a.evaluate(() => timer.endsAt);
   check('dos pestañas: la segunda sigue el temporizador sin llevarlo', r.following && r.endsAt === endsA && r.btn === 'Pausar', JSON.stringify(r));
   await step(MIN);
@@ -205,11 +208,11 @@ const seedNotes = {
 
   // Pausar desde la segunda: pasa a llevarlo ella.
   await bb.evaluate(() => { setMode('focus'); startTimer(); });
-  await c2.clock.runFor(1500);
+  await pause(300); await step(1500);
   r = { a: await a.evaluate(() => ({ f: pomoFollowing, endsAt: timer.endsAt })), b: await bb.evaluate(() => ({ f: pomoFollowing, endsAt: timer.endsAt })) };
   check('dos pestañas: la que actúa pasa a llevarlo', !r.b.f && r.a.f && r.a.endsAt === r.b.endsAt, JSON.stringify(r));
   // Si se cierra la dueña, la otra toma el relevo y registra.
-  await bb.close();
+  await bb.close(); await pause(300);
   await step(MIN + 2000);
   r = await a.evaluate(() => ({ f: pomoFollowing, n: state.focusLog.length, mode: timer.mode }));
   check('dos pestañas: relevo al cerrar la dueña', !r.f && r.n === 2 && r.mode === 'short', JSON.stringify(r));
@@ -244,7 +247,7 @@ const seedNotes = {
     state.focusLog = [{ id: 'old', start: Date.now() - 864e5 - 25 * 60e3, end: Date.now() - 864e5, date: '2026-10-08', minutes: 25, kind: 'focus', ctx: { type: 'free' }, completed: true }];
     save(); flushLocal();
   });
-  await c2.clock.runFor(500);
+  await c2.clock.runFor(500); await pause(300);
   await a.reload(); await c2.clock.runFor(1500);
   r = await a.evaluate(() => $('#timer-round').textContent);
   check('racha: guardado antiguo de otro día empieza en 1', r.startsWith('Pomodoro 1 de 4'), r);

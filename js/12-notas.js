@@ -993,30 +993,39 @@ function mergeLines3(base, ours, theirs) {
   const mo = pairs(o);
   const mt = pairs(t);
   if (!mo || !mt) return null;
-  const same = (x, y) => x.length === y.length && x.every((v, k) => v === y[k]);
-  const out = [];
-  let i = 0;
-  let j = 0;
-  let k = 0;
-  // Entre dos líneas que siguen igual en las tres, cada trozo lo cambió uno, los dos igual o ninguno.
-  const chunk = (bi, oj, tk) => {
-    const cb = b.slice(i, bi);
-    const co = o.slice(j, oj);
-    const ct = t.slice(k, tk);
-    if (same(co, cb)) out.push(...ct);
-    else if (same(ct, cb) || same(co, ct)) out.push(...co);
-    else return false;
-    return true;
+  // Trozos cambiados: líneas [bs, be) de b que pasan a ser `lines`.
+  const hunks = (mt2, x, who) => {
+    const out = [];
+    let j = 0;
+    for (let i = 0; i <= b.length; ) {
+      if (i < b.length && mt2[i] === j) {
+        i++;
+        j++;
+        continue;
+      }
+      const bs = i;
+      while (i < b.length && mt2[i] < 0) i++;
+      const je = i < b.length ? mt2[i] : x.length;
+      if (i > bs || je > j) out.push({ bs, be: i, lines: x.slice(j, je), who });
+      j = je;
+      if (i === b.length) break;
+    }
+    return out;
   };
-  for (let x = 0; x < b.length; x++) {
-    if (mo[x] < 0 || mt[x] < 0) continue;
-    if (!chunk(x, mo[x], mt[x])) return null;
-    out.push(b[x]);
-    i = x + 1;
-    j = mo[x] + 1;
-    k = mt[x] + 1;
+  const list = [...hunks(mo, o, 0), ...hunks(mt, t, 1)].sort((x, y) => x.bs - y.bs || x.who - y.who);
+  const same = (x, y) => x.bs === y.bs && x.be === y.be && x.lines.join('\n') === y.lines.join('\n');
+  const out = [];
+  let at = 0;
+  let prev = null;
+  for (const h of list) {
+    if (prev && same(prev, h)) continue; // los dos cambiaron lo mismo
+    // Se pisan (o insertan en el mismo sitio): no se sabe cuál va.
+    if (prev && (h.bs < prev.be || h.bs === prev.bs)) return null;
+    out.push(...b.slice(at, h.bs), ...h.lines);
+    at = h.be;
+    prev = h;
   }
-  if (!chunk(b.length, o.length, t.length)) return null;
+  out.push(...b.slice(at));
   return [...B.slice(0, p), ...out, ...B.slice(B.length - q)].join('\n');
 }
 

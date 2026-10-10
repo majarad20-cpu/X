@@ -5,10 +5,17 @@
 const STATUS_LABEL = { todo: 'Por hacer', doing: 'En curso', done: 'Hecho' };
 const statusOf = (t) => (t.done ? 'done' : t.status === 'doing' ? 'doing' : 'todo');
 
+// Línea actual de una tarea de nota (findNoteTaskLine, de 14). Si la nota se acortó y su línea ya
+// no existe, se busca desde el final.
+function noteTaskLineNow(t) {
+  const n = noteById(t.noteId)?.body.split('\n').length || 1;
+  return findNoteTaskLine(t.noteId, Math.min(t.line, n - 1), t.title);
+}
+
 // Cambia la línea de la tarea en su nota; si ya no está, no toca nada y lo dice (devuelve false).
 function editNoteLine(t, fn, { quiet = false } = {}) {
   const note = noteById(t.noteId);
-  const i = note ? findNoteTaskLine(t.noteId, t.line, t.title) : -1; // 14: la línea actual, o -1
+  const i = note ? noteTaskLineNow(t) : -1;
   if (i < 0) {
     if (!quiet) showToastMessage(`«${t.title}» cambió en su nota: no se ha modificado`);
     return false;

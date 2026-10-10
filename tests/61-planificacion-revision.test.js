@@ -30,6 +30,7 @@ const seed = {
     p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
     await p.clock.install({ time: new Date(time) });
     await p.goto(url); await p.clock.runFor(800);
+    await p.waitForFunction(() => document.documentElement.dataset.ready); await p.clock.runFor(200);
     return p;
   };
   const body = (p) => p.evaluate(() => noteById('nt').body.split('\n'));
@@ -39,18 +40,17 @@ const seed = {
   await p.evaluate(() => { openPlanWeek(0); pwAutoPlan(); });
   check('propuesta con referencias', await p.evaluate(() => pw.preview.plan.map((x) => x.ref.id || x.ref.title)), ['a', 'b', 'Tarea de nota', 'Otra de nota']);
   // Se añade una línea encima de la tarea sin redibujar (el botón Aplicar sigue a la vista)
-  await p.evaluate(() => { const n = noteById('nt'); n.body = n.body.replace('Texto\n', 'Texto\nLínea nueva\n'); });
-  await p.evaluate(() => pwApplyPlan()); await p.clock.runFor(100);
+  // (en la misma tarea de JS: así no se redibuja antes, como un clic en el botón que sigue a la vista)
+  await p.evaluate(() => { const n = noteById('nt'); n.body = n.body.replace('Texto\n', 'Texto\nLínea nueva\n'); pwApplyPlan(); });
+  await p.clock.runFor(100);
   let lines = await body(p);
   check('línea añadida intacta', lines[2], 'Línea nueva');
   check('fecha en la tarea correcta', [/^- \[ \] Tarea de nota 📅 \d{4}-\d{2}-\d{2}$/.test(lines[3]), /^- \[ \] Otra de nota 📅 \d{4}-\d{2}-\d{2}$/.test(lines[4])], [true, true]);
   check('tareas de la app con fecha', await p.evaluate(() => ['a', 'b'].map((i) => !!state.tasks.find((t) => t.id === i).due)), [true, true]);
   // Nota más corta: antes fallaba (línea fuera de la nota)
   await p.click('#toast .toast-action'); await p.clock.runFor(100);
-  await p.evaluate(() => { noteById('nt').body = '# Pendientes\nTexto\n- [ ] Tarea de nota\n- [ ] Otra de nota'; save(); pwAutoPlan(); });
-  await p.evaluate(() => { noteById('nt').body = '- [ ] Otra de nota'; });
-  console.log('DBG', await p.evaluate(() => JSON.stringify(pw.preview)));
-  await p.evaluate(() => pwApplyPlan()); await p.clock.runFor(100);
+  await p.evaluate(() => { noteById('nt').body = '# Pendientes\nTexto\n- [ ] Tarea de nota\n- [ ] Otra de nota'; save(); pwAutoPlan(); noteById('nt').body = '- [ ] Otra de nota'; pwApplyPlan(); });
+  await p.clock.runFor(100);
   lines = await body(p);
   check('nota más corta: sin error y en su línea', [lines.length, /^- \[ \] Otra de nota 📅/.test(lines[0])], [1, true]);
   check('aviso de las que ya no están', /ya no estaba/.test(await p.textContent('#toast')), true);
@@ -66,8 +66,8 @@ const seed = {
 
   // ---- 2) Tras deshacer (tareas nuevas en state.tasks) no se saltan las de la app
   await p.evaluate(() => { state.tasks.forEach((t) => t.id !== 'r' && (t.due = null)); noteById('nt').body = ''; save(); pwAutoPlan(); });
-  await p.evaluate(() => { state.tasks = JSON.parse(JSON.stringify(state.tasks)); }); // como hace «Deshacer»
-  await p.evaluate(() => pwApplyPlan()); await p.clock.runFor(100);
+  await p.evaluate(() => { state.tasks = JSON.parse(JSON.stringify(state.tasks)); pwApplyPlan(); }); // tareas nuevas, como tras «Deshacer»
+  await p.clock.runFor(100);
   check('tras deshacer, se aplican', await p.evaluate(() => ['a', 'b'].map((i) => !!state.tasks.find((t) => t.id === i).due)), [true, true]);
 
   // ---- 4) «Hechas (N)» incluye las repetidas hechas ese día
@@ -129,7 +129,7 @@ const seed = {
   await p.evaluate(() => { Object.assign(pd, pdLocalPlan(pdCtx())); pdRender(); window.__slow = true; });
   await p.check('#pld-gcal');
   await p.click('#pld-accept'); await p.clock.runFor(100);
-  await p.click('#pld-cancel'); await p.clock.runFor(2500);
+  await p.click('#pld-cancel'); await p.clock.runFor(4500);
   check('cancelado: sin cambios', await p.evaluate(() => [state.tasks.find((t) => t.id === 'g').time, state.settings.planEvents || null]), [null, null]);
   check('aviso con borrar eventos', [/Plan cancelado/.test(await p.textContent('#toast')), await p.isVisible('#toast .toast-action:has-text("Borrar eventos")')], [true, true]);
   await p.click('#toast .toast-action'); await p.clock.runFor(300);
