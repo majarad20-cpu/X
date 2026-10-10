@@ -867,7 +867,8 @@ function renderRightPanel() {
     });
     return box;
   };
-  bl.replaceChildren(group('Enlaces entrantes', linked, false), group('Menciones sin enlazar', unlinked, true));
+  // Arriba, lo relacionado por tipo: proyecto, tareas, ideas, hábitos y notas enlazadas (60-relaciones.js).
+  bl.replaceChildren(relatedBlock('note', note.id), group('Enlaces entrantes', linked, false), group('Menciones sin enlazar', unlinked, true));
 
   renderLocalGraph();
   const heads = headingsIn(note.body);
@@ -1272,11 +1273,8 @@ function updateSuggest() {
   if (!m) return slashSuggest(ta, before);
   const q = m[1].toLowerCase();
   const current = activeNote();
-  const items = state.notes
-    .filter((n) => n !== current && (baseName(n.path).toLowerCase().includes(q) || n.path.toLowerCase().includes(q)))
-    .sort((a, b) => (baseName(b.path).toLowerCase().startsWith(q) ? 1 : 0) - (baseName(a.path).toLowerCase().startsWith(q) ? 1 : 0) || b.updatedAt - a.updatedAt)
-    .slice(0, 8)
-    .map((n) => ({ label: baseName(n.path), detail: folderOf(n.path), insert: baseName(n.path) }));
+  // Notas, tareas, proyectos, ideas y hábitos, mezclados por parecido (60-relaciones.js).
+  const items = relSuggest(q, current);
   if (m[1].trim() && !findNoteByName(m[1])) items.push({ label: `Enlazar nota nueva «${m[1].trim()}»`, detail: 'se creará al abrir el enlace', insert: m[1].trim() });
   if (!items.length) return hideSuggest();
   showSuggestBox(ta, items, ta.selectionStart - m[1].length);

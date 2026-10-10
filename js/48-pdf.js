@@ -49,6 +49,11 @@ function pdfRuns(nodes, st, ctx, out = []) {
       if (/^https?:/i.test(url)) out.push({ text: `\n${label}: ${url}\n`, ...st, code: undefined, link: url, color: '#2563eb' });
       continue;
     }
+    // Ficha [[tarea:…|texto]]: va el texto del enlace (o el nombre actual si no lo tiene).
+    if (c.contains('elink')) {
+      out.push({ text: pdfText(n.dataset.alias || [...n.childNodes].filter((k) => !k.classList?.contains('elink-ico')).map((k) => k.textContent).join('')), ...st, code: undefined, color: '#7c3aed' });
+      continue;
+    }
     if (c.contains('note-file')) {
       out.push({ text: pdfText(n.dataset.name || 'archivo'), ...st, code: undefined, italics: true, color: '#374151' });
       continue;

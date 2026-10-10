@@ -132,7 +132,11 @@ function habitEditorRow(h) {
     renderAll();
   });
   setTimeout(() => name.focus());
-  return el('tr', {}, el('td', { colSpan: DAYS_SHOWN + 3 }, form));
+  // Enlaces y «Relacionado» (60-relaciones.js).
+  const tr = el('tr', { className: 'habit-editing' }, el('td', { colSpan: DAYS_SHOWN + 3 }, [form, relItemPanel('habit', h)]));
+  tr.dataset.relType = 'habit';
+  tr.dataset.relId = h.id;
+  return tr;
 }
 
 function renderHabits() {
@@ -185,12 +189,15 @@ function renderHabits() {
       });
 
       const s = streak(h);
-      return el('tr', {}, [
+      const tr = el('tr', {}, [
         el('td', { className: 'name' }, nameBtn),
         ...cells,
         el('td', { className: 'streak', title: streakText(h, s) }, s ? `🔥 ${s}${isDaily(h) ? '' : ' sem'}` : '—'),
         el('td', {}, del),
       ]);
+      tr.dataset.relType = 'habit';
+      tr.dataset.relId = h.id;
+      return tr;
     })
   );
 

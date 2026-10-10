@@ -80,7 +80,7 @@ function addTask(text, { priority = 2, due = null, repeat = null, time = null, p
   // Con hora pero sin fecha: hoy, o mañana si esa hora ya pasó.
   if (time && !due) due = time > nowHM() ? dateKey() : dateKey(addDays(new Date(), 1));
   if (time) askNotificationPermission();
-  state.tasks.push({
+  const task = {
     id: uid(),
     title: parsed.title,
     tags: parsed.tags,
@@ -95,9 +95,11 @@ function addTask(text, { priority = 2, due = null, repeat = null, time = null, p
     done: false,
     pomodoros: 0,
     createdAt: Date.now(),
-  });
+  };
+  state.tasks.push(task);
   save();
   renderAll();
+  return task;
 }
 
 $('#task-form').addEventListener('submit', (e) => {
@@ -272,7 +274,7 @@ function taskItem(t, { draggable = false } = {}) {
   title.addEventListener('click', () => startEditing(t.id));
 
   const body = el('div', { className: 'body' }, [title, meta]);
-  if (t.notes && !isOpen) body.append(el('div', { className: 'note-preview' }, t.notes.split('\n')[0]));
+  if (t.notes && !isOpen) body.append(el('div', { className: 'note-preview' }, relTextNodes(t.notes.split('\n')[0])));
   const project = t.projectId && projectById(t.projectId);
   if (t.tags?.length || project) {
     const chips = el('div', { className: 'tags' }, (t.tags || []).map(tagChip));
@@ -421,6 +423,7 @@ function taskEditor(t) {
     title,
     el('div', { className: 'row' }, [priority, due, time, repeat, ...(state.projects.length ? [project] : [])]),
     el('div', { className: 'row' }, [el('button', { type: 'submit', className: 'primary' }, 'Guardar'), cancel]),
+    relItemPanel('task', t), // enlaces y «Relacionado» (60-relaciones.js)
   ]);
   form.addEventListener('submit', (e) => {
     e.preventDefault();

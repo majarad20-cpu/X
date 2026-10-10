@@ -128,7 +128,8 @@ function buildGraphData({ center = null, depth = 1, tags = false, ghosts = true,
   };
   state.notes.forEach((n) => {
     linksIn(n.body).forEach((l) => {
-      if (!l.target) return;
+      // Los enlaces a tareas, proyectos, ideas o hábitos ([[tarea:ID|…]]) no son notas «sin crear».
+      if (!l.target || /^(tarea|proyecto|idea|h[aá]bito):/i.test(l.target)) return;
       const t = findNoteByName(l.target);
       if (t) link(`n:${n.id}`, `n:${t.id}`);
       else if (ghosts) {

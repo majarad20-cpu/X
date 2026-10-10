@@ -28,7 +28,7 @@ function ideaBody(idea) {
   idea.text.split('\n').forEach((line, i) => {
     const m = line.match(/^\s*[-*]\s+\[([ xX])\]\s*(.*)$/);
     if (!m) {
-      body.append(el('div', { className: 'idea-line' }, line || '\u00a0'));
+      body.append(el('div', { className: 'idea-line' }, line ? relTextNodes(line) : '\u00a0'));
       return;
     }
     const box = el('input', { type: 'checkbox', checked: m[1] !== ' ', ariaLabel: m[2] || 'Elemento' });
@@ -40,7 +40,7 @@ function ideaBody(idea) {
       save();
       renderIdeas();
     });
-    body.append(el('label', { className: `idea-check${box.checked ? ' done' : ''}` }, [box, el('span', {}, m[2])]));
+    body.append(el('label', { className: `idea-check${box.checked ? ' done' : ''}` }, [box, el('span', {}, relTextNodes(m[2]))]));
   });
   return body;
 }
@@ -112,7 +112,10 @@ function ideaCard(idea) {
       renderIdeas();
     });
     setTimeout(() => area.focus());
-    return el('article', { className: 'card idea editing' }, [area, el('div', { className: 'row' }, [ok, cancel])]);
+    const box = el('article', { className: 'card idea editing' }, [area, el('div', { className: 'row' }, [ok, cancel]), relItemPanel('idea', idea)]);
+    box.dataset.relType = 'idea';
+    box.dataset.relId = idea.id;
+    return box;
   }
 
   const pin = el('button', { className: `icon-link${idea.pinned ? ' on' : ''}`, title: idea.pinned ? 'Desfijar' : 'Fijar arriba', ariaPressed: String(!!idea.pinned) }, '📌');
@@ -133,7 +136,12 @@ function ideaCard(idea) {
   });
   const toTask = el('button', { className: 'link' }, '→ Tarea');
   toTask.addEventListener('click', () => {
-    addTask(idea.text.split('\n')[0]);
+    // La idea queda enlazada con la tarea que sale de ella (se ve en «Relacionado»).
+    const t = addTask(idea.text.split('\n')[0]);
+    if (t) {
+      idea.links = (idea.links || []).concat({ type: 'task', id: t.id });
+      save();
+    }
     showToastMessage('Tarea creada en Tareas');
   });
   const toMap = el('button', { className: 'link' }, '→ Mapa');
@@ -181,6 +189,8 @@ function ideaCard(idea) {
     })));
   }
   card.append(el('footer', { className: 'entry-actions' }, [edit, toTask, toMap, del]));
+  card.dataset.relType = 'idea';
+  card.dataset.relId = idea.id;
   return card;
 }
 

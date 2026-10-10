@@ -72,6 +72,7 @@ function taskMenuItems(t) {
     { sep: true },
     ...[3, 2, 1].map((p) => ({ label: `${t.priority === p ? '● ' : '○ '}Prioridad ${PRIORITY_LABEL[p].toLowerCase()}`, action: () => setPriority(t, p) }))
   );
+  items.push(...ctxExtra('task', t)); // «Enlazar con…», «Ver relacionado…» (60-relaciones.js)
   if (!t.virtual) {
     items.push({ sep: true });
     if (cal.mcp) items.push({ label: '📅 Agendar en Google Calendar…', action: () => openSchedule({ task: t, minutes: Number(t.duration) || 30 }) });
@@ -222,6 +223,15 @@ document.addEventListener('contextmenu', (e) => {
       hideDvPop();
       return show(taskMenuItems(task));
     }
+  }
+
+  // Ficha [[tarea:…]], [[proyecto:…]]… y cosas con «Relacionado» (proyecto, idea, hábito: 60-relaciones.js)
+  const elink = t.closest('a.elink');
+  if (elink) return show(elinkMenuItems(elink));
+  const relEl = t.closest('[data-rel-type][data-rel-id]');
+  if (relEl) {
+    const items = relCtxItems(relEl.dataset.relType, relEl.dataset.relId);
+    if (items.length) return show(items);
   }
 
   // Día del calendario

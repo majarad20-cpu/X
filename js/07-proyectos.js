@@ -118,6 +118,8 @@ function projectCard(p) {
   ]);
   if (risk) card.append(el('div', { className: `pc-risk ${risk.level}` }, risk.level === 'late' ? '⚠ Fuera de plazo' : '⚠ Va con retraso'));
   card.dataset.pcolor = p.color;
+  card.dataset.relType = 'project'; // clic derecho: «Enlazar con…», «Ver relacionado…»
+  card.dataset.relId = p.id;
   card.addEventListener('click', () => openProject(p.id));
   return card;
 }
@@ -183,6 +185,12 @@ function renderProjectDetail(p) {
   $('#pd-tasks').replaceChildren(...sorted.map((t) => taskItem(t)));
   $('#pd-tasks-empty').hidden = tasks.length > 0;
   $('#pd-count').textContent = tasks.length ? `${tasks.filter((t) => t.done).length}/${tasks.length}` : '';
+  // Enlaces y «Relacionado» (60-relaciones.js); las tareas del proyecto ya están arriba.
+  detail.dataset.relType = 'project';
+  detail.dataset.relId = p.id;
+  let rel = $('#pd-related');
+  if (!rel) $('#pd-tasks-empty').after((rel = el('div', { id: 'pd-related', className: 'pd-related' })));
+  rel.replaceChildren(relItemPanel('project', p, { skipChildren: true }));
 }
 
 function currentProject() {
