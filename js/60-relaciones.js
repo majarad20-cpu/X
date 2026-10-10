@@ -218,7 +218,7 @@ function relSuggest(q, current) {
     .filter((n) => n !== current && (baseName(n.path).toLowerCase().includes(q) || n.path.toLowerCase().includes(q)))
     .sort((a, b) => (baseName(b.path).toLowerCase().startsWith(q) ? 1 : 0) - (baseName(a.path).toLowerCase().startsWith(q) ? 1 : 0) || b.updatedAt - a.updatedAt)
     .slice(0, q ? 8 : 6)
-    .map((n) => ({ label: baseName(n.path), detail: folderOf(n.path), insert: baseName(n.path), icon: '📝', score: relScore(baseName(n.path), q) || 20 }));
+    .map((n) => ({ label: baseName(n.path), detail: folderOf(n.path), insert: linkNameOf(n), icon: '📝', score: relScore(baseName(n.path), q) || 20 }));
   const ents = relSearch(q, { types: ['task', 'project', 'idea', 'habit'], limit: q ? 8 : 4 }).map((e) => ({
     label: e.title,
     detail: e.subtitle,
@@ -412,7 +412,7 @@ function relRow(type, x) {
   }
   if (type === 'task') {
     const box = el('input', { type: 'checkbox', checked: !!x.done, ariaLabel: `Completar ${x.title}` });
-    box.addEventListener('change', () => (x.virtual ? toggleNoteTask(x.noteId, x.line, box.checked) : toggleDone(x, box.checked)));
+    box.addEventListener('change', () => (x.virtual ? toggleNoteTask(x.noteId, x.line, box.checked, x.title) : toggleDone(x, box.checked)));
     row.append(box);
     if (x.done) row.classList.add('done');
   }

@@ -230,10 +230,7 @@ async function finishRecording() {
   note.body = `${before}${before && !before.endsWith('\n') ? '\n' : ''}${block}\n${note.body.slice(at)}`;
   note.updatedAt = Date.now();
   save();
-  if (isEditing(note.id)) {
-    $('#note-editor').value = note.body;
-    autosize($('#note-editor'));
-  }
+  syncOpenEditor(note);
   renderAll();
   scheduleFilesSync();
   showToastMessage(data.length > FILE_MAX_CHARS ? 'Nota de voz guardada. Es larga: se queda en este dispositivo y no se sincroniza.' : 'Nota de voz guardada');
@@ -427,10 +424,7 @@ async function vtRun(kind, note, blk) {
   }
   note.updatedAt = Date.now();
   save();
-  if (isEditing(note.id)) {
-    $('#note-editor').value = note.body;
-    autosize($('#note-editor'));
-  }
+  syncOpenEditor(note);
   renderAll();
   showToastMessage(kind === 'sum' ? 'Resumen añadido bajo la transcripción' : 'Transcripción limpiada (puedes deshacerlo en el historial)');
 }

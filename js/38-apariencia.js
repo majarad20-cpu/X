@@ -179,9 +179,12 @@ function setLook(patch) {
   renderAppearance();
 }
 
+const AP_CONTROLS = 'button, select, input';
 function renderAppearance() {
   const box = $('#appearance');
   if (!box) return;
+  // Se redibuja todo: el foco vuelve al mismo control (misma posición) para seguir con el teclado.
+  const focusAt = box.contains(document.activeElement) ? [...box.querySelectorAll(AP_CONTROLS)].indexOf(document.activeElement) : -1;
   const L = look();
   const seg = (key, options, label) => {
     const group = el('div', { className: 'segmented', role: 'radiogroup', ariaLabel: label });
@@ -301,6 +304,7 @@ function renderAppearance() {
       return el('div', { className: 'row ap-reset' }, [reset, el('span', { className: 'muted' }, 'La apariencia se sincroniza entre tus dispositivos.')]);
     })()
   );
+  if (focusAt >= 0) box.querySelectorAll(AP_CONTROLS)[focusAt]?.focus({ preventScroll: true });
 }
 
 // Se aplica ya (con los datos cargados de este dispositivo) para que no haya un parpadeo al abrir.

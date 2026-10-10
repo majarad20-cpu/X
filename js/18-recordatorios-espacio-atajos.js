@@ -79,6 +79,8 @@ let reminderDay = dateKey();
 function checkRemindersAndDay() {
   if (reminderDay === dateKey()) return checkReminders();
   reminderDay = dateKey();
+  // Si empezó otra semana, el calendario cargado ya no incluye hoy: se vuelve a cargar.
+  if (typeof loadCalendar === 'function') loadCalendar();
   renderAll();
 }
 setInterval(checkRemindersAndDay, 15000);

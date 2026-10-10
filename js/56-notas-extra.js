@@ -138,7 +138,7 @@ function extractName(text) {
 // Crea la nota con el texto y devuelve el enlace que lo sustituye.
 function extractTo(from, text, name, embed) {
   const n = createNote({ folder: folderOf(from.path), title: name, body: `${text.replace(/^\n+|\s+$/g, '')}\n`, open: false });
-  return { n, link: `${embed ? '!' : ''}[[${baseName(n.path)}]]` };
+  return { n, link: `${embed ? '!' : ''}[[${linkNameOf(n)}]]` };
 }
 
 // Desde el editor: la selección pasa a la nota nueva. Sin `name`, se pregunta (propone la primera línea).
@@ -147,6 +147,8 @@ function extractSelection(ta, embed, name) {
   const s = ta.selectionStart;
   const e = ta.selectionEnd;
   const text = ta.value.slice(s, e);
+  // De una nota protegida no se saca texto a una nota sin cifrar.
+  if (note?.enc) return showToastMessage('No se puede extraer de una nota protegida.');
   if (!note || !text.trim()) return showToastMessage('Selecciona el texto que quieres extraer.');
   const go = (title) => {
     // El selector pudo mover el cursor: se busca el texto de nuevo si ya no está en su sitio.
@@ -164,12 +166,19 @@ function extractSelection(ta, embed, name) {
   promptText({ placeholder: 'Nombre de la nota nueva', initial: extractName(text), action: 'Extraer a', onSubmit: go });
 }
 
-// Desde la lectura: las líneas [from, to] del bloque pasan a la nota nueva.
-function extractBlock(note, from, to, embed, name) {
+// Desde la lectura: las líneas [from, to] del bloque pasan a la nota nueva. Con `want` (el texto del
+// bloque al abrir el menú), si esas líneas ya no lo tienen no se toca nada.
+function extractBlock(note, from, to, embed, name, want = null) {
   const go = (title) => {
+    if (note.enc) return null;
     flushNoteSave();
+    if (typeof blockEdit !== 'undefined' && blockEdit) endBlockEdit({ render: false });
     const lines = note.body.split('\n');
     const text = lines.slice(from, to + 1).join('\n');
+    if (want !== null && text !== want) {
+      showToastMessage('El bloque cambió; vuelve a intentarlo.');
+      return null;
+    }
     if (!text.trim()) return null;
     let made = null;
     withUndo(`Bloque extraído a «${cleanName(title)}»`, () => {
@@ -195,19 +204,21 @@ const extractItems = (fn) => [
 CTX_MENU_EXTRA.push((kind, x) => {
   if (kind === 'editor') {
     const note = activeNote();
-    return note && x.selectionStart !== x.selectionEnd ? [{ sep: true }, ...extractItems((embed) => extractSelection(x, embed))] : [];
+    return note && !note.enc && x.selectionStart !== x.selectionEnd ? [{ sep: true }, ...extractItems((embed) => extractSelection(x, embed))] : [];
   }
   if (kind === 'block' && !x.note.enc) {
-    const [from, to] = x.block.dataset.src.split('-').map(Number);
+    // Con un bloque abierto, los de debajo se movieron (40-edicion-bloques.js).
+    const [from, to] = shiftedRange(x.block.dataset.src);
+    const want = x.note.body.split('\n').slice(from, to + 1).join('\n');
     return [
-      { label: '⤴ Extraer este bloque a una nota nueva', action: () => extractBlock(x.note, from, to, true) },
-      { label: '⤴ Extraer este bloque (dejar solo un enlace)', action: () => extractBlock(x.note, from, to, false) },
+      { label: '⤴ Extraer este bloque a una nota nueva', action: () => extractBlock(x.note, from, to, true, undefined, want) },
+      { label: '⤴ Extraer este bloque (dejar solo un enlace)', action: () => extractBlock(x.note, from, to, false, undefined, want) },
     ];
   }
   return [];
 });
 
-FMT_BUTTONS.push(['⤴', 'Extraer la selección a una nota nueva', (ta) => showMenu($('#fmt-bar .fb-extract'), extractItems((embed) => extractSelection(ta, embed))), 'fb-extract']);
+FMT_BUTTONS.push(['⤴', 'Extraer la selección a una nota nueva', (ta) => (activeNote()?.enc ? showToastMessage('No se puede extraer de una nota protegida.') : showMenu($('#fmt-bar .fb-extract'), extractItems((embed) => extractSelection(ta, embed)))), 'fb-extract']);
 
 // ---------- Fusionar dos notas ----------
 // El texto de `gone` va al final de `keep`; sus propiedades que falten pasan a `keep`; los enlaces a
@@ -437,6 +448,8 @@ $('#note-editor').addEventListener('input', () => {
 new MutationObserver(() => $('#note-pane').hidden && renderGoal(null)).observe($('#note-pane'), { attributes: true, attributeFilter: ['hidden'] });
 
 NOTE_PANE_EXTRA.push((note, text) => {
+  const fx = $('#fmt-bar .fb-extract');
+  if (fx) fx.hidden = !!note.enc; // de una nota protegida no se extrae
   renderPeriodicBar(note);
   renderGoal(note, text ?? undefined);
 });
@@ -457,7 +470,7 @@ COMMANDS_EXTRA.push((note) => [
         { label: 'Presentar la nota', action: () => startPresentation(note) },
         { label: 'Meta de palabras…', action: () => promptWordGoal(note) },
         ...(note.enc ? [] : [{ label: 'Fusionar con otra nota…', action: () => pickMerge(note) }]),
-        ...(isEditing(note.id) ? extractItems((embed) => extractSelection($('#note-editor'), embed)).map((x) => ({ ...x, label: x.label.replace('⤴ Extraer', 'Extraer la selección') })) : []),
+        ...(isEditing(note.id) && !note.enc ? extractItems((embed) => extractSelection($('#note-editor'), embed)).map((x) => ({ ...x, label: x.label.replace('⤴ Extraer', 'Extraer la selección') })) : []),
       ]
     : []),
 ]);

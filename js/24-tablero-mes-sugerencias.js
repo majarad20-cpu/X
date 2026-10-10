@@ -5,13 +5,19 @@
 const STATUS_LABEL = { todo: 'Por hacer', doing: 'En curso', done: 'Hecho' };
 const statusOf = (t) => (t.done ? 'done' : t.status === 'doing' ? 'doing' : 'todo');
 
-function editNoteLine(t, fn) {
+// Cambia la línea de la tarea en su nota; si ya no está, no toca nada y lo dice (devuelve false).
+function editNoteLine(t, fn, { quiet = false } = {}) {
   const note = noteById(t.noteId);
-  if (!note) return;
+  const i = note ? findNoteTaskLine(t.noteId, t.line, t.title) : -1; // 14: la línea actual, o -1
+  if (i < 0) {
+    if (!quiet) showToastMessage(`«${t.title}» cambió en su nota: no se ha modificado`);
+    return false;
+  }
   const lines = note.body.split('\n');
-  lines[t.line] = fn(lines[t.line]);
+  lines[i] = fn(lines[i]);
   note.body = lines.join('\n');
   note.updatedAt = Date.now();
+  return true;
 }
 
 function setStatus(t, status) {
@@ -245,6 +251,7 @@ function renderMonth() {
   $('#month-title').textContent = title.charAt(0).toUpperCase() + title.slice(1);
   $('#month-today').hidden = monthOffset === 0;
   const byDay = monthTasks(fromKey, toKey);
+  if (typeof calEnsure === 'function') calEnsure(); // tras la medianoche, los eventos de la semana nueva
 
   const head = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map((d) => el('div', { className: 'mg-dow' }, d));
   const cells = days.map((d) => {

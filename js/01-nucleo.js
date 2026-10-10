@@ -22,7 +22,9 @@ const defaults = () => ({
   folders: [], // carpetas de notas (también las vacías)
   finance: { categories: [], tx: [], recurring: [], currency: '' }, // finanzas (65-finanzas.js)
   updatedAt: 0, // última modificación local
-  syncMeta: { sent: {}, times: {} }, // estado de la sincronización por bloques (solo de este dispositivo)
+  // Estado de la sincronización por bloques (solo de este dispositivo y de la cuenta `user`):
+  // lo último enviado o recibido, su versión, desde cuándo difiere cada bloque y los borrados.
+  syncMeta: { sent: {}, times: {}, dirtyAt: {}, tombs: {} },
 });
 
 // Datos del usuario (lo que se sincroniza, se exporta y se puede deshacer).
@@ -124,6 +126,13 @@ function idbPut(key, value) {
 // Al arrancar: abre IndexedDB y usa su copia si es más reciente que la de localStorage
 // (o si localStorage ya no podía guardarlo todo). Devuelve true si cambió el estado.
 async function loadFromDB() {
+  const changed = await readFromDB();
+  // Lo que ya estaba sin subir de la sesión anterior queda fechado antes del mantenimiento del arranque.
+  if (typeof syncMark === 'function') syncMark(0);
+  return changed;
+}
+
+async function readFromDB() {
   idb.db = await idbOpen();
   idb.ok = !!idb.db;
   if (!idb.ok) {
@@ -214,6 +223,8 @@ function save() {
   dataRev++;
   if (typeof checkProjectMilestones === 'function') checkProjectMilestones();
   state.updatedAt = Date.now();
+  // Mientras arranca (archivar, reconstruir la bitácora…) no cuenta como un cambio del usuario.
+  if (typeof syncNoteEdit === 'function') syncNoteEdit(!document.documentElement.dataset.ready);
   saveLocal();
   if (!idb.blocked) scheduleSync();
 }
@@ -291,20 +302,99 @@ function renderAll() {
 // ---------- Aviso con "Deshacer" ----------
 let toastTimeout = null;
 
-// Aplica un cambio destructivo y ofrece deshacerlo durante unos segundos.
+const isPlain = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const idItems = (v) => Array.isArray(v) && v.every((x) => isPlain(x) && x.id !== undefined);
+
+// Qué cambió de `a` (antes) a `b` (después): en listas con id, por elemento (con `refs`, los objetos
+// de antes); en objetos, por clave; en lo demás, el valor entero.
+function undoDiff(a, b, refs) {
+  const ja = JSON.stringify(a);
+  const jb = JSON.stringify(b);
+  if (ja === jb) return null;
+  if (idItems(a) && idItems(b)) {
+    const after = new Map(b.map((x) => [x.id, JSON.stringify(x)]));
+    const ids = new Set(a.map((x) => x.id));
+    const d = { list: true, added: [], removed: [], modified: [] };
+    b.forEach((x) => !ids.has(x.id) && d.added.push({ id: x.id, after: after.get(x.id) }));
+    a.forEach((x, i) => {
+      const v = JSON.stringify(x);
+      if (!after.has(x.id)) d.removed.push({ id: x.id, v, i, prev: a[i - 1]?.id, ref: refs?.[i] });
+      else if (after.get(x.id) !== v) d.modified.push({ id: x.id, v, after: after.get(x.id) });
+    });
+    return d;
+  }
+  if (isPlain(a) && isPlain(b)) {
+    const keys = {};
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      const sub = undoDiff(a[k], b[k]);
+      if (sub) keys[k] = sub;
+    }
+    return { keys };
+  }
+  return { v: ja, after: jb };
+}
+
+// Deshace `d` sobre lo que hay ahora en obj[k]. Lo que cambió después no se toca: devuelve false.
+function undoApply(obj, k, d) {
+  let ok = true;
+  if (d.keys) {
+    if (!isPlain(obj[k])) return false;
+    for (const [s, sub] of Object.entries(d.keys)) ok = undoApply(obj[k], s, sub) && ok;
+    return ok;
+  }
+  if (d.list) {
+    const list = obj[k];
+    if (!Array.isArray(list)) return false;
+    const at = (id) => list.findIndex((x) => x?.id === id);
+    d.added.forEach(({ id, after }) => {
+      const i = at(id);
+      if (i >= 0 && JSON.stringify(list[i]) === after) list.splice(i, 1);
+      else if (i >= 0) ok = false;
+    });
+    // Se restaura dentro del mismo objeto, por si alguien lo tiene a mano.
+    d.modified.forEach(({ id, v, after }) => {
+      const x = list[at(id)];
+      if (!x || JSON.stringify(x) !== after) return (ok = false);
+      Object.keys(x).forEach((p) => delete x[p]);
+      Object.assign(x, JSON.parse(v));
+    });
+    // Lo borrado vuelve detrás del que tenía delante (o a su sitio), con el mismo objeto si no cambió.
+    d.removed.forEach(({ id, v, i, prev, ref }) => {
+      if (at(id) >= 0) return;
+      const p = prev === undefined ? -1 : at(prev);
+      const pos = prev === undefined ? 0 : p >= 0 ? p + 1 : Math.min(i, list.length);
+      list.splice(pos, 0, ref && JSON.stringify(ref) === v ? ref : JSON.parse(v));
+    });
+    return ok;
+  }
+  if (JSON.stringify(obj[k]) !== d.after) return false;
+  if (d.v === undefined) delete obj[k];
+  else obj[k] = JSON.parse(d.v);
+  return true;
+}
+
+// Aplica un cambio destructivo y ofrece deshacerlo durante unos segundos. Deshacer revierte solo
+// lo que tocó el cambio: lo que llegue después (otro dispositivo, un pomodoro, lo escrito) se queda.
 function withUndo(message, change) {
-  const snapshot = JSON.stringify(Object.fromEntries(DATA_KEYS.map((k) => [k, state[k]])));
+  const before = DATA_KEYS.map((k) => [k, JSON.stringify(state[k]), Array.isArray(state[k]) ? state[k].slice() : null]);
   change();
+  const diffs = [];
+  before.forEach(([k, json, refs]) => {
+    if (JSON.stringify(state[k]) !== json) diffs.push([k, undoDiff(json === undefined ? undefined : JSON.parse(json), state[k], refs)]);
+  });
   save();
   renderAll();
 
   const undo = el('button', { className: 'toast-action' }, 'Deshacer');
   undo.addEventListener('click', () => {
-    Object.assign(state, JSON.parse(snapshot));
+    const ok = diffs.reduce((ok, [k, d]) => undoApply(state, k, d) && ok, true);
     save();
     applySettings();
     renderAll();
-    hideToast();
+    if (ok) return hideToast();
+    $('#toast').replaceChildren(el('span', {}, 'No se pudo deshacer del todo: cambió después'));
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(hideToast, 6000);
   });
   $('#toast').replaceChildren(el('span', {}, message), undo);
   $('#toast').hidden = false;

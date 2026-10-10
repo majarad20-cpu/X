@@ -20,16 +20,38 @@ function trashNotes(notes) {
   const now = Date.now();
   notes.forEach((n) => {
     // Una nota protegida se guarda tal cual (cifrada); su texto en claro se olvida.
+    const item = { id: n.id, note: JSON.parse(JSON.stringify(n)), deletedAt: now, from: n.path };
     if (unlockedNotes.has(n.id)) {
+      const lk = lockKeys.get(n.id);
+      const text = unlockedNotes.get(n.id);
+      if (encryptTimers.has(n.id) && lk && n.enc?.salt === lk.salt) trashReencrypt(item, lk, text);
       clearTimeout(encryptTimers.get(n.id));
       encryptTimers.delete(n.id);
       unlockedNotes.delete(n.id);
       lockKeys.delete(n.id);
     }
-    list.push({ id: n.id, note: JSON.parse(JSON.stringify(n)), deletedAt: now, from: n.path });
+    list.push(item);
   });
   state.trash = list;
 }
+
+// Lo último escrito aún no estaba cifrado (se cifra a los 300 ms): se cifra ahora y va a la copia
+// de la papelera y a la nota si «Deshacer» la devuelve (con el cifrado de antes de borrarla).
+const trashFresh = new Map(); // id de nota → { old: ct anterior, enc }
+async function trashReencrypt(item, lk, text) {
+  const old = item.note.enc.ct;
+  trashFresh.set(item.id, { old, enc: { ...item.note.enc, ...(await encryptWith(lk.key, text)) } });
+  if (trashFreshen(trashList().find((t) => t.id === item.id && t.deletedAt === item.deletedAt)?.note) + trashFreshen(noteById(item.id))) save();
+}
+function trashFreshen(n) {
+  const f = n?.enc && trashFresh.get(n.id);
+  if (!f || n.enc.ct !== f.old || n.enc.salt !== f.enc.salt) return 0;
+  n.enc = { ...f.enc };
+  return 1;
+}
+RENDER_HOOKS.push(() => {
+  if (trashFresh.size && [...trashFresh.keys()].reduce((k, id) => k + trashFreshen(noteById(id)) + trashFreshen(trashList().find((t) => t.id === id)?.note), 0)) save();
+});
 
 function restoreFromTrash(id, { open = false } = {}) {
   const it = trashList().find((t) => t.id === id);

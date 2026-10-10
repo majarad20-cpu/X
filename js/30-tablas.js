@@ -161,10 +161,42 @@ function parseTableQuery(src) {
   return q;
 }
 
+// «1.200», «1.234,50», «1,234.5», «12 €», «-3,5» → número; lo demás, NaN (también lo usa 17).
+function tableNum(v) {
+  let s = String(v ?? '').replace(/\s+/g, '');
+  for (let k = 0; k < 2; k++) s = s.replace(/^(?:[€$£¥]|eur|usd)|(?:[€$£¥]|euros?|eur|usd)$/i, '');
+  const m = s.match(/^([+\-−]?)(?:[€$£¥])?(\d[\d.,]*)$/);
+  if (!m) return NaN;
+  const n = m[2];
+  const groups = (x, sep) => x.split(sep).every((g, i) => (i ? /^\d{3}$/.test(g) : /^\d{1,3}$/.test(g)));
+  const dot = n.lastIndexOf('.');
+  const comma = n.lastIndexOf(',');
+  let int = n;
+  let dec = '';
+  if (dot >= 0 && comma >= 0) {
+    const d = Math.max(dot, comma);
+    [int, dec] = [n.slice(0, d), n.slice(d + 1)];
+    const thou = d === dot ? ',' : '.';
+    if (int.includes(n[d]) || !groups(int, thou)) return NaN;
+    int = int.split(thou).join('');
+  } else if (dot >= 0 || comma >= 0) {
+    const sep = dot >= 0 ? '.' : ',';
+    const parts = n.split(sep);
+    if (parts.length > 2) {
+      if (!groups(n, sep)) return NaN;
+      int = parts.join('');
+    } else if (parts[1].length === 3 && /^[1-9]\d{0,2}$/.test(parts[0])) int = parts.join(''); // 1.200 → miles
+    else [int, dec] = parts;
+  }
+  if (!/^\d+$/.test(int) || !/^\d*$/.test(dec)) return NaN;
+  const x = Number(`${int}.${dec || 0}`);
+  return m[1] && m[1] !== '+' ? -x : x;
+}
+
 // Compara números como números y fechas o textos como texto.
 function compareCells(a, b) {
-  const na = Number(String(a).replace(',', '.'));
-  const nb = Number(String(b).replace(',', '.'));
+  const na = tableNum(a);
+  const nb = tableNum(b);
   if (a !== '' && b !== '' && !Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
   if (a === '' && b !== '') return 1;
   if (b === '' && a !== '') return -1;
@@ -184,13 +216,13 @@ function tableTotal(fn, vals) {
   if (fn === 'recuento') return String(vals.length);
   if (fn === 'vacíos') return String(vals.length - full.length);
   if (fn === 'rellenos') return String(full.length);
-  const nums = full.map((v) => Number(v.replace(',', '.'))).filter(Number.isFinite);
+  const nums = full.map(tableNum).filter(Number.isFinite);
   const sum = nums.reduce((a, b) => a + b, 0);
   if (fn === 'suma') return nums.length ? fmtTotal(sum) : '';
   if (fn === 'promedio') return nums.length ? fmtTotal(sum / nums.length) : '';
   if (!full.length) return '';
   const v = [...full].sort(compareCells)[fn === 'mín' ? 0 : full.length - 1];
-  return /^-?\d+([.,]\d+)?$/.test(v) ? fmtTotal(Number(v.replace(',', '.'))) : v;
+  return Number.isFinite(tableNum(v)) ? fmtTotal(tableNum(v)) : v;
 }
 
 function renderNoteTable(box, src, selfId) {
@@ -309,12 +341,13 @@ function renderNoteTable(box, src, selfId) {
     if (!replaceTableBlock(selfId, src, [...lines, ...(t ? [`totales: ${t}`] : [])].join('\n'))) showToastMessage('Esta tabla está incrustada: cambia los totales en su nota.');
   };
   const foot = el('tfoot', {}, el('tr', { className: 'nt-foot' }, [
-    el('td', { className: 'muted nt-foot-label' }, q.totals.size ? 'Total' : ''),
+    // Con «límite», el total es de las filas que se ven (y lo dice).
+    el('td', { className: 'muted nt-foot-label' }, q.totals.size ? (shown.length < rows.length ? `Total (${plural(shown.length, 'fila', 'filas')})` : 'Total') : ''),
     ...view.map((c) => {
       const fn = q.totals.get(c.toLowerCase())?.fn || '';
       const pick = el('select', { className: `nt-total-fn${fn ? ' on' : ''}`, ariaLabel: `Total de ${c}`, title: 'Calcular' }, [el('option', { value: '' }, 'Calcular'), ...Object.entries(TABLE_TOTALS).map(([k, label]) => el('option', { value: k, selected: k === fn }, label))]);
       pick.addEventListener('change', () => setTotals(c, pick.value));
-      return el('td', { className: 'nt-total' }, [pick, fn ? el('span', { className: 'nt-total-val' }, totalOf(c, rows)) : '']);
+      return el('td', { className: 'nt-total' }, [pick, fn ? el('span', { className: 'nt-total-val' }, totalOf(c, shown)) : '']);
     }),
   ]));
   // «agrupar:»: un tbody por valor, con su cabecera plegable, su recuento y sus totales.

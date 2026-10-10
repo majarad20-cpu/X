@@ -5,6 +5,14 @@
 // la nota, justo debajo de la imagen. Desde el visor («📝 Sacar texto») o con «/texto de imagen».
 const OCR_PROMPT = `Transcribe todo el texto que se ve en esta imagen, tal cual, en su idioma original. Respeta los saltos de línea, las listas y las tablas (usa Markdown para listas y tablas). Si hay texto escrito a mano, transcríbelo igual. No añadas comentarios, títulos ni explicaciones. Si no hay texto legible, responde solo «(sin texto)».`;
 
+// Tras una espera (Claude), el editor solo se toca si sigue mostrando esta nota.
+function syncOpenEditor(note) {
+  const ta = $('#note-editor');
+  if (activeNote()?.id !== note.id || ta.dataset.note !== note.id || !isEditing(note.id)) return;
+  ta.value = note.body;
+  autosize(ta);
+}
+
 async function imageLimits() {
   if (!aiReady()) return null;
   const caps = await ai.sample.limits?.().catch(() => null);
@@ -60,10 +68,7 @@ async function extractImageText(id) {
   note.updatedAt = Date.now();
   save();
   await snapshotNote(note, { force: true });
-  if (isEditing(note.id)) {
-    $('#note-editor').value = note.body;
-    autosize($('#note-editor'));
-  }
+  syncOpenEditor(note);
   renderAll();
   showToastMessage(i < 0 ? 'La imagen ya no está en la nota: el texto se añadió al final' : 'Texto añadido debajo de la imagen');
 }

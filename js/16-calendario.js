@@ -39,6 +39,19 @@ function calendarRange() {
   return { from: dateKey(start), to: dateKey(end), startTime: start.toISOString(), endTime: end.toISOString() };
 }
 
+// Si lo cargado ya no incluye ese día (p. ej. pasó la medianoche y empezó otra semana), se vuelve
+// a cargar. Solo si el rango a cargar sí lo incluye, y una vez por rango (un error no se repite solo).
+function calEnsure(key = dateKey()) {
+  if (!calEnabled() || cal.loading) return;
+  if (cal.range && cal.range.from <= key && cal.range.to > key) return;
+  const r = calendarRange();
+  if (key < r.from || key >= r.to) return;
+  const k = `${key}|${r.from}:${r.to}`;
+  if (cal.ensured === k) return;
+  cal.ensured = k;
+  setTimeout(() => loadCalendar());
+}
+
 function eventDays(ev) {
   if (ev.start?.dateTime) {
     // Con hora: cada día entre el inicio y el fin (un fin justo a las 00:00 no cuenta ese día).
@@ -119,6 +132,7 @@ function eventItem(ev) {
 
 function calendarBlock(key, { compact = false } = {}) {
   if (!calEnabled()) return null;
+  calEnsure(key);
   const events = cal.byDay.get(key) || [];
   if (compact && !events.length) return null;
   const box = el('div', { className: `cal-block${compact ? ' compact' : ''}` });

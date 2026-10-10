@@ -149,6 +149,8 @@ const INLINE_FIELD_LINE = /^\s*([\p{L}_][\p{L}\p{N}_ -]*?)::(?:[ \t]+|$)(.*)$/u;
 const fieldChip = (key, valueHtml) => `<span class="inline-field"><span class="if-key">${escHtml(key.trim())}:</span> <span class="if-val">${valueHtml}</span></span>`;
 
 function inlineMd(text) {
+  // \u0001 y \u0002 marcan los trozos apartados: escritos en la nota, romperían los atributos.
+  text = String(text ?? '').replace(/[\u0001\u0002]/g, '');
   const field = text.match(INLINE_FIELD_LINE);
   if (field) return fieldChip(field[1], inlineMd(field[2]));
   const tokens = [];
@@ -315,6 +317,7 @@ function propValueHtml(key, value) {
 // `ctx.depth` limita las notas incrustadas, `ctx.lineOffset` corrige los números de línea y
 // `ctx.noExternalImages` no carga imágenes de internet.
 function renderMd(src, ctx = {}) {
+  src = String(src ?? '').replace(/[\u0001\u0002]/g, ''); // ver inlineMd
   const outer = !mdNotes;
   if (outer) mdNotes = { defs: new Map(), refs: new Map(), order: [], pre: `fn${++mdNotesSeq}-` };
   const noImg = mdNoExtImg;
@@ -505,6 +508,7 @@ function renderBlocks(src, ctx) {
     }
     // Cita o aviso (> [!tip] Título)
     if (line.startsWith('>')) {
+      const start = i;
       const body = [];
       while (i < lines.length && lines[i].startsWith('>')) body.push(lines[i++].replace(/^>\s?/, ''));
       const call = body[0].match(/^\[!([\w-]+)\]([+-]?)\s*(.*)$/);
@@ -512,14 +516,14 @@ function renderBlocks(src, ctx) {
         const type = call[1].toLowerCase();
         const base = CALLOUT_ALIAS[type] || (CALLOUT_ICONS[type] ? type : 'note');
         const title = `<span aria-hidden="true">${CALLOUT_ICONS[base]}</span> ${inlineMd(call[3] || type.charAt(0).toUpperCase() + type.slice(1))}`;
-        const inner = body.slice(1).join('\n').trim() ? `<div class="callout-body">${renderMd(body.slice(1).join('\n'), { depth, noTasks: true })}</div>` : '';
+        const inner = body.slice(1).join('\n').trim() ? `<div class="callout-body">${renderMd(body.slice(1).join('\n'), { depth, noTasks: true, lineOffset: start + 1 + offset })}</div>` : '';
         const cls = `callout callout-${escHtml(type)}${base !== type ? ` callout-${escHtml(base)}` : ''}`;
         // [!tipo]- empieza plegado y [!tipo]+ desplegado; los dos se pueden abrir y cerrar.
         html += call[2]
           ? `<details class="${cls} foldable"${call[2] === '+' ? ' open' : ''}><summary class="callout-title">${title}</summary>${inner}</details>`
           : `<div class="${cls}"><div class="callout-title">${title}</div>${inner}</div>`;
       } else {
-        html += `<blockquote>${renderMd(body.join('\n'), { depth, noTasks: true })}</blockquote>`;
+        html += `<blockquote>${renderMd(body.join('\n'), { depth, noTasks: true, lineOffset: start + offset })}</blockquote>`;
       }
       return;
     }

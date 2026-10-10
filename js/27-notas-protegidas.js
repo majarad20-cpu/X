@@ -43,7 +43,10 @@ async function protectNote(note, password) {
   unlockedNotes.set(note.id, text);
   lockKeys.set(note.id, { key, salt: note.enc.salt });
   forgetHistory(note.id); // las versiones anteriores estaban en claro
-  delete state.syncMeta.sent[`note-${note.id}`]; // y la copia de lo último subido también (se volverá a subir cifrada)
+  // Lo último subido estaba en claro: se marca como pendiente (no como primera vez, que fusionaría
+  // con la copia en claro de la nube) para que se vuelva a subir cifrada.
+  const sent = state.syncMeta?.sent;
+  if (sent && sent[`note-${note.id}`] !== undefined) sent[`note-${note.id}`] = '';
   save();
   renderAll();
 }
@@ -63,8 +66,19 @@ async function unlockNote(note, password) {
 
 function lockNote(id) {
   if (encryptTimers.has(id)) flushEncrypt(id);
+  // Si se estaba editando un bloque (o la nota entera), el editor no se queda con el texto en claro.
+  if (blockEdit?.noteId === id) endBlockEdit({ render: false });
   unlockedNotes.delete(id);
   lockKeys.delete(id);
+  const ta = $('#note-editor');
+  if (ta.dataset.note === id) {
+    if (document.activeElement === ta) ta.blur();
+    ta.value = '';
+    ta.hidden = true;
+    delete ta.dataset.note;
+  }
+  const reading = $('#note-reading');
+  if (reading.dataset.note === id) reading.replaceChildren();
 }
 
 function lockAll() {
@@ -134,8 +148,10 @@ function renderLockPanel(note) {
       submit.disabled = true;
       lockUI.mode = null;
       lockUI.error = '';
+      // Si estaba en la bóveda de Drive, su archivo en claro irá a la papelera de Drive (no se puede borrar del todo).
+      const inVault = typeof vaultMap === 'function' && !!vaultMap().files[note.id];
       await protectNote(note, pass.value);
-      showToastMessage('Nota protegida. Sin la contraseña no se podrá abrir.');
+      showToastMessage(`Nota protegida. Sin la contraseña no se podrá abrir.${inVault ? ' La versión sin cifrar sigue en la papelera de Drive; vacíala desde Drive si quieres borrarla.' : ''}`);
       return;
     }
     submit.disabled = true;

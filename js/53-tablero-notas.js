@@ -82,7 +82,12 @@ function removeNoteProp(note, key) {
 function moveBoardNote(note, key, value) {
   if (!note || note.enc) return false;
   const before = note.body;
-  if (value == null || value === '') removeNoteProp(note, key);
+  // Lista (etiquetas: [a, b]): la columna sale del primer valor; solo cambia ese y los demás se quedan.
+  const items = (noteFields(note).get(String(key).toLowerCase())?.items || []).map((x) => String(x).trim()).filter(Boolean);
+  if (items.length > 1) {
+    const rest = items.slice(1).filter((x) => !value || x.toLowerCase() !== String(value).toLowerCase());
+    setProp(note, key, (value ? [value, ...rest] : rest).join(', '));
+  } else if (value == null || value === '') removeNoteProp(note, key);
   else setProp(note, key, value);
   if (note.body === before) return false;
   note.updatedAt = Date.now();

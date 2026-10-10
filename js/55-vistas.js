@@ -58,11 +58,25 @@ function coverFromName(name, seen) {
   const note = findNoteByName(target);
   if (note && !seen.has(note.id)) return firstNoteImage(note, seen.add(note.id));
   const alt = target.split('/').pop().replace(/\.[^.]+$/, '').toLowerCase();
+  const img = imgAltIndex().get(alt);
+  return img ? { img } : null;
+}
+
+// Nombre (alt) → imagen guardada, de todas las notas; se rehace solo cuando cambian los datos.
+let imgAltCache = null;
+function imgAltIndex() {
+  const key = `${dataRev}:${state.notes.length}`;
+  if (imgAltCache?.key === key) return imgAltCache.map;
+  const map = new Map();
   for (const n of state.notes) {
     if (n.enc) continue;
-    for (const m of n.body.matchAll(/!\[([^\]\n]*)\]\(img:([a-z0-9]+)\)/gi)) if (imgSize(m[1]).alt.toLowerCase() === alt) return { img: m[2] };
+    for (const m of n.body.matchAll(/!\[([^\]\n]*)\]\(img:([a-z0-9]+)\)/gi)) {
+      const a = imgSize(m[1]).alt.toLowerCase();
+      if (!map.has(a)) map.set(a, m[2]);
+    }
   }
-  return null;
+  imgAltCache = { key, map };
+  return map;
 }
 
 // Un valor de portada: img:ID, https://… o [[imagen]] (también como ![](…) o ![[…]]).

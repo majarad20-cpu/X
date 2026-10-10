@@ -18,8 +18,12 @@
 //   fin-AAAA-MM      movimientos de finanzas de ese mes (se fusionan por id: 65-finanzas.js)
 //   fin-meta         categorías, gastos fijos y ajustes de finanzas
 //   pomo-AAAA-MM     sesiones de enfoque de ese mes (se fusionan por id: 03-pomodoro.js)
-// Cada bloque se sube solo cuando cambia y, si dos dispositivos lo cambian, gana el más reciente.
-const sync = { col: null, writing: false, dirty: false, timeout: null };
+// Cada bloque se sube solo cuando cambia, con una versión que siempre crece (aunque el reloj vaya
+// atrasado). Si dos dispositivos lo cambian, gana el que empezó a cambiarlo después (dirtyAt), salvo
+// state e ideas, que se fusionan elemento a elemento (por id; gana el updatedAt más reciente) y con
+// lápidas («gone») para que lo borrado no vuelva.
+// seen/items: cómo estaban los bloques y los elementos la última vez que se miró (syncMark).
+const sync = { col: null, writing: false, dirty: false, timeout: null, editAt: 0, seen: new Map(), items: new Map() };
 
 const SYNC_LABEL = {
   local: 'Guardado en este dispositivo',

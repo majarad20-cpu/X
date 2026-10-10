@@ -17,6 +17,7 @@ const timer = {
   remaining: state.settings.focus * 60, // segundos
   endsAt: null, // timestamp cuando está en marcha
   focusCount: 0, // pomodoros completados en esta racha (para la pausa larga)
+  lastDay: null, // día del último pomodoro completado (la racha empieza de cero cada día)
   interval: null,
   wakeLock: null,
   ctx: null, // { type: 'task'|'note'|'project'|'free', id, label } de la sesión de enfoque
@@ -83,6 +84,7 @@ function startTimer({ from = Date.now(), quiet = false } = {}) {
   if (timer.endsAt) return;
   const fresh = timer.remaining === timer.total;
   if (timer.mode === 'focus' && !timer.startedAt) {
+    timer.focusCount = pomoRound();
     timer.startedAt = from;
     timer.spent = 0;
     timer.ctx = typeof pomoCtxFromUI === 'function' ? pomoCtxFromUI() : null;
@@ -150,6 +152,11 @@ document.addEventListener('visibilitychange', () => {
 function tick() {
   if (!timer.endsAt) return;
   timer.remaining = Math.max(0, Math.ceil((timer.endsAt - Date.now()) / 1000));
+  // Otra pestaña lleva el temporizador: aquí solo se muestra (si deja de latir, se toma el relevo).
+  if (pomoOtherOwns()) return pomoFollowing ? renderTimer() : pomoFollow(readRun());
+  pomoFollowing = false;
+  pomoBeat();
+  timer.remaining = Math.max(0, Math.ceil((timer.endsAt - Date.now()) / 1000));
   if (!timer.warned && timer.remaining > 0 && timer.remaining <= 60 && timer.total > 90 && pomoCfg().warn) {
     timer.warned = true;
     saveRun();
@@ -164,7 +171,12 @@ function recordFocus({ completed, end, ms }) {
   const minutes = completed ? Math.round(timer.total / 60) : Math.round(ms / 60000);
   const ctx = timer.ctx || { type: 'free', id: null, label: '' };
   const key = dateKey(new Date(end));
-  const rec = { id: uid(), start: timer.startedAt || end - ms, end, date: key, minutes, kind: 'focus', ctx, completed, updatedAt: Date.now() };
+  const start = timer.startedAt || end - ms;
+  // Id fijo por sesión: si dos pestañas o dispositivos la registran, se fusiona en una.
+  const id = `f-${start}`;
+  const dup = (state.focusLog || []).find((r) => r.id === id);
+  if (dup) return dup;
+  const rec = { id, start, end, date: key, minutes, kind: 'focus', ctx, completed, updatedAt: Date.now() };
   (state.focusLog ||= []).push(rec);
   if (completed) {
     bump(state.pomodoros, key, 1);
@@ -212,9 +224,14 @@ function finishSession(completed) {
     else if (timer.startedAt && timer.spent >= 60e3) rec = recordFocus({ completed: false, end, ms: timer.spent });
     timer.startedAt = null;
     timer.spent = 0;
-    if (completed) timer.focusCount += 1;
+    if (completed) {
+      timer.focusCount = pomoRound() + 1;
+      timer.lastDay = dateKey(new Date(end));
+    }
     next = completed && timer.focusCount % Math.max(1, cfg.rounds) === 0 ? 'long' : 'short';
   } else {
+    // Tras una pausa larga (también si se eligió a mano) la racha vuelve a empezar.
+    if (prev === 'long') timer.focusCount = 0;
     next = 'focus';
   }
   timer.mode = next;
@@ -237,38 +254,53 @@ function renderTimer() {
   $('#timer-skip').textContent = timer.mode === 'focus' ? 'Saltar' : 'Saltar descanso';
   $('#timer-plus5').hidden = !timer.endsAt && timer.remaining === timer.total;
   const cfg = pomoCfg();
-  $('#timer-round').textContent = timer.mode === 'focus' ? `Pomodoro ${(timer.focusCount % Math.max(1, cfg.rounds)) + 1} de ${cfg.rounds} antes de la pausa larga` : MODE_LABEL[timer.mode];
+  $('#timer-round').textContent = timer.mode === 'focus' ? `Pomodoro ${(pomoRound() % Math.max(1, cfg.rounds)) + 1} de ${cfg.rounds} antes de la pausa larga` : MODE_LABEL[timer.mode];
 }
 
 // ---------- El temporizador en marcha sobrevive a una recarga ----------
 function saveRun() {
   try {
     const t = timer;
+    // Quien cambia el temporizador pasa a llevarlo (las demás pestañas lo siguen).
+    pomoFollowing = false;
+    pomoBeat(true);
     const busy = t.endsAt || t.startedAt || t.remaining < t.total || t.focusCount || t.mode !== 'focus';
     if (!busy) return localStorage.removeItem(POMO_RUN_KEY);
-    const { mode, total, remaining, endsAt, focusCount, ctx, startedAt, spent, runFrom, warned } = t;
-    localStorage.setItem(POMO_RUN_KEY, JSON.stringify({ mode, total, remaining, endsAt, focusCount, ctx, startedAt, spent, runFrom, warned }));
+    const { mode, total, remaining, endsAt, focusCount, lastDay, ctx, startedAt, spent, runFrom, warned } = t;
+    localStorage.setItem(POMO_RUN_KEY, JSON.stringify({ mode, total, remaining, endsAt, focusCount, lastDay, ctx, startedAt, spent, runFrom, warned }));
   } catch {
     // Sin almacenamiento: el temporizador sigue en memoria.
   }
 }
 
-function resumeTimer() {
-  let run = null;
+function readRun() {
   try {
-    run = JSON.parse(localStorage.getItem(POMO_RUN_KEY) || 'null');
+    const run = JSON.parse(localStorage.getItem(POMO_RUN_KEY) || 'null');
+    return run && MODE_LABEL[run.mode] ? run : null;
   } catch {
-    run = null;
+    return null;
   }
-  if (!run || !MODE_LABEL[run.mode]) {
+}
+
+// Día del último pomodoro completado, para los temporizadores guardados antes de lastDay.
+const lastFocusDay = () => (state.focusLog || []).reduce((a, r) => (r.completed && r.end > (a?.end || 0) ? r : a), null)?.date || null;
+// Pomodoros de la racha de hoy: si el último fue otro día, se empieza de cero.
+const pomoRound = () => (timer.lastDay && timer.lastDay !== dateKey() ? 0 : timer.focusCount);
+
+function resumeTimer() {
+  const run = readRun();
+  if (!run) {
     timer.total = timer.remaining = modeDuration(timer.mode); // ajustes ya cargados de IndexedDB
     return renderTimer();
   }
+  if (pomoOtherOwns()) return pomoFollow(run);
   Object.assign(timer, run);
+  if (timer.lastDay === undefined) timer.lastDay = lastFocusDay();
   renderModeChips();
   if (typeof renderTimerTaskOptions === 'function') renderTimerTaskOptions();
   if (timer.endsAt) {
     // Terminó mientras la página estaba cerrada: cuenta como completada a su hora.
+    pomoBeat(true);
     if (Date.now() >= timer.endsAt) return finishSession(true);
     timer.interval = setInterval(tick, 250);
     $('#timer-start').textContent = 'Pausar';
@@ -276,6 +308,57 @@ function resumeTimer() {
   }
   renderTimer();
 }
+
+// ---------- Varias pestañas ----------
+// El temporizador en marcha lo lleva una sola pestaña (la última que lo tocó), que late en
+// POMO_OWNER_KEY. Las demás lo muestran sin registrar nada ni avisar; si la dueña se cierra o deja
+// de latir, la siguiente que haga tictac toma el relevo.
+const POMO_OWNER_KEY = 'enfoque:pomo-owner';
+const POMO_TAB = Math.random().toString(36).slice(2);
+let pomoFollowing = false;
+let pomoBeatAt = 0;
+
+function pomoOtherOwns() {
+  try {
+    const o = JSON.parse(localStorage.getItem(POMO_OWNER_KEY) || 'null');
+    return !!o && o.tab !== POMO_TAB && Date.now() - o.at < 5000;
+  } catch {
+    return false;
+  }
+}
+
+function pomoBeat(now = false) {
+  if (!now && Date.now() - pomoBeatAt < 1000) return;
+  pomoBeatAt = Date.now();
+  try {
+    localStorage.setItem(POMO_OWNER_KEY, JSON.stringify({ tab: POMO_TAB, at: pomoBeatAt }));
+  } catch {}
+}
+
+// Muestra el temporizador que lleva otra pestaña (sin guardarlo: eso lo haría dueña).
+function pomoFollow(run) {
+  pomoFollowing = true;
+  clearInterval(timer.interval);
+  releaseScreen();
+  const total = modeDuration('focus');
+  Object.assign(timer, { mode: 'focus', total, remaining: total, endsAt: null, focusCount: 0, lastDay: null, ctx: null, startedAt: null, spent: 0, runFrom: null, warned: false }, run || {});
+  if (timer.endsAt) timer.interval = setInterval(tick, 250);
+  $('#timer-start').textContent = timer.endsAt ? 'Pausar' : 'Iniciar';
+  renderModeChips();
+  if (typeof renderTimerTaskOptions === 'function') renderTimerTaskOptions();
+  renderTimer();
+}
+
+window.addEventListener('storage', (e) => {
+  if (!timerResumed) return;
+  // Otra pestaña cambió el temporizador o tomó el relevo: esta pasa a seguirlo.
+  if (e.key === POMO_RUN_KEY || (e.key === POMO_OWNER_KEY && !pomoFollowing && timer.endsAt && pomoOtherOwns())) pomoFollow(readRun());
+});
+window.addEventListener('pagehide', () => {
+  try {
+    if (JSON.parse(localStorage.getItem(POMO_OWNER_KEY) || 'null')?.tab === POMO_TAB) localStorage.removeItem(POMO_OWNER_KEY);
+  } catch {}
+});
 
 // Se retoma cuando los datos ya están cargados (el primer renderAll, al arrancar).
 let timerResumed = false;

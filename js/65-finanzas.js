@@ -209,11 +209,15 @@ function finSaveMeta(change) {
   renderAll();
 }
 
+// Con «Ocultar importes», los avisos y la búsqueda no dicen la cantidad.
+const finHidden = () => !!state.finance?.hide;
+const finOf = (cents) => (finHidden() ? '' : ` de ${finMoney(cents)}`);
+
 function finAddTx(o, { toast = true } = {}) {
   const now = Date.now();
   const t = { id: uid(), date: o.date || dateKey(), amount: o.cents ?? o.amount, kind: o.kind, categoryId: o.categoryId || finFallbackCat(o.kind)?.id || null, note: (o.note || '').trim(), createdAt: now, updatedAt: now };
   if (o.account) t.account = o.account;
-  const label = `${t.kind === 'ingreso' ? 'Ingreso' : 'Gasto'} de ${finMoney(t.amount)} en ${finCat(t.categoryId).name}${t.date !== dateKey() ? ` (${dayLabel(t.date).toLowerCase()})` : ''}`;
+  const label = `${t.kind === 'ingreso' ? 'Ingreso' : 'Gasto'}${finOf(t.amount)} en ${finCat(t.categoryId).name}${t.date !== dateKey() ? ` (${dayLabel(t.date).toLowerCase()})` : ''}`;
   if (toast) finUndo(`${label} añadido`, () => fin().tx.push(t));
   else {
     fin().tx.push(t);
@@ -234,7 +238,7 @@ function finUpdateTx(id, patch, message = 'Movimiento actualizado') {
 function finDeleteTx(id) {
   const t = fin().tx.find((x) => x.id === id);
   if (!t) return;
-  finUndo(`Movimiento de ${finMoney(t.amount)} eliminado`, () => {
+  finUndo(`Movimiento${finOf(t.amount)} eliminado`, () => {
     const f = fin();
     f.tx[f.tx.indexOf(t)] = { id: t.id, date: t.date, del: true, updatedAt: Date.now() };
   });
@@ -334,8 +338,10 @@ function finNextRun(r) {
 
 // ---------- CSV ----------
 const finCsvSep = () => (finDecSep() === ',' ? ';' : ',');
-const finCsvCell = (v, sep) => {
-  const s = String(v ?? '');
+// Texto que empieza por = + - @ (o tabulador): con «'» delante, para que la hoja no lo tome por fórmula.
+const finCsvCell = (v, sep, num = false) => {
+  let s = String(v ?? '');
+  if (!num && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return s.includes(sep) || /["\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const finTxOrder = (a, b) => a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0) || String(a.id).localeCompare(String(b.id));
@@ -345,7 +351,7 @@ function finCsv(ym = null) {
   const sep = finCsvSep();
   const rows = finLive().filter((t) => !ym || t.date.startsWith(ym)).sort(finTxOrder);
   const lines = [['Fecha', 'Tipo', 'Categoría', 'Importe', 'Nota'], ...rows.map((t) => [t.date, t.kind === 'ingreso' ? 'Ingreso' : 'Gasto', finCat(t.categoryId).name, finPlain(t.amount), t.note || ''])];
-  return `﻿${lines.map((r) => r.map((c) => finCsvCell(c, sep)).join(sep)).join('\r\n')}\r\n`;
+  return `﻿${lines.map((r) => r.map((c, i) => finCsvCell(c, sep, i === 3)).join(sep)).join('\r\n')}\r\n`;
 }
 
 function finExport(ym = null) {
@@ -386,7 +392,7 @@ function finCsvParse(text) {
 
 const FIN_COLS = [
   ['date', 'Fecha', /fecha|date|dia\b|valor$/],
-  ['amount', 'Importe', /importe|amount|cantidad|monto|cargo|euros|valor/],
+  ['amount', 'Importe', /importe|amount|cantidad|monto|euros|^(cargo|debe|debito|debit|abono|haber|credito|credit)\b/],
   ['note', 'Nota', /concepto|descrip|nota|note|detalle|movimiento|memo|texto|comercio/],
   ['category', 'Categoría', /categor/],
   ['kind', 'Tipo', /^tipo|type/],
@@ -394,8 +400,11 @@ const FIN_COLS = [
 function finGuessColumns(header) {
   const map = {};
   const used = new Set();
+  const find = (re) => header.findIndex((h, j) => !used.has(j) && re.test(fold(String(h).trim())));
   for (const [key, , re] of FIN_COLS) {
-    const i = header.findIndex((h, j) => !used.has(j) && re.test(fold(String(h).trim())));
+    // «Importe» o «Amount» a secas gana a cualquier otra columna que lo contenga.
+    const exact = key === 'amount' ? find(/^(importe|amount)$/) : -1;
+    const i = exact >= 0 ? exact : find(re);
     map[key] = i;
     if (i >= 0) used.add(i);
   }
@@ -408,14 +417,21 @@ function finImportPlan(rows, map, header = true) {
   const have = new Map();
   finLive().forEach((t) => have.set(keyOf(t.date, t.amount, t.note), (have.get(keyOf(t.date, t.amount, t.note)) || 0) + 1));
   const byName = new Map(fin().categories.map((c) => [fold(c.name), c]));
+  // Bancos con columnas «Cargo»/«Abono» (o Debe/Haber, Débito/Crédito): la columna dice el tipo.
+  const names = header ? rows[0].map((h) => fold(String(h ?? '').trim())) : [];
+  const side = (i) => (/^(cargo|debe|debito|debit)\b/.test(names[i] || '') ? 'gasto' : /^(abono|haber|credito|credit)\b/.test(names[i] || '') ? 'ingreso' : '');
+  const pair = side(map.amount) ? names.findIndex((h, i) => i !== map.amount && side(i) && side(i) !== side(map.amount)) : -1;
   return rows.slice(header ? 1 : 0).map((r) => {
     const cell = (k) => (map[k] >= 0 ? String(r[map[k]] ?? '').trim() : '');
     const date = finParseDate(cell('date'), true);
-    const cents = finParseAmount(cell('amount'));
+    let amt = cell('amount');
+    let forced = side(map.amount);
+    if (!amt && pair >= 0 && String(r[pair] ?? '').trim()) [amt, forced] = [String(r[pair]).trim(), side(pair)];
+    const cents = finParseAmount(amt);
     if (!date) return { raw: r, err: 'Fecha no válida' };
     if (cents === null) return { raw: r, err: 'Importe no válido' };
     const k = fold(cell('kind'));
-    const kind = /ingreso|income|abono|haber|credit/.test(k) ? 'ingreso' : /gasto|expense|cargo|debe|debit/.test(k) ? 'gasto' : finSign(cell('amount')) < 0 ? 'gasto' : 'ingreso';
+    const kind = forced || (/ingreso|income|abono|haber|credit/.test(k) ? 'ingreso' : /gasto|expense|cargo|debe|debit/.test(k) ? 'gasto' : finSign(amt) < 0 ? 'gasto' : 'ingreso');
     const named = byName.get(fold(cell('category')));
     const categoryId = (named && named.kind === kind ? named : finFallbackCat(kind))?.id || null;
     const note = cell('note');
@@ -667,7 +683,7 @@ function finImportDialog(text, filename = 'CSV') {
     const head = el('tr', {}, ['Fecha', 'Tipo', 'Categoría', 'Importe', 'Nota', 'Estado'].map((h) => el('th', {}, h)));
     const body = plan.slice(0, 60).map((p) => el('tr', { className: p.err ? 'err' : p.dup ? 'dup' : '' }, p.err
       ? [el('td', { colSpan: 5 }, p.raw.join(' · ')), el('td', {}, `⚠️ ${p.err}`)]
-      : [p.tx.date, p.tx.kind === 'ingreso' ? 'Ingreso' : 'Gasto', finCat(p.tx.categoryId).name, finMoney(p.tx.cents), p.tx.note, p.dup ? '⧉ Duplicado' : '✓ Nuevo'].map((v) => el('td', {}, v))));
+      : [p.tx.date, p.tx.kind === 'ingreso' ? 'Ingreso' : 'Gasto', finCat(p.tx.categoryId).name, finAmt(finMoney(p.tx.cents)), p.tx.note, p.dup ? '⧉ Duplicado' : '✓ Nuevo'].map((v) => el('td', {}, v))));
     table.replaceChildren(el('table', {}, [el('thead', {}, head), el('tbody', {}, body)]), plan.length > 60 ? el('p', { className: 'muted' }, `… y ${plan.length - 60} filas más`) : '');
     const n = plan.filter((p) => p.tx && (dups.checked || !p.dup)).length;
     const btn = $('#fin-dialog button[type=submit]');
@@ -869,7 +885,7 @@ function finRenderPreview() {
   if (!r) return (box.textContent = 'Enter guarda. También vale texto: «12,50 café comida», «+1500 sueldo», «ayer 30 gasolina transporte».');
   if (r.error) return (box.textContent = r.error);
   const c = finCat(r.categoryId);
-  box.textContent = `→ ${r.kind === 'ingreso' ? 'Ingreso' : 'Gasto'} · ${c.icon} ${c.name} · ${finMoney(r.cents)}${r.note ? ` · «${r.note}»` : ''} · ${dayLabel(r.date)}`;
+  box.replaceChildren(`→ ${r.kind === 'ingreso' ? 'Ingreso' : 'Gasto'} · ${c.icon} ${c.name} · `, finAmt(finMoney(r.cents)), `${r.note ? ` · «${r.note}»` : ''} · ${dayLabel(r.date)}`);
 }
 
 // Las más usadas del tipo elegido (y, si faltan, las demás en su orden).
@@ -917,7 +933,7 @@ function finRenderCards(s) {
     card('Gastos', finMoney(s.exp), 'fin-c-exp'),
     card('Balance', `${s.balance < 0 ? '−' : ''}${finMoney(Math.abs(s.balance))}`, `fin-c-bal${s.balance < 0 ? ' alert' : ''}`),
     hasBudget
-      ? card('Te queda este mes', `${s.left < 0 ? '−' : ''}${finMoney(Math.abs(s.left))}`, `fin-c-left${s.left < 0 ? ' alert' : ''}`, s.daysLeft ? `${plural(s.daysLeft, 'día', 'días')} · de ${finMoney(s.budgetTotal)}` : `de ${finMoney(s.budgetTotal)}`)
+      ? card('Te queda este mes', `${s.left < 0 ? '−' : ''}${finMoney(Math.abs(s.left))}`, `fin-c-left${s.left < 0 ? ' alert' : ''}`, [s.daysLeft ? `${plural(s.daysLeft, 'día', 'días')} · de ` : 'de ', finAmt(finMoney(s.budgetTotal))])
       : el('button', { className: 'stat fin-c-left fin-c-empty', type: 'button', title: 'Pon un presupuesto a tus categorías' }, [el('span', { className: 'num' }, '—'), el('span', { className: 'label' }, 'Te queda este mes'), el('span', { className: 'delta' }, 'Sin presupuestos')])
   );
   $('#fin-cards .fin-c-empty')?.addEventListener('click', () => reveal($('#fin-cats'), { block: 'start', smooth: true }));
@@ -1210,7 +1226,7 @@ GS_PROVIDERS.splice(GS_PROVIDERS.findIndex((p) => p.type === 'other') >>> 0, 0, 
   type: 'finance', label: 'Movimientos', icon: 'coin',
   items: () => (state.finance?.tx || []).filter((t) => !t.del).map((t) => {
     const c = finCat(t.categoryId);
-    return { id: t.id, title: t.note || c.name, text: `${c.name}\n${finPlain(t.amount)} ${(t.amount / 100).toFixed(2)} ${finMoney(t.amount)}`, time: t.createdAt || 0, ref: t, sub: `${c.icon} ${c.name} · ${dayLabel(t.date)} · ${finMoney(t.amount, t.kind)}` };
+    return { id: t.id, title: t.note || c.name, text: `${c.name}\n${finPlain(t.amount)} ${(t.amount / 100).toFixed(2)} ${finMoney(t.amount)}`, time: t.createdAt || 0, ref: t, sub: `${c.icon} ${c.name} · ${dayLabel(t.date)}${finHidden() ? '' : ` · ${finMoney(t.amount, t.kind)}`}` };
   }),
   open: (it, { newTab } = {}) => {
     finMonthSel = finYm(it.ref.date);

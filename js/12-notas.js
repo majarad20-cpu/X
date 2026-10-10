@@ -71,7 +71,7 @@ const cleanName = (s) => s.replace(/[\\/:*?"<>|[\]#^]/g, ' ').replace(/\s+/g, ' 
 
 // Índice de notas por ruta, por nombre y por id. Se rehace cuando cambian los datos (dataRev)
 // o la lista de notas; cada acierto se comprueba, así que un índice viejo nunca da una nota equivocada.
-const noteIndex = { key: '', list: null, byPath: new Map(), byName: new Map(), byId: new Map(), resolved: new Map() };
+const noteIndex = { key: '', list: null, byPath: new Map(), byName: new Map(), byId: new Map(), resolved: new Map(), aliases: null };
 
 function notesIndexed() {
   const key = `${dataRev}:${state.notes.length}`;
@@ -82,6 +82,7 @@ function notesIndexed() {
   noteIndex.byName = new Map();
   noteIndex.byId = new Map();
   noteIndex.resolved = new Map();
+  noteIndex.aliases = null; // se rehace al primer enlace que no sea a una ruta ni a un nombre
   for (const x of state.notes) {
     const lower = x.path.toLowerCase();
     if (!noteIndex.byPath.has(lower)) noteIndex.byPath.set(lower, x);
@@ -96,17 +97,25 @@ function findNoteByName(name) {
   const idx = notesIndexed();
   // Los enlaces se repiten mucho (grafo, enlaces entrantes): cada texto se resuelve una vez por versión.
   if (idx.resolved.has(name)) return idx.resolved.get(name);
-  const found = resolveNoteName(name, idx);
-  // Los alias (propiedad «aliases») se buscan sin caché: cambian al editar la nota.
-  if (!found) return noteByAlias(name);
+  // Los fallos también se recuerdan (hasta el próximo cambio de datos): un enlace roto no recorre la bóveda.
+  const found = resolveNoteName(name, idx) || noteByAlias(name);
   idx.resolved.set(name, found);
   return found;
 }
 
+// Alias (propiedad «aliases»): un mapa por versión de los datos; cada cuerpo se lee una sola vez (parseMemo).
 function noteByAlias(name) {
   const n = name.trim().toLowerCase();
   if (!n) return null;
-  return state.notes.find((x) => x.body?.startsWith('---') && noteAliases(x.body).some((a) => a.toLowerCase() === n)) || null;
+  const idx = notesIndexed();
+  if (!idx.aliases) {
+    idx.aliases = new Map();
+    for (const x of state.notes) {
+      if (!x.body?.startsWith('---')) continue;
+      for (const a of memoBy(parseMemo.aliases, x.body, noteAliases)) if (!idx.aliases.has(a.toLowerCase())) idx.aliases.set(a.toLowerCase(), x);
+    }
+  }
+  return idx.aliases.get(n) || null;
 }
 
 function resolveNoteName(name, idx) {
@@ -143,7 +152,7 @@ function uniquePath(folder, name) {
 // Enlaces [[...]] de un texto, sin contar los que están dentro de bloques de código.
 // Los resultados se recuerdan por texto: el grafo, los enlaces entrantes y las consultas
 // vuelven a pedir los mismos cuerpos de nota muchas veces.
-const parseMemo = { links: new Map(), tags: new Map() };
+const parseMemo = { links: new Map(), tags: new Map(), aliases: new Map() };
 function memoBy(map, body, fn) {
   let v = map.get(body);
   if (v === undefined) {
@@ -225,20 +234,60 @@ function createNote({ folder = '', title = 'Sin título', body = '', open = true
   return note;
 }
 
-// Cambia los [[enlaces]] que apuntan a una nota cuando cambia de nombre o de carpeta.
+// Cambia los [[enlaces]] y los [texto](Nota.md) que apuntan a una nota cuando cambia de nombre o de
+// carpeta (también en las notas protegidas desbloqueadas, que se vuelven a cifrar).
 function relinkAll(oldPath, newPath) {
   const oldBase = baseName(oldPath).toLowerCase();
   const oldFull = oldPath.toLowerCase();
+  // Nuevo destino para un enlace (con o sin .md), o null si no apunta a la nota.
+  const target = (raw) => {
+    const md = /\.md$/i.test(raw.trim()) ? '.md' : '';
+    const t = raw.trim().replace(/\.md$/i, '').toLowerCase();
+    if (t === oldFull) return newPath + md;
+    // Enlace por nombre: se actualiza si ya no queda otra nota con el nombre antiguo.
+    if (t === oldBase && !findNoteByName(raw)) return baseName(newPath) + md;
+    return null;
+  };
+  const relink = (text) =>
+    text
+      // En las tablas el alias va con la barra escapada ([[Nota\|alias]]): se acepta y se conserva.
+      .replace(/(!?\[\[)([^\]|#\n]+?)((?:#[^\]|\n]*)?)((?:\\?\|[^\]\n]*)?)\]\]/g, (m, open, t, head, alias) => {
+        const to = target(t);
+        return to === null ? m : `${open}${to}${head}${alias}]]`;
+      })
+      // Enlaces de Markdown a una nota (11-markdown.js): [texto](Carpeta/Nota.md#Sección).
+      .replace(/(?<!!)\[([^\]\n]*)\]\((<[^>\n]+>|[^\s)]+)\)/g, (m, label, url) => {
+        if (/^(https?:|mailto:|img:|audio:|file:|data:|javascript:|#)/i.test(url)) return m;
+        const angle = url.startsWith('<');
+        const bare = angle ? url.slice(1, -1) : url;
+        const hash = bare.indexOf('#');
+        const path = hash < 0 ? bare : bare.slice(0, hash);
+        let plain = path;
+        try {
+          plain = decodeURIComponent(path);
+        } catch {
+          // Se usa tal cual.
+        }
+        const to = target(plain);
+        if (to === null) return m;
+        const enc = !angle && (plain !== path || /\s/.test(to)) ? encodeURI(to) : to;
+        const rest = hash < 0 ? '' : bare.slice(hash);
+        return `[${label}](${angle ? `<${enc}${rest}>` : enc + rest})`;
+      });
   let changed = 0;
   state.notes.forEach((n) => {
-    // En las tablas el alias va con la barra escapada ([[Nota\|alias]]): se acepta y se conserva.
-    const body = n.body.replace(/(!?\[\[)([^\]|#\n]+?)((?:#[^\]|\n]*)?)((?:\\?\|[^\]\n]*)?)\]\]/g, (m, open, target, head, alias) => {
-      const t = target.trim().toLowerCase();
-      if (t === oldFull) return `${open}${newPath}${head}${alias}]]`;
-      // Enlace por nombre: se actualiza si ya no queda otra nota con el nombre antiguo.
-      if (t === oldBase && !findNoteByName(target)) return `${open}${baseName(newPath)}${head}${alias}]]`;
-      return m;
-    });
+    const plainText = unlockedNotes.get(n.id);
+    if (n.enc && plainText != null) {
+      const next = relink(plainText);
+      if (next === plainText) return;
+      unlockedNotes.set(n.id, next);
+      if (typeof scheduleEncrypt === 'function') scheduleEncrypt(n);
+      n.updatedAt = Date.now();
+      changed++;
+      return;
+    }
+    if (n.enc) return;
+    const body = relink(n.body);
     if (body !== n.body) {
       n.body = body;
       n.updatedAt = Date.now();
@@ -907,6 +956,111 @@ function scrollToHeading(note, heading) {
 
 // ---------- Editor ----------
 let noteSaveTimer = null;
+// Texto de la nota del que parte el editor (lo último que cargó o escribió). Si la nota cambia por
+// debajo (sincronización, Drive…), se nota porque ya no coincide (ver editorCatchUp).
+let editorBase = { id: null, text: '' };
+
+// Junta por líneas dos versiones que salen de `base`. Si las dos cambian lo mismo de distinta forma, null.
+function mergeLines3(base, ours, theirs) {
+  if (ours === theirs || theirs === base) return ours;
+  if (ours === base) return theirs;
+  const B = base.split('\n');
+  const O = ours.split('\n');
+  const T = theirs.split('\n');
+  // Lo común al principio y al final de las tres no hace falta compararlo.
+  let p = 0;
+  while (p < B.length && p < O.length && p < T.length && B[p] === O[p] && B[p] === T[p]) p++;
+  let q = 0;
+  while (q < B.length - p && q < O.length - p && q < T.length - p && B[B.length - 1 - q] === O[O.length - 1 - q] && B[B.length - 1 - q] === T[T.length - 1 - q]) q++;
+  const b = B.slice(p, B.length - q);
+  const o = O.slice(p, O.length - q);
+  const t = T.slice(p, T.length - q);
+  // Para cada línea de b, su pareja en x (subsecuencia común más larga) o -1.
+  const pairs = (x) => {
+    const n = b.length;
+    const m = x.length;
+    if ((n + 1) * (m + 1) > 4e6) return null;
+    const L = new Int32Array((n + 1) * (m + 1));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i * (m + 1) + j] = b[i] === x[j] ? L[(i + 1) * (m + 1) + j + 1] + 1 : Math.max(L[(i + 1) * (m + 1) + j], L[i * (m + 1) + j + 1]);
+    const out = new Array(n).fill(-1);
+    for (let i = 0, j = 0; i < n && j < m; ) {
+      if (b[i] === x[j]) out[i++] = j++;
+      else if (L[(i + 1) * (m + 1) + j] >= L[i * (m + 1) + j + 1]) i++;
+      else j++;
+    }
+    return out;
+  };
+  const mo = pairs(o);
+  const mt = pairs(t);
+  if (!mo || !mt) return null;
+  const same = (x, y) => x.length === y.length && x.every((v, k) => v === y[k]);
+  const out = [];
+  let i = 0;
+  let j = 0;
+  let k = 0;
+  // Entre dos líneas que siguen igual en las tres, cada trozo lo cambió uno, los dos igual o ninguno.
+  const chunk = (bi, oj, tk) => {
+    const cb = b.slice(i, bi);
+    const co = o.slice(j, oj);
+    const ct = t.slice(k, tk);
+    if (same(co, cb)) out.push(...ct);
+    else if (same(ct, cb) || same(co, ct)) out.push(...co);
+    else return false;
+    return true;
+  };
+  for (let x = 0; x < b.length; x++) {
+    if (mo[x] < 0 || mt[x] < 0) continue;
+    if (!chunk(x, mo[x], mt[x])) return null;
+    out.push(b[x]);
+    i = x + 1;
+    j = mo[x] + 1;
+    k = mt[x] + 1;
+  }
+  if (!chunk(b.length, o.length, t.length)) return null;
+  return [...B.slice(0, p), ...out, ...B.slice(B.length - q)].join('\n');
+}
+
+// Posición equivalente tras pasar de a a b (lo de antes del cambio se queda; lo de después se desplaza).
+function mapCaret(pos, a, b) {
+  const n = Math.min(a.length, b.length);
+  let p = 0;
+  while (p < n && a[p] === b[p]) p++;
+  if (pos <= p) return pos;
+  let q = 0;
+  while (q < n - p && a[a.length - 1 - q] === b[b.length - 1 - q]) q++;
+  return pos >= a.length - q ? pos + b.length - a.length : b.length - q;
+}
+
+// El texto de la nota cambió por debajo del editor. Sin cambios propios, el editor pasa a lo nuevo
+// (con la selección en su sitio); con cambios, se juntan por líneas y, si chocan, se queda lo del
+// editor y lo que llegó se guarda en una nota «(conflicto)». Devuelve el texto con que queda la nota.
+function editorCatchUp(note, ta, theirs) {
+  const ours = ta.value;
+  let next = theirs;
+  // Sin base de esta nota no se sabe qué es propio: manda la nota (como antes).
+  if (editorBase.id === note.id && ours !== editorBase.text) {
+    next = mergeLines3(editorBase.text, ours, theirs);
+    if (next === null) {
+      next = ours;
+      createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (conflicto)`, body: theirs, open: false, log: false });
+      showToastMessage('La nota cambió en otro sitio a la vez: esa versión está en una nota «(conflicto)».');
+    }
+  }
+  if (next !== ours) {
+    const [s, e] = [mapCaret(ta.selectionStart, ours, next), mapCaret(ta.selectionEnd, ours, next)];
+    ta.value = next;
+    if (document.activeElement === ta) ta.setSelectionRange(s, e);
+  }
+  if (next !== theirs) {
+    if (typeof noteHistoryCheckpoint === 'function') noteHistoryCheckpoint(note);
+    note.body = next;
+    note.updatedAt = Date.now();
+    save();
+    if (typeof noteHistoryCheckpoint === 'function') noteHistoryCheckpoint(note);
+  }
+  editorBase = { id: note.id, text: next };
+  return next;
+}
 
 function autosize(ta) {
   ta.style.height = 'auto';
@@ -971,9 +1125,15 @@ function renderNotePane(note) {
   split.ariaPressed = String(mode === 'split');
   split.title = mode === 'split' ? 'Quitar la vista previa (Ctrl+Mayús+E)' : 'Editar con vista previa al lado (Ctrl+Mayús+E)';
   if (editing) {
-    if (ta.dataset.note !== note.id || (document.activeElement !== ta && ta.value !== text)) {
+    if (ta.dataset.note !== note.id) {
       ta.value = text;
       ta.dataset.note = note.id;
+      editorBase = { id: note.id, text };
+    } else if (ta.value === text) editorBase = { id: note.id, text };
+    else if (!note.enc && !blockEdit) editorCatchUp(note, ta, text);
+    else if (document.activeElement !== ta) {
+      ta.value = text;
+      editorBase = { id: note.id, text };
     }
     autosize(ta);
   }
@@ -1015,6 +1175,7 @@ function followCaret() {
   const line = ta.value.slice(0, ta.selectionStart).split('\n').length - 1;
   let target = null;
   for (const n of reading.querySelectorAll(':scope > [data-line], :scope > ul [data-line], :scope > ol [data-line]')) {
+    if (n.closest('.embed')) continue; // las líneas de una nota incrustada son de esa nota
     if (Number(n.dataset.line) > line) break;
     target = n;
   }
@@ -1067,7 +1228,7 @@ $('#note-reading').addEventListener('click', (e) => {
   const note = activeNote();
   if (!note || noteMode.get(note.id) !== 'split' || e.target.closest('a, input, button, .query, audio')) return;
   const at = e.target.closest('[data-line]');
-  if (!at) return;
+  if (!at || at.closest('.embed')) return; // las líneas de una nota incrustada son de esa nota
   const ta = $('#note-editor');
   const line = Number(at.dataset.line);
   const pos = ta.value.split('\n').slice(0, line).join('\n').length + (line ? 1 : 0);
@@ -1089,8 +1250,11 @@ $('#note-editor').addEventListener('input', (e) => {
     // Editando un solo bloque, el editor tiene solo ese trozo: se recompone la nota entera.
     const full = blockEditBody(note, e.target.value);
     if (full === null) return;
-    note.body = full;
+    // Si la nota cambió por debajo (sincronización, Drive…) sin redibujarse, no se pisa: se junta.
+    if (!blockEdit && editorBase.id === note.id && note.body !== editorBase.text && note.body !== full) editorCatchUp(note, e.target, note.body);
+    else note.body = full;
   }
+  if (!blockEdit) editorBase = { id: note.id, text: noteText(note) ?? '' };
   if (noteMode.get(note.id) === 'split') scheduleSplitPreview(note);
   note.updatedAt = Date.now();
   dataRev++;
@@ -1111,7 +1275,10 @@ $('#note-editor').addEventListener('input', (e) => {
 $('#note-editor').addEventListener('blur', (e) => {
   flushNoteSave();
   const note = activeNote();
-  if (!blockEdit && note && e.target.dataset.note === note.id && pinNoteDates(note)) e.target.value = note.body;
+  if (!blockEdit && note && e.target.dataset.note === note.id && pinNoteDates(note)) {
+    e.target.value = note.body;
+    editorBase = { id: note.id, text: note.body };
+  }
   setTimeout(() => {
     if (!$('#link-suggest').matches(':hover')) hideSuggest();
   }, 150);
@@ -1188,7 +1355,15 @@ $('#note-reading').addEventListener('click', (e) => {
   const box = e.target.closest('input.task-check');
   if (box) {
     // Pasa por el mismo camino que en Tareas: fecha de completada, estadísticas y bitácora.
-    toggleNoteTask(box.closest('[data-note]').dataset.note, Number(box.dataset.line), box.checked);
+    const id = box.closest('[data-note]').dataset.note;
+    let line = Number(box.dataset.line);
+    // Con un bloque abierto, las líneas de debajo se movieron lo que creció o menguó el bloque:
+    // se corrige el número y se cierra el bloque antes de tocar la nota.
+    if (blockEdit?.noteId === id && !box.closest('.embed')) {
+      line = shiftedRange(`${line}-${line}`)[0];
+      endBlockEdit({ render: false });
+    }
+    toggleNoteTask(id, line, box.checked);
   }
 });
 
@@ -1233,7 +1408,7 @@ function noteMenuItems(note) {
   ];
 }
 const duplicateNote = (note) => createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (copia)`, body: note.body, edit: false });
-const copyNoteLink = (note) => copyText(`[[${baseName(note.path)}]]`, 'Enlace copiado');
+const copyNoteLink = (note) => copyText(`[[${linkNameOf(note)}]]`, 'Enlace copiado');
 
 async function copyText(text, done) {
   try {
@@ -1385,7 +1560,7 @@ function showMenu(anchor, items) {
     menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8)}px`;
     menu.style.left = `${Math.max(8, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8))}px`;
   }
-  menu.querySelector('button')?.focus();
+  menu.querySelector('button.menu-item:not([disabled])')?.focus();
 }
 // Al cerrar, el foco vuelve a donde estaba (si se quedara en un botón oculto, el teclado dejaría de responder).
 let menuReturnFocus = null;
@@ -1401,6 +1576,12 @@ function hideMenu() {
 }
 document.addEventListener('pointerdown', (e) => {
   if (!$('#note-menu').hidden && !e.target.closest('#note-menu')) hideMenu();
+});
+// Tab cierra el menú (el foco vuelve a donde estaba).
+$('#note-menu').addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  e.preventDefault();
+  hideMenu();
 });
 
 // ---------- Selector (buscar nota, comandos, carpetas, texto) ----------
