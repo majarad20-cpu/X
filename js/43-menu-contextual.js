@@ -90,6 +90,8 @@ const CTX_MENU_EXTRA = [];
 const ctxExtra = (kind, x) => CTX_MENU_EXTRA.flatMap((f) => f(kind, x) || []);
 // Lienzos hechos con las notas de una carpeta o con los enlaces de una nota (32-lienzos.js).
 if (typeof canvasCtxItems === 'function') CTX_MENU_EXTRA.push(canvasCtxItems);
+// Dictar en el editor y Claude sobre una transcripción de voz (35-voz.js).
+if (typeof voiceCtxItems === 'function') CTX_MENU_EXTRA.push(voiceCtxItems);
 
 function treeNoteItems(note) {
   return [

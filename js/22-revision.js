@@ -182,6 +182,9 @@ function renderReviewStep() {
       el('label', { className: 'switch rv-tasks' }, [el('input', { type: 'checkbox', id: 'review-prio-tasks', checked: true }), 'Crear también las prioridades como tareas para el lunes'])
     );
   }
+  // Antes de empezar, lo que quede en la Bandeja de entrada (57-papelera-captura.js).
+  const inbox = review.step === 0 && typeof inboxReviewRow === 'function' && inboxReviewRow();
+  if (inbox) body.prepend(inbox);
   $('#review-prev').disabled = review.step === 0;
   $('#review-next').hidden = review.step === REVIEW_STEPS.length - 1;
   $('#review-finish').hidden = review.step !== REVIEW_STEPS.length - 1;
