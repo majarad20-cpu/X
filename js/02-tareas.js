@@ -821,6 +821,8 @@ function renderWeek() {
       const block = el('section', { id: `day-${key}`, className: `day${key === today ? ' is-today' : ''}${key < today ? ' past' : ''}` }, head);
       const evs = calendarBlock(key, { compact: true });
       if (evs) block.append(evs);
+      const notes = typeof npDayList === 'function' && npDayList(key); // notas con fecha (52)
+      if (notes) block.append(notes);
       if (addingDay === key) {
         const input = el('input', { type: 'text', placeholder: 'Nueva tarea (p. ej. Dentista a las 10)', required: true, maxLength: 200, ariaLabel: 'Nueva tarea' });
         const form = el('form', { className: 'row day-form' }, [input, el('button', { type: 'submit', className: 'primary' }, 'Añadir')]);
@@ -833,7 +835,7 @@ function renderWeek() {
         block.append(form);
       }
       if (real.length || g.length) block.append(el('ul', { className: 'list' }, [...real.map((t) => taskItem(t)), ...g.map(ghostItem)]));
-      else if (addingDay !== key && !evs) block.append(el('p', { className: 'day-free' }, 'Libre'));
+      else if (addingDay !== key && !evs && !notes) block.append(el('p', { className: 'day-free' }, 'Libre'));
       return block;
     })
   );
@@ -877,6 +879,7 @@ function renderToday() {
   renderReviewNudge();
   renderSuggestions();
   renderTodayCalendar();
+  if (typeof renderTodayNotes === 'function') renderTodayNotes(today);
   $('#today-habits-count').textContent = state.habits.length ? `${habitsDone}/${state.habits.length}` : '';
   $('#today-habits').replaceChildren(
     ...state.habits.map((h) => {

@@ -94,6 +94,13 @@ function cardDrag(e, card, { targets, onDrop, onClick }) {
     const pane = $('#views-pane');
     if (ev.clientY < 70) pane.scrollBy(0, -14);
     else if (ev.clientY > window.innerHeight - 70) pane.scrollBy(0, 14);
+    // Un tablero más ancho que su sitio se desplaza solo al llevar la tarjeta a un borde.
+    const strip = card.closest('.board, .nb-board');
+    if (strip && strip.scrollWidth > strip.clientWidth) {
+      const r = strip.getBoundingClientRect();
+      if (ev.clientX < r.left + 40) strip.scrollBy(-16, 0);
+      else if (ev.clientX > r.right - 40) strip.scrollBy(16, 0);
+    }
   };
   const onUp = () => {
     document.removeEventListener('pointermove', onMove);
@@ -274,6 +281,7 @@ function renderMonth() {
       cell.append(chip);
     });
     if (items.length > 3) cell.append(el('div', { className: 'mg-more' }, `+${items.length - 3}`));
+    if (typeof npMonthChips === 'function') cell.append(...npMonthChips(key)); // notas con fecha (52)
     cell.addEventListener('click', () => {
       selectMonthDay(key);
       openDayView(key);
@@ -321,9 +329,11 @@ function renderMonthDay(byDay) {
     $('#month-day .day-form input')?.focus();
   });
   const evs = calendarBlock(key, { compact: true });
+  const notes = typeof npDayList === 'function' && npDayList(key);
   $('#month-day').replaceChildren(
     el('h3', { className: 'md-title' }, [name.charAt(0).toUpperCase() + name.slice(1), key === dateKey() ? el('span', { className: 'today-badge' }, 'Hoy') : '']),
     ...(evs ? [evs] : []),
+    ...(notes ? [notes] : []),
     items.length ? el('ul', { className: 'list' }, items.map(({ t, ghost }) => (ghost ? ghostItem(t) : taskItem(t)))) : el('p', { className: 'day-free' }, 'Sin tareas este día.'),
     form
   );
