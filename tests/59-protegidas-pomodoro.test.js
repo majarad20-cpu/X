@@ -2,6 +2,9 @@
 // avisos de la papelera de Drive, saltos de línea CRLF al traer de Drive, borrar sin perder lo
 // último escrito, una sola pestaña lleva el Pomodoro y la racha de pomodoros que vuelve a empezar.
 const { chromium, launchOptions } = require('./helpers');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const url = process.argv[2];
 const out = process.argv[3];
 const now = new Date('2026-10-09T10:00:00').getTime();
@@ -182,6 +185,17 @@ const seedNotes = {
   await c.close();
 
   // ================= Pomodoro en dos pestañas =================
+  // Con file:// Chromium a veces no comparte localStorage entre pestañas: se sirve por http.
+  const root = path.dirname(new URL(url).pathname);
+  const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
+  const srv = http.createServer((req, res) => {
+    const file = path.join(root, decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || path.basename(new URL(url).pathname));
+    if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+    fs.createReadStream(file).pipe(res);
+  });
+  await new Promise((res) => srv.listen(0, '127.0.0.1', res));
+  const httpUrl = `http://127.0.0.1:${srv.address().port}/${path.basename(new URL(url).pathname)}`;
   const c2 = await b.newContext({ viewport: { width: 1200, height: 800 } });
   await c2.addInitScript((s) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify(s)); }, { tasks: [], habits: [], settings: { notesWelcome: true, logVersion: 1, focus: 1, short: 1, long: 1, pomo: { sys: false, sound: false, ask: false } }, focusLog: [], updatedAt: 1 });
   await c2.route(/fonts\.g/, (r) => r.abort());
@@ -191,13 +205,12 @@ const seedNotes = {
   const pause = (ms = 40) => new Promise((res) => setTimeout(res, ms));
   const step = async (ms) => { for (let t = 0; t < ms; t += 2000) { await c2.clock.runFor(Math.min(2000, ms - t)); await pause(); } };
   const a = await c2.newPage(); watch(a);
-  await a.goto(url); await c2.clock.runFor(800);
+  await a.goto(httpUrl); await c2.clock.runFor(800);
   await a.evaluate(() => { showView('timer'); startTimer(); });
   await step(2000); await pause(300);
   const bb = await c2.newPage(); watch(bb);
-  await bb.goto(url); await c2.clock.runFor(1500);
-  r = await bb.evaluate(() => ({ following: pomoFollowing, endsAt: timer.endsAt, btn: $('#timer-start').textContent, run: localStorage.getItem(POMO_RUN_KEY), own: localStorage.getItem('enfoque:pomo-owner'), now: Date.now(), res: timerResumed }));
-  r.a = await a.evaluate(() => ({ run: localStorage.getItem(POMO_RUN_KEY), own: localStorage.getItem('enfoque:pomo-owner'), now: Date.now(), endsAt: timer.endsAt }));
+  await bb.goto(httpUrl); await c2.clock.runFor(1500);
+  r = await bb.evaluate(() => ({ following: pomoFollowing, endsAt: timer.endsAt, btn: $('#timer-start').textContent }));
   const endsA = await a.evaluate(() => timer.endsAt);
   check('dos pestañas: la segunda sigue el temporizador sin llevarlo', r.following && r.endsAt === endsA && r.btn === 'Pausar', JSON.stringify(r));
   await step(MIN);
@@ -270,5 +283,6 @@ const seedNotes = {
   console.log(fails ? `${fails} fallos` : 'todo bien');
   if (fails) errs.push(`${fails} comprobaciones fallidas`);
   console.log('errors:', errs);
+  srv.close();
   await b.close();
 })();
