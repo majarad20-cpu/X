@@ -122,3 +122,7 @@ python3 -m http.server 8000
 - `js/`: el código, en módulos que se cargan en orden (`01-nucleo.js` … `99-inicio.js`; `99-inicio.js` va siempre el último). Son scripts normales que comparten el ámbito global, así que no hace falta compilar nada.
 - `python3 tools/build.py`: junta todo en `dist/enfoque.html`, el archivo único que se publica en Claude.
 - `node tests/run.js [filtro]`: lanza las pruebas de `tests/` (Playwright + Chromium) contra `index.html` y resume el resultado. Las capturas quedan en `tests/out/`. Las pruebas simulan Claude (también sus herramientas), Google Calendar y la sincronización.
+
+## Ideas para el futuro
+
+- [Integrar notas, tareas, proyectos, ideas y hábitos](docs/futuro-integracion.md) (pendiente, no implementado).
