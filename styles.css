@@ -2906,3 +2906,20 @@ body.gs-open #note-menu { z-index: 96; }
 .mm-handle { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--accent); background: var(--surface); color: var(--accent); font-size: .75rem; line-height: 1; padding: 0; cursor: crosshair; touch-action: none; z-index: 3; }
 .mm-temp-link { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 5; fill: none; }
 .mm-score { color: var(--accent); font-weight: 700; }
+
+/* Bases (75-bases.js) */
+#view-bases { max-width: none; }
+.bases-head { display: flex; align-items: flex-start; gap: 16px; justify-content: space-between; margin-bottom: 14px; }
+.bases-title { margin: 0 0 4px; }
+.bases-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.base-card { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; padding: 14px; cursor: pointer; font: inherit; color: var(--text); }
+.base-card:hover { border-color: var(--accent); }
+.base-card-icon { font-size: 1.6rem; }
+.base-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.base-name { margin: 0; font-size: 1.4rem; }
+.base-top .spacer { flex: 1; }
+.base-tabs { flex-wrap: wrap; margin-bottom: 12px; }
+.base-add-view { color: var(--accent); }
+.base-content { min-height: 200px; }
+.base-content .query { margin: 0; }
+#views-pane main:has(#view-bases.active) { max-width: none; }
