@@ -77,7 +77,7 @@ function dgMindmap(map, sizes) {
   const L = computeLayout(map, sizes);
   const style = map.edge || 'curve';
   if (style === 'curve') return L; // el dibujo de siempre
-  L.paths = map.nodes.filter((n) => n.parent && L.pos[n.parent]).map((n) => ({ d: dgEdge(style, L.pos[n.parent], L.pos[n.id], L.side[n.id]), stroke: dgColor(map, n) }));
+  L.paths = map.nodes.filter((n) => n.parent && L.pos[n.parent]).map((n) => ({ d: dgEdge(style, L.pos[n.parent], L.pos[n.id], L.side[n.id]), stroke: dgColor(map, n), link: [n.parent, n.id] }));
   L.ox = 0;
   L.oy = 0;
   return L;
@@ -124,7 +124,7 @@ function dgRadial(map, sizes) {
     const [x1, y1] = center(pos[n.parent]);
     const [x2, y2] = center(pos[n.id]);
     const d = style === 'curve' ? `M${x1},${y1} Q${(x1 + x2) / 2 + (y2 - y1) * 0.15},${(y1 + y2) / 2 - (x2 - x1) * 0.15} ${x2},${y2}` : `M${x1},${y1} L${x2},${y2}`;
-    paths.push({ d, stroke: dgColor(map, n) });
+    paths.push({ d, stroke: dgColor(map, n), link: [n.parent, n.id] });
   });
   return dgFinish(map, pos, paths, [], side);
 }
@@ -168,7 +168,7 @@ function dgOrg(map, sizes) {
       ks.forEach((k) => {
         const ksz = sizes[k.id];
         pos[k.id] = { x: lx + 14, y, w: ksz.w, h: ksz.h };
-        paths.push({ d: `M${lx},${p.y + p.h} V${y + ksz.h / 2} H${lx + 14}`, stroke: dgColor(map, k) });
+        paths.push({ d: `M${lx},${p.y + p.h} V${y + ksz.h / 2} H${lx + 14}`, stroke: dgColor(map, k), link: [n.id, k.id] });
         y += ksz.h + 10;
       });
       return;
@@ -183,7 +183,7 @@ function dgOrg(map, sizes) {
       const y2 = c.y;
       const my = (y1 + y2) / 2;
       const dd = style === 'straight' ? `M${x1},${y1} L${x2},${y2}` : style === 'curve' ? `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}` : `M${x1},${y1} V${my} H${x2} V${y2}`;
-      paths.push({ d: dd, stroke: dgColor(map, k) });
+      paths.push({ d: dd, stroke: dgColor(map, k), link: [n.id, k.id] });
       x += W[k.id] + GX;
     });
   };
@@ -225,9 +225,9 @@ function dgOutline(map, sizes) {
     const y0 = Math.min(first.y + first.h / 2, ym) - (ks.length > 1 ? 0 : 0);
     const y1 = Math.max(last.y + last.h / 2, ym);
     const col = dgColor(map, ks[0]).replace(/^accent$/, 'muted');
-    paths.push({ d: `M${p.x + p.w},${ym} H${bx}`, stroke: n.parent ? dgColor(map, n) : 'muted' });
-    if (ks.length === 1) paths.push({ d: `M${bx},${ym} H${first.x}`, stroke: col });
-    else paths.push({ d: `M${bx + 16},${y0} C${bx + 7},${y0} ${bx + 9},${ym} ${bx},${ym} C${bx + 9},${ym} ${bx + 7},${y1} ${bx + 16},${y1}`, stroke: n.parent ? dgColor(map, n) : 'muted', w: 2.4 });
+    paths.push({ d: `M${p.x + p.w},${ym} H${bx}`, stroke: n.parent ? dgColor(map, n) : 'muted', group: [n.id, ks.map((k) => k.id)] });
+    if (ks.length === 1) paths.push({ d: `M${bx},${ym} H${first.x}`, stroke: col, link: [n.id, ks[0].id] });
+    else paths.push({ d: `M${bx + 16},${y0} C${bx + 7},${y0} ${bx + 9},${ym} ${bx},${ym} C${bx + 9},${ym} ${bx + 7},${y1} ${bx + 16},${y1}`, stroke: n.parent ? dgColor(map, n) : 'muted', w: 2.4, group: [n.id, ks.map((k) => k.id)] });
   };
   place(root, 0, 0);
   return dgFinish(map, pos, paths);
@@ -257,7 +257,7 @@ function dgFishbone(map, sizes) {
       const tipY = up * boneH;
       const s = sizes[c.id];
       pos[c.id] = { x: tipX - s.w / 2, y: up < 0 ? tipY - s.h - 6 : tipY + 6, w: s.w, h: s.h };
-      paths.push({ d: `M${sx},0 L${tipX},${tipY}`, stroke: dgColor(map, c), w: 2.5 });
+      paths.push({ d: `M${sx},0 L${tipX},${tipY}`, stroke: dgColor(map, c), w: 2.5, owner: c.id });
       let t = 34;
       items[j].forEach(({ n, depth }) => {
         const sz = sizes[n.id];
@@ -265,7 +265,7 @@ function dgFishbone(map, sizes) {
         const xb = sx - SLOPE * Math.abs(y);
         const right = xb - 10 - depth * 14;
         pos[n.id] = { x: right - sz.w, y: y - sz.h / 2, w: sz.w, h: sz.h };
-        paths.push({ d: `M${xb},${y} H${right}`, stroke: dgColor(map, n), w: 1.5 });
+        paths.push({ d: `M${xb},${y} H${right}`, stroke: dgColor(map, n), w: 1.5, link: [n.parent, n.id] });
         minX = Math.min(minX, right - sz.w);
         t += sz.h + 8;
       });
@@ -298,13 +298,12 @@ function dgProcess(map, sizes) {
       pos[n.id] = { x: cx - sz.w / 2 + depth * 14, y, w: sz.w, h: sz.h };
       y += sz.h + 10;
     });
-    if (items.length) paths.push({ d: `M${cx},${pos[s.id].y + pos[s.id].h} V${pos[items.at(-1).n.id].y}`, stroke: dgColor(map, s), w: 1.5, dash: '4 4' });
+    if (items.length) paths.push({ d: `M${cx},${pos[s.id].y + pos[s.id].h} V${pos[items.at(-1).n.id].y}`, stroke: dgColor(map, s), w: 1.5, dash: '4 4', owner: s.id });
     if (i) {
       const prev = pos[steps[i - 1].id];
       const x1 = prev.x + prev.w + 6;
       const x2 = pos[s.id].x - 8;
-      paths.push({ d: `M${x1},${stepH / 2} H${x2}`, stroke: 'muted', w: 2.5 });
-      paths.push({ d: `M${x2 - 10},${stepH / 2 - 7} L${x2},${stepH / 2} L${x2 - 10},${stepH / 2 + 7} Z`, stroke: 'muted', fill: 'muted', alpha: 1, w: 1 });
+      paths.push({ d: `M${x1},${stepH / 2} H${x2} M${x2 - 10},${stepH / 2 - 7} L${x2},${stepH / 2} L${x2 - 10},${stepH / 2 + 7} Z`, stroke: 'muted', fill: 'muted', alpha: 1, w: 2.5, link: [steps[i - 1].id, s.id], arrow: true });
     }
     x += colW + GAP;
   });
@@ -329,8 +328,8 @@ function dgTimeline(map, sizes) {
     const up = i % 2 === 0 ? -1 : 1;
     const s = sizes[e.id];
     pos[e.id] = { x: cx - s.w / 2, y: up < 0 ? -44 - s.h : 44, w: s.w, h: s.h };
-    paths.push({ d: `M${cx},0 V${up * 44}`, stroke: dgColor(map, e), w: 2 });
-    paths.push({ d: dgDot(cx, 0, 6), stroke: dgColor(map, e), fill: dgColor(map, e), alpha: 1, w: 1 });
+    paths.push({ d: `M${cx},0 V${up * 44}`, stroke: dgColor(map, e), w: 2, owner: e.id });
+    paths.push({ d: dgDot(cx, 0, 6), stroke: dgColor(map, e), fill: dgColor(map, e), alpha: 1, w: 1, owner: e.id });
     let y = up < 0 ? pos[e.id].y - 8 : pos[e.id].y + s.h + 8;
     items.forEach(({ n, depth }) => {
       const sz = sizes[n.id];
@@ -373,7 +372,7 @@ function dgMatrix(map, sizes) {
     const ox = c * (cellW + GAP);
     const oy = rowH.slice(0, r).reduce((a, h) => a + h + GAP, 0);
     const col = dgColor(map, x.c);
-    paths.push({ d: dgRect(ox, oy, cellW, rowH[r]), stroke: col, fill: col, alpha: 0.08, w: 1.5 });
+    paths.push({ d: dgRect(ox, oy, cellW, rowH[r]), stroke: col, fill: col, alpha: 0.08, w: 1.5, owner: x.c.id });
     const hs = sizes[x.c.id];
     pos[x.c.id] = { x: ox + PAD, y: oy + PAD, w: hs.w, h: hs.h };
     let y = oy + PAD + hs.h + 10;
@@ -403,13 +402,13 @@ function dgPyramid(map, sizes) {
     const tw = (B * i) / n;
     const bw = (B * (i + 1)) / n;
     const col = dgColor(map, l);
-    paths.push({ d: `M${-tw / 2},${y} L${tw / 2},${y} L${bw / 2},${y + bandH} L${-bw / 2},${y + bandH} Z`, stroke: col, fill: col, alpha: 0.22, w: 1.5 });
+    paths.push({ d: `M${-tw / 2},${y} L${tw / 2},${y} L${bw / 2},${y + bandH} L${-bw / 2},${y + bandH} Z`, stroke: col, fill: col, alpha: 0.22, w: 1.5, owner: l.id });
     const cy = y + bandH * (i === 0 ? 0.62 : 0.5);
     dgAt(pos, sizes, l, 0, cy);
     if (items.length) {
       const ix = B / 2 + 50;
       let iy = cy - itemsH / 2;
-      paths.push({ d: `M${(tw + bw) / 4 + 4},${cy} H${ix - 10}`, stroke: col, w: 1.2, dash: '3 4' });
+      paths.push({ d: `M${(tw + bw) / 4 + 4},${cy} H${ix - 10}`, stroke: col, w: 1.2, dash: '3 4', owner: l.id });
       items.forEach(({ n: it, depth }) => {
         const sz = sizes[it.id];
         pos[it.id] = { x: ix + depth * 14, y: iy, w: sz.w, h: sz.h };
@@ -437,6 +436,7 @@ function diagramSvg(L) {
     const path = document.createElementNS(NS, 'path');
     path.setAttribute('d', p.d);
     path.setAttribute('class', 'dg-path');
+    if (p.tx || p.ty) path.setAttribute('transform', `translate(${p.tx || 0},${p.ty || 0})`);
     path.style.stroke = p.stroke ? dgCss(p.stroke) : 'none';
     path.style.strokeWidth = p.w || 2;
     path.style.fill = p.fill ? (p.alpha >= 1 ? dgCss(p.fill) : `color-mix(in srgb, ${dgCss(p.fill)} ${Math.round((p.alpha ?? 0.1) * 100)}%, transparent)`) : 'none';
@@ -453,6 +453,8 @@ function diagramCanvas(ctx, L, v) {
   ctx.lineJoin = 'round';
   L.paths.forEach((p) => {
     const path = new Path2D(p.d);
+    ctx.save();
+    if (p.tx || p.ty) ctx.translate(p.tx || 0, p.ty || 0);
     if (p.fill) {
       ctx.globalAlpha = p.alpha ?? 0.1;
       ctx.fillStyle = v(`--${p.fill}`);
@@ -465,6 +467,7 @@ function diagramCanvas(ctx, L, v) {
       ctx.setLineDash(p.dash ? p.dash.split(' ').map(Number) : []);
       ctx.stroke(path);
     }
+    ctx.restore();
   });
   ctx.restore();
 }
@@ -574,3 +577,106 @@ function openDiagramTemplates() {
 $('#map-templates').addEventListener('click', openDiagramTemplates);
 
 COMMANDS_EXTRA.push(() => [{ label: 'Mapas y diagramas: empezar desde una plantilla…', action: openDiagramTemplates }]);
+
+// ---------- Posición libre: cada nodo se puede mover con el ratón o el dedo ----------
+// node.dx / node.dy desplazan el nodo (y todo lo que cuelga de él) desde donde lo pondría el diagrama.
+// Las líneas que llegan a un nodo movido se vuelven a trazar; las casillas y franjas de un nodo
+// (matriz, pirámide, línea de tiempo…) se mueven con él.
+function mmOffsets(map) {
+  const off = {};
+  const get = (n) => {
+    if (off[n.id]) return off[n.id];
+    const up = n.parent ? get(map.nodes.find((x) => x.id === n.parent) || { id: '_', dx: 0, dy: 0 }) : [0, 0];
+    return (off[n.id] = [up[0] + (n.dx || 0), up[1] + (n.dy || 0)]);
+  };
+  map.nodes.forEach(get);
+  return off;
+}
+
+// Línea entre dos cajas (coordenadas del dibujo), por los lados que se miran.
+function dgConnector(a, b, arrow = false) {
+  const ac = [a.x + a.w / 2, a.y + a.h / 2];
+  const bc = [b.x + b.w / 2, b.y + b.h / 2];
+  const dx = bc[0] - ac[0];
+  const dy = bc[1] - ac[1];
+  let d;
+  let end;
+  let dir;
+  if (Math.abs(dx) * 0.6 >= Math.abs(dy)) {
+    const s = Math.sign(dx) || 1;
+    const x1 = s > 0 ? a.x + a.w : a.x;
+    const x2 = s > 0 ? b.x : b.x + b.w;
+    const mx = (x1 + x2) / 2;
+    d = `M${x1},${ac[1]} C${mx},${ac[1]} ${mx},${bc[1]} ${x2},${bc[1]}`;
+    end = [x2, bc[1]];
+    dir = [s, 0];
+  } else {
+    const s = Math.sign(dy) || 1;
+    const y1 = s > 0 ? a.y + a.h : a.y;
+    const y2 = s > 0 ? b.y : b.y + b.h;
+    const my = (y1 + y2) / 2;
+    d = `M${ac[0]},${y1} C${ac[0]},${my} ${bc[0]},${my} ${bc[0]},${y2}`;
+    end = [bc[0], y2];
+    dir = [0, s];
+  }
+  if (arrow) {
+    const [ex, ey] = end;
+    const [ux, uy] = dir;
+    d += ` M${ex - ux * 10 - uy * 7},${ey - uy * 10 - ux * 7} L${ex},${ey} L${ex - ux * 10 + uy * 7},${ey - uy * 10 + ux * 7} Z`;
+  }
+  return d;
+}
+
+function mmApplyOffsets(map, L) {
+  const off = mmOffsets(map);
+  const moved = (id) => off[id] && (off[id][0] || off[id][1]);
+  if (!map.nodes.some((n) => moved(n.id))) return L;
+  L.ox = L.ox || 0;
+  L.oy = L.oy || 0;
+  Object.entries(L.pos).forEach(([id, p]) => {
+    if (!off[id]) return;
+    p.x += off[id][0];
+    p.y += off[id][1];
+  });
+  const raw = (id) => ({ ...L.pos[id], x: L.pos[id].x - L.ox, y: L.pos[id].y - L.oy });
+  if (L.paths) {
+    const out = [];
+    L.paths.forEach((p) => {
+      if (p.link && L.pos[p.link[0]] && L.pos[p.link[1]]) {
+        const [a, b] = p.link;
+        if ((off[a]?.[0] || 0) !== (off[b]?.[0] || 0) || (off[a]?.[1] || 0) !== (off[b]?.[1] || 0)) return out.push({ ...p, d: dgConnector(raw(a), raw(b), p.arrow) });
+        if (moved(b)) return out.push({ ...p, tx: off[b][0], ty: off[b][1] });
+        return out.push(p);
+      }
+      if (p.group) {
+        const [from, kids] = p.group;
+        if (kids.some((k) => (off[k]?.[0] || 0) !== (off[from]?.[0] || 0) || (off[k]?.[1] || 0) !== (off[from]?.[1] || 0))) {
+          // La llave ya no cuadra: una línea a cada hijo.
+          if (p.d.includes('C')) kids.forEach((k) => L.pos[k] && out.push({ stroke: p.stroke, w: 2, d: dgConnector(raw(from), raw(k)) }));
+          return;
+        }
+        if (moved(from)) return out.push({ ...p, tx: off[from][0], ty: off[from][1] });
+        return out.push(p);
+      }
+      if (p.owner && moved(p.owner)) return out.push({ ...p, tx: off[p.owner][0], ty: off[p.owner][1] });
+      out.push(p);
+    });
+    L.paths = out;
+  }
+  // Que todo siga dentro del lienzo.
+  const PAD = 40;
+  const ps = Object.values(L.pos);
+  const minX = Math.min(PAD, ...ps.map((p) => p.x));
+  const minY = Math.min(PAD, ...ps.map((p) => p.y));
+  const sx = PAD - minX;
+  const sy = PAD - minY;
+  ps.forEach((p) => {
+    p.x += sx;
+    p.y += sy;
+  });
+  L.ox += sx;
+  L.oy += sy;
+  L.width = Math.max(L.width + sx, ...ps.map((p) => p.x + p.w + PAD));
+  L.height = Math.max(L.height + sy, ...ps.map((p) => p.y + p.h + PAD));
+  return L;
+}
