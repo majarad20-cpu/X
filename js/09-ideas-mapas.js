@@ -77,6 +77,8 @@ $('#idea-form').addEventListener('submit', (e) => {
   const raw = $('#idea-text').value.trim();
   if (!raw) return;
   const idea = { id: uid(), ...extractTags(raw), pinned: false, createdAt: Date.now(), updatedAt: Date.now() };
+  const cat = $('#idea-cat')?.value; // categoría (71-obras.js)
+  if (cat && cat !== 'general') idea.cat = cat;
   state.ideas.push(idea);
   logEvent('idea', idea.text.split('\n')[0], { ref: idea.id, detail: idea.tags.map((t) => `#${t}`).join(' ') });
   save();
@@ -161,7 +163,7 @@ function ideaCard(idea) {
   );
   const date = new Date(idea.createdAt).toLocaleDateString('es', { day: 'numeric', month: 'short' });
   const card = el('article', { className: `card idea${idea.pinned ? ' pinned' : ''}${idea.color ? ` ic-${idea.color}` : ''}` }, [
-    el('header', { className: 'idea-head' }, [el('span', { className: 'muted' }, date), el('span', { className: 'idea-head-actions' }, [paint, pin])]),
+    el('header', { className: 'idea-head' }, [el('span', { className: 'muted' }, date), ...(typeof ideaCatBadge === 'function' ? [ideaCatBadge(idea)] : []), el('span', { className: 'idea-head-actions' }, [paint, pin])]),
     ideaBody(idea),
   ]);
   if (paletteFor === idea.id) {
@@ -197,7 +199,10 @@ function ideaCard(idea) {
 function renderIdeas() {
   $('#ideas-notes-pane').hidden = ideaView !== 'notes';
   $('#ideas-maps-pane').hidden = ideaView !== 'maps';
+  $('#ideas-works-pane').hidden = ideaView !== 'works';
   if (ideaView === 'maps') return renderMaps();
+  if (ideaView === 'works') return renderWorks(); // 71-obras.js
+  renderIdeaCats();
 
   const tags = [...new Set(state.ideas.flatMap((i) => i.tags))].sort((a, b) => a.localeCompare(b, 'es'));
   if (ideaTag && !tags.includes(ideaTag)) ideaTag = null;
@@ -233,6 +238,7 @@ function renderIdeas() {
 
   const list = state.ideas
     .filter((i) => !ideaTag || i.tags.includes(ideaTag))
+    .filter((i) => !ideaCat || ideaCatOf(i) === ideaCat)
     .filter((i) => !ideaColor || i.color === ideaColor)
     .filter((i) => !ideaSearch || `${i.text} ${i.tags.join(' ')}`.toLowerCase().includes(ideaSearch))
     .sort((a, b) => b.createdAt - a.createdAt);
