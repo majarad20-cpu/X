@@ -2934,3 +2934,14 @@ body.gs-open #note-menu { z-index: 96; }
 .entry-key { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
 .entry-body { min-height: 120px; }
 .entry-actions { flex-wrap: wrap; gap: 8px; }
+
+/* Campos con tipo de una base (77-bases-campos.js) */
+.entry-field.ft-casilla input { justify-self: start; width: auto; }
+.fm-list { display: grid; gap: 8px; }
+/* Las preguntas (nombre, tipo…) salen por encima de la ficha */
+body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
+.fm-row { display: grid; grid-template-columns: 1fr minmax(120px, 34%) auto auto auto; gap: 6px; align-items: center; }
+.fm-row .fm-opts { grid-column: 1 / -1; }
+.fm-checks { display: grid; gap: 4px; font-size: .9rem; }
+.fm-check { display: flex; gap: 8px; align-items: center; }
+@media (max-width: 540px) { .fm-row { grid-template-columns: 1fr 1fr auto auto auto; } }

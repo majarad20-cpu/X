@@ -20,10 +20,10 @@ const now = new Date('2026-10-11T10:00:00').getTime();
   await p.click('#picker-list .pk-item:has-text("Biblioteca")'); await p.clock.runFor(100);
   check('base abierta', await p.evaluate(() => [baseName(noteById(bases.open).path), [...document.querySelectorAll('.base-tabs .seg')].map((x) => x.textContent)]), ['Biblioteca', ['▤ Todos', '▥ Por estado', '▦ Portadas', '＋ Vista']]);
   check('tabla con la entrada de ejemplo', await p.$$eval('.base-content table tbody tr', (r) => r.length), 1);
-  // Nueva entrada: nota en la carpeta con los campos y el diálogo de propiedades
+  // Nueva entrada: ficha vacía con los campos; se crea al pulsar «Crear»
   await p.click('.base-top button:has-text("Nueva entrada")'); await p.clock.runFor(50);
-  await p.keyboard.type('Rayuela'); await p.keyboard.press('Enter'); await p.clock.runFor(100);
-  check('entrada creada', await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Biblioteca/Rayuela'); return [!!n, ['autor', 'estado', 'puntuacion', 'genero'].every((k) => n.body.includes(`${k}:`)), !document.getElementById('entry-modal').hidden]; }), [true, true, true]);
+  await p.keyboard.type('Rayuela'); await p.click('#entry-modal button.primary:has-text("Crear")'); await p.clock.runFor(100);
+  check('entrada creada', await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Biblioteca/Rayuela'); return [!!n, ['autor', 'estado', 'puntuacion', 'genero'].every((k) => n.body.includes(`${k}:`)), document.getElementById('entry-modal').hidden]; }), [true, true, true]);
   await p.keyboard.press('Escape'); await p.clock.runFor(50);
   check('tabla con 2 filas', await p.$$eval('.base-content table tbody tr', (r) => r.length), 2);
   // Tablero (Kanban) sin abrir ninguna nota
