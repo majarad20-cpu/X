@@ -43,6 +43,19 @@ Actualizado el 11/10/2026. La app se usa desde el enlace de Claude, instalado co
   - enlazar cada objetivo con sus proyectos y hábitos y ver su avance (encaja con «Áreas» de la Fase 2);
   - redactarla con ayuda de Claude.
 - Diario en la bitácora, en Claude y en «Preguntar».
+- **Pensar, para más adelante.** Ya hecho: pregunta del día, ánimo y constancia, «Tal día como hoy» y 22 plantillas para pensar (js/70-pensar.js).
+  - **Diario:** reflexiones guiadas mensual y anual, conectadas con la brújula.
+  - **Ideas (Zettelkasten):**
+    - de idea a nota permanente, conservando el enlace al origen;
+    - madurez de las ideas (🌱 semilla → 🌿 en desarrollo → 🌳 madura);
+    - conexiones sugeridas mientras escribes;
+    - idea olvidada del día.
+  - **Registro de decisiones** con revisión a los 3 meses («¿cómo salió?»).
+  - **Modo escritura sin distracciones:** tipo máquina de escribir, con objetivo de palabras y temporizador.
+  - **Con Claude:**
+    - pensamiento guiado (Claude pregunta en vez de responder);
+    - patrones del diario;
+    - guardar las respuestas de Preguntar como nota y continuar conversaciones.
 
 ## Descartado por ahora
 - App propia (PWA, .exe con Tauri o APK): fuera de Claude no hay IA sin pagar la API ni sincronización sin un proyecto propio de Google. Se puede retomar si hace falta usar la app sin conexión.

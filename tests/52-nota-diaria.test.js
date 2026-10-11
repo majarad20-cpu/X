@@ -135,6 +135,8 @@ const at = (s) => new Date(s).getTime();
   await p.evaluate(() => showView('today')); await p.clock.runFor(50);
   check('Hoy invita a escribir', await p.isVisible('#today-journal'));
   await p.click('#today-journal'); await p.clock.runFor(50);
+  check('Hoy abre la pregunta del día', await p.evaluate(() => journalKind), 'question');
+  await p.click('[data-jkind="dump"]');
   await p.fill('#journal-fields textarea', 'Llamar al dentista\nMe noto con energía');
   await p.click('.mood:has-text("Genial")');
   await p.click('#journal-form button[type=submit]'); await p.clock.runFor(100);

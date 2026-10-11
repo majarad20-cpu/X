@@ -216,6 +216,7 @@
 
       <div id="today-calendar" class="today-calendar" hidden></div>
       <div id="today-compass" class="card today-compass" hidden></div>
+      <div id="today-onthisday" class="card otd-card" hidden></div>
       <div id="today-notes" class="card today-notes" hidden></div>
 
       <h2 class="section-title">Para hoy</h2>
@@ -428,6 +429,7 @@
         <div id="journal-week" class="journal-week" aria-label="Ánimo de los últimos 7 días"></div>
         <p id="journal-stats" class="muted"></p>
       </div>
+      <div id="journal-onthisday" class="card otd-card" hidden></div>
 
       <form id="journal-form" class="card journal-composer">
         <div class="filters" role="group" aria-label="Tipo de entrada">
@@ -435,6 +437,7 @@
           <button type="button" class="chip" data-jkind="free">Libre</button>
           <button type="button" class="chip" data-jkind="gratitude">Gratitud</button>
           <button type="button" class="chip" data-jkind="reflection">Reflexión</button>
+          <button type="button" class="chip" data-jkind="question">Pregunta del día</button>
         </div>
         <p id="journal-hint" class="muted journal-hint"></p>
         <div id="journal-fields"></div>
@@ -450,6 +453,7 @@
       </form>
 
       <div id="dump-convert" class="card dump-convert" hidden></div>
+      <details id="journal-insights" class="card journal-insights" open hidden></details>
 
       <div id="journal-migrate" class="row journal-migrate" hidden></div>
       <div class="row journal-search">
@@ -1228,6 +1232,7 @@
   <script src="js/67-deshacer.js"></script>
   <script src="js/68-brujula.js"></script>
   <script src="js/69-barra-superior.js"></script>
+  <script src="js/70-pensar.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
