@@ -87,6 +87,10 @@ function newBaseMenu() {
       const b = createBase({ name: t.name, folder: t.folder, views: t.views(t.folder), props: t.props, sample: t.sample, icon: t.icon });
       if (b) openBase(b.id);
     } })),
+    ...(typeof importBaseFile === 'function' ? [
+      { label: '📥 Importar desde un CSV (Excel, Sheets…)', detail: 'Cada fila, una entrada', action: () => importBaseFile() },
+      { label: '📋 Pegar una tabla o lista', detail: 'Celdas copiadas de una hoja o una línea por entrada', action: () => importBasePaste() },
+    ] : []),
     { label: '📇 Base en blanco con una carpeta…', action: () => pickFrom('¿Qué carpeta de notas quieres ver como base?', [...allFolders().filter((f) => f !== BASE_FOLDER), '＋ Carpeta nueva…'].map((f) => ({
       label: f,
       action: () => {
@@ -288,6 +292,11 @@ function baseMenu(note, anchor) {
       peSet(note, 'campos', 'text', q.split(',').map((x) => x.trim()).filter(Boolean).join(', '));
       renderBases();
     } })) },
+    ...(typeof exportBaseMenu === 'function' ? [
+      { label: '📥 Importar filas de un CSV…', action: () => importBaseFile(note) },
+      { label: '📋 Pegar filas (de una hoja o lista)…', action: () => importBasePaste(note) },
+      { label: '📤 Exportar la base…', action: () => exportBaseMenu(note) },
+    ] : []),
     { label: '📝 Abrir como nota', action: () => openNote(note) },
     { sep: true },
     { label: '🗑 Borrar la base (las entradas no se tocan)', danger: true, action: () => {
