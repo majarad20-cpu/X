@@ -468,21 +468,25 @@
       <div class="view-switch" role="group" aria-label="Vista de ideas">
         <button class="seg active" data-ideaview="notes" aria-pressed="true">Ideas</button>
         <button class="seg" data-ideaview="maps" aria-pressed="false">Mapas mentales</button>
+        <button class="seg" data-ideaview="works" aria-pressed="false">✍️ Mis obras</button>
       </div>
 
       <div id="ideas-notes-pane">
         <form id="idea-form" class="card idea-composer">
           <textarea id="idea-text" class="notes" rows="2" placeholder="Apunta una idea antes de que se escape… (usa #etiquetas; «- [ ]» para una lista)" required maxlength="2000" aria-label="Nueva idea"></textarea>
-          <div class="row"><button type="submit" class="primary">Guardar idea</button><span class="muted">Ctrl + Enter para guardar</span></div>
+          <div class="row"><select id="idea-cat" aria-label="Categoría de la idea"></select><button type="submit" class="primary">Guardar idea</button><span class="muted">Ctrl + Enter para guardar</span></div>
         </form>
         <div class="row idea-tools">
           <input id="idea-search" type="search" placeholder="Buscar ideas" aria-label="Buscar ideas">
           <div id="idea-colors" class="idea-colors" role="group" aria-label="Filtrar por color" hidden></div>
         </div>
+        <div id="idea-cats" class="tag-filter idea-cats" aria-label="Categorías"></div>
         <div id="idea-tags" class="tag-filter" hidden></div>
         <div id="idea-list" class="idea-sections"></div>
         <p id="idea-empty" class="empty">Sin ideas todavía. Las buenas ideas llegan en cualquier momento: apúntalas aquí.</p>
       </div>
+
+      <div id="ideas-works-pane" class="works-pane" hidden></div>
 
       <div id="ideas-maps-pane" hidden>
         <div id="maps-list-pane">
@@ -1233,6 +1237,7 @@
   <script src="js/68-brujula.js"></script>
   <script src="js/69-barra-superior.js"></script>
   <script src="js/70-pensar.js"></script>
+  <script src="js/71-obras.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
