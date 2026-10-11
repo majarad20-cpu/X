@@ -557,9 +557,9 @@ function ribButton(view, icon, label, title) {
 }
 const inboxRib = ribButton('inbox', 'inbox', 'Bandeja', 'Bandeja de entrada');
 inboxRib.append(el('span', { className: 'rib-badge', hidden: true }));
-$('.rib-group[data-group="plan"] .rib-gitems [data-view="review"]')?.before(inboxRib);
+$('[data-group="plan"] [data-view="review"]')?.before(inboxRib);
 const trashRib = ribButton('trash', 'trash', 'Papelera', 'Papelera de notas');
-$('.rib-group[data-group="more"] .rib-gitems')?.append(trashRib);
+$('[data-group="more"] .tb-menu')?.append(trashRib);
 
 // Abajo del explorador.
 const trashEntry = el('button', { id: 'trash-entry', className: 'trash-entry', title: 'Notas borradas en los últimos 30 días' }, [el('span', {}, '🗑 Papelera'), el('span', { className: 'tree-count' })]);

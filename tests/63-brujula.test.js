@@ -15,7 +15,7 @@ const seed = { tasks: [], habits: [], settings: { notesWelcome: true }, notes: [
   await p.goto(url); await p.clock.runFor(800);
   check('sin brújula, Hoy sin tarjeta', await p.evaluate(() => document.getElementById('today-compass').hidden), true);
   // Botón del menú lateral: crea la nota con la plantilla y la abre
-  await p.click('#rib-compass'); await p.clock.runFor(100);
+  await p.click('[data-group=plan] .tb-head'); await p.click('#rib-compass'); await p.clock.runFor(100);
   const info = await p.evaluate(() => { const n = compassNote(); return [n.path, activeTab().id === n.id, state.settings.compassId === n.id, /## 💎 Valores/.test(n.body)]; });
   check('nota creada y abierta', info, ['Mi brújula', true, true, true]);
   check('plantilla vacía: sin frases', await p.evaluate(() => compassItems().length), 0);
