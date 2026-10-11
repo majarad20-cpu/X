@@ -15,7 +15,10 @@ Actualizado el 11/10/2026. La app se usa desde el enlace de Claude, instalado co
    - copias automáticas en Drive con «Restaurar»;
    - imágenes y notas de voz en Drive en lugar del almacén de Claude.
 3. **Limpieza y velocidad** (gasto muy alto): son 65 módulos y 1,6 MB.
-4. **Simplificar menús** (gasto alto).
+4. **Simplificar menús.** Hecho: barra superior de productividad con desplegables, «＋ Nuevo» y contadores (js/69-barra-superior.js). Quedan:
+   - **C:** barra inferior en el móvil (Hoy · Tareas · ＋ · Notas · Más), junto con la adaptación al móvil;
+   - **D:** menú personalizable (ocultar o fijar secciones) y atajos Alt+1…9;
+   - **E:** ordenar los menús internos (⋯ de la nota y clic derecho) (gasto alto).
 
 ## Sin resolver de la segunda revisión (gasto bajo)
 - Al elegir un color de acento en Ajustes se pierde el foco del teclado.

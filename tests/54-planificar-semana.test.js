@@ -49,7 +49,7 @@ const seed = {
   const menu = async (label) => { await p.click(`#note-menu .menu-item:has-text("${label}")`); await tick(); };
 
   // Abrir desde la barra y desde la paleta
-  await p.click('.rib[data-view="plan"]'); await tick();
+  await p.click('[data-group=plan] .tb-head'); await p.click('.rib[data-view="plan"]'); await tick();
   check('barra abre la vista', await p.evaluate(() => [activeTab().view, $('#view-plan').classList.contains('active'), $('#pw-title').textContent]), ['plan', true, 'Semana 42 · 12–18 oct']);
   await p.evaluate(() => showView('today')); await tick();
   await p.evaluate(() => openPalette()); await p.keyboard.type('planificar la semana'); await p.keyboard.press('Enter'); await tick();

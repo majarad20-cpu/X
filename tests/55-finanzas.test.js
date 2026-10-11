@@ -47,7 +47,7 @@ const mock = (initial) => {
   ]);
 
   // ---- La sección y el alta rápida ----
-  await p.click('.rib[data-view="finanzas"]'); await p.clock.runFor(100);
+  await p.click('[data-group=focus] .tb-head'); await p.click('.rib[data-view="finanzas"]'); await p.clock.runFor(100);
   check('sección', [await p.isVisible('#view-finanzas'), await p.textContent('#fin-month')], [true, 'octubre 2026']);
   for (const t of ['12,50 café comida', '+1500 sueldo', 'ayer 30 gasolina transporte']) {
     await p.fill('#fin-amount', t); await p.press('#fin-amount', 'Enter'); await p.clock.runFor(50);

@@ -49,7 +49,7 @@ const url = process.argv[2], S = process.argv[3];
   console.log('tags:', await p.$$eval('.tag-row', n => n.map(x => x.textContent)));
   await p.click('.tag-row'); console.log('search hits:', await p.$$eval('.search-hit .sh-title', n => n.map(x => x.textContent)));
   // Ir a una sección clásica desde la barra
-  await p.click('.rib[data-view=tasks]');
+  await p.click('[data-group=plan] .tb-head'); await p.click('.rib[data-view=tasks]');
   console.log('tasks tab active:', await p.textContent('.ws-tab.active'), await p.isVisible('#task-form'));
   await p.reload();
   console.log('tabs after reload:', await p.$$eval('.ws-tab .ws-tab-label', n => n.map(x => x.textContent)));

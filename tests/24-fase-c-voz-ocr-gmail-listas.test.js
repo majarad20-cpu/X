@@ -98,7 +98,7 @@ const mock = (who) => {
   await p.screenshot({ path: S + '/tasks-mail.png' });
 
   // ---- Listas compartidas
-  await p.click('.rib[data-view=shared]'); await p.waitForTimeout(200);
+  await p.click('[data-group=more] .tb-head'); await p.click('.rib[data-view=shared]'); await p.waitForTimeout(200);
   await p.fill('#shared-new-title', 'Compra de la semana'); await p.press('#shared-new-title', 'Enter'); await p.waitForTimeout(300);
   console.log('list open:', await p.textContent('#shared-title'), '|', await p.textContent('#shared-meta'));
   for (const it of ['Pan', 'Leche', 'Café']) { await p.fill('#shared-item-text', it); await p.press('#shared-item-text', 'Enter'); await p.waitForTimeout(80); }

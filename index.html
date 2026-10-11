@@ -23,26 +23,6 @@
           <button class="rib" data-view="canvas" title="Lienzos" aria-label="Lienzos"><span class="ico" data-icon="canvas"></span><span class="rib-label">Lienzos</span></button>
         </div>
       </div>
-      <div class="rib-group" data-group="plan">
-        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Planificar»"><span class="rib-gname">Planificar</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
-        <div class="rib-gitems">
-          <button class="rib" id="rib-compass" title="Mi brújula: quién soy, valores y objetivos de vida" aria-label="Mi brújula"><span class="ico" data-icon="compass"></span><span class="rib-label">Mi brújula</span></button>
-          <button class="rib" data-view="today" title="Hoy" aria-label="Hoy"><span class="ico" data-icon="sun"></span><span class="rib-label">Hoy</span></button>
-          <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
-          <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
-          <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
-          <button class="rib" data-view="plan" title="Planificar semana" aria-label="Planificar semana"><span class="ico" data-icon="plan-week"></span><span class="rib-label">Planificar semana</span></button>
-        </div>
-      </div>
-      <div class="rib-group" data-group="focus">
-        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Seguimiento»"><span class="rib-gname">Seguimiento</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
-        <div class="rib-gitems">
-          <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
-          <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
-          <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
-          <button class="rib" data-view="finanzas" title="Finanzas" aria-label="Finanzas"><span class="ico" data-icon="coin"></span><span class="rib-label">Finanzas</span></button>
-        </div>
-      </div>
       <div class="rib-group" data-group="write">
         <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Escribir y pensar»"><span class="rib-gname">Escribir y pensar</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
         <div class="rib-gitems">
@@ -51,15 +31,7 @@
           <button class="rib" data-view="ask" title="Preguntar a tus notas" aria-label="Preguntar a tus notas"><span class="ico" data-icon="sparkle"></span><span class="rib-label">Preguntar</span></button>
         </div>
       </div>
-      <div class="rib-group" data-group="more">
-        <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Más»"><span class="rib-gname">Más</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
-        <div class="rib-gitems">
-          <button class="rib" data-view="shared" title="Listas compartidas" aria-label="Listas compartidas"><span class="ico" data-icon="users"></span><span class="rib-label">Listas compartidas</span></button>
-          <button class="rib" id="rib-palette" title="Paleta de comandos (Ctrl+P)" aria-label="Paleta de comandos"><span class="ico" data-icon="command"></span><span class="rib-label">Comandos</span></button>
-        </div>
-      </div>
       <span class="rib-spacer"></span>
-      <button class="rib" id="open-settings" title="Ajustes" aria-label="Ajustes"><span class="ico" data-icon="gear"></span><span class="rib-label">Ajustes</span></button>
     </nav>
 
     <aside id="left-panel" class="side left" aria-label="Panel izquierdo">
@@ -92,6 +64,44 @@
         <button id="gs-open-m" class="side-btn" title="Buscar en todo" aria-label="Buscar en todo"><span class="ico" data-icon="search"></span></button>
         <button id="toggle-right" class="side-btn" aria-label="Abrir panel derecho"><span class="ico" data-icon="panel-right"></span></button>
       </div>
+      <header class="prodbar" aria-label="Productividad">
+        <button class="rib tb-btn tb-today" data-view="today" title="Hoy" aria-label="Hoy"><span class="ico" data-icon="sun"></span><span class="rib-label">Hoy</span><span class="tb-badge" hidden></span></button>
+      <div class="tb-dd" data-group="plan">
+        <button class="tb-btn tb-head" aria-haspopup="menu" aria-expanded="false" title="Planificar"><span class="ico" data-icon="check"></span><span class="tb-name">Planificar</span><span class="tb-chev" aria-hidden="true">▾</span><span class="tb-dot" hidden></span></button>
+        <div class="tb-menu" role="menu" hidden>
+          <button class="rib" id="rib-compass" title="Mi brújula: quién soy, valores y objetivos de vida" aria-label="Mi brújula"><span class="ico" data-icon="compass"></span><span class="rib-label">Mi brújula</span></button>
+          <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
+          <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
+          <button class="rib" data-view="review" title="Revisión semanal" aria-label="Revisión semanal"><span class="ico" data-icon="review"></span><span class="rib-label">Revisión semanal</span></button>
+          <button class="rib" data-view="plan" title="Planificar semana" aria-label="Planificar semana"><span class="ico" data-icon="plan-week"></span><span class="rib-label">Planificar semana</span></button>
+        </div>
+      </div>
+      <div class="tb-dd" data-group="focus">
+        <button class="tb-btn tb-head" aria-haspopup="menu" aria-expanded="false" title="Seguimiento"><span class="ico" data-icon="flame"></span><span class="tb-name">Seguimiento</span><span class="tb-chev" aria-hidden="true">▾</span><span class="tb-dot" hidden></span></button>
+        <div class="tb-menu" role="menu" hidden>
+          <button class="rib" data-view="timer" title="Pomodoro" aria-label="Pomodoro"><span class="ico" data-icon="timer"></span><span class="rib-label">Pomodoro</span></button>
+          <button class="rib" data-view="habits" title="Hábitos" aria-label="Hábitos"><span class="ico" data-icon="flame"></span><span class="rib-label">Hábitos</span></button>
+          <button class="rib" data-view="progress" title="Progreso" aria-label="Progreso"><span class="ico" data-icon="chart"></span><span class="rib-label">Progreso</span></button>
+          <button class="rib" data-view="finanzas" title="Finanzas" aria-label="Finanzas"><span class="ico" data-icon="coin"></span><span class="rib-label">Finanzas</span></button>
+        </div>
+      </div>
+      <div class="tb-dd" data-group="more">
+        <button class="tb-btn tb-head" aria-haspopup="menu" aria-expanded="false" title="Más"><span class="ico" data-icon="more"></span><span class="tb-name">Más</span><span class="tb-chev" aria-hidden="true">▾</span><span class="tb-dot" hidden></span></button>
+        <div class="tb-menu" role="menu" hidden>
+          <button class="rib" data-view="shared" title="Listas compartidas" aria-label="Listas compartidas"><span class="ico" data-icon="users"></span><span class="rib-label">Listas compartidas</span></button>
+          <button class="rib" id="rib-palette" title="Paleta de comandos (Ctrl+P)" aria-label="Paleta de comandos"><span class="ico" data-icon="command"></span><span class="rib-label">Comandos</span></button>
+        </div>
+      </div>
+        <div class="tb-dd" data-group="new">
+          <button class="tb-btn tb-head tb-new" aria-haspopup="menu" aria-expanded="false" title="Crear algo nuevo"><span class="ico" data-icon="plus"></span><span class="tb-name">Nuevo</span><span class="tb-chev" aria-hidden="true">▾</span></button>
+          <div class="tb-menu" role="menu" hidden></div>
+        </div>
+        <span class="tb-spacer"></span>
+        <button id="tb-pomo" class="tb-btn tb-pomo" title="Pomodoro en marcha" hidden></button>
+        <button id="gs-open" class="side-btn gs-open" title="Buscar en todo (Ctrl+K)" aria-label="Buscar en todo"><span class="ico" data-icon="search"></span></button>
+        <button id="drive-sync-btn" class="side-btn drive-sync" title="Sincronizar las notas con Google Drive" aria-label="Sincronizar las notas con Google Drive" hidden><span class="ico" data-icon="cloud-sync"></span><span class="ds-dot" aria-hidden="true"></span></button>
+        <button class="side-btn" id="open-settings" title="Ajustes" aria-label="Ajustes"><span class="ico" data-icon="gear"></span></button>
+      </header>
       <div class="ws-tabbar">
         <div class="nav-arrows">
           <button id="nav-back" class="side-btn" title="Atrás (Alt+←)" aria-label="Atrás" disabled><span class="ico" data-icon="back"></span></button>
@@ -99,8 +109,6 @@
         </div>
         <div id="ws-tabs" class="ws-tabs" role="tablist" aria-label="Pestañas abiertas"></div>
         <button id="ws-new-tab" class="side-btn" title="Nueva nota" aria-label="Nueva nota"><span class="ico" data-icon="plus"></span></button>
-        <button id="gs-open" class="side-btn gs-open" title="Buscar en todo (Ctrl+K)" aria-label="Buscar en todo"><span class="ico" data-icon="search"></span></button>
-        <button id="drive-sync-btn" class="side-btn drive-sync" title="Sincronizar las notas con Google Drive" aria-label="Sincronizar las notas con Google Drive" hidden><span class="ico" data-icon="cloud-sync"></span><span class="ds-dot" aria-hidden="true"></span></button>
         <button id="toggle-right-desk" class="side-btn desk-only" title="Panel derecho" aria-label="Mostrar u ocultar panel derecho"><span class="ico" data-icon="panel-right"></span></button>
       </div>
       <div id="reminders" class="reminders" aria-live="assertive"></div>
@@ -1219,6 +1227,7 @@
   <script src="js/66-pomodoro-extra.js"></script>
   <script src="js/67-deshacer.js"></script>
   <script src="js/68-brujula.js"></script>
+  <script src="js/69-barra-superior.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
