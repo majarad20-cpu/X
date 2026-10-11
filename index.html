@@ -509,8 +509,14 @@
             <button id="mm-child" title="Añadir rama (Tab)">+ Rama</button>
             <button id="mm-sibling" title="Añadir hermano (Enter)">+ Hermano</button>
             <button id="mm-edit" title="Editar texto (F2 o doble clic)">Editar</button>
+            <button id="mm-style" title="Color e icono del nodo">🎨 Estilo</button>
             <button id="mm-task" title="Crear una tarea con este nodo">→ Tarea</button>
             <button id="mm-delete" title="Borrar nodo (Supr)">Borrar</button>
+            <button id="mm-undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶</button>
+            <button id="mm-redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>↷</button>
+            <button id="mm-outline" title="Escribir el mapa como una lista con sangrías (lo más rápido)">☰ Lista</button>
+            <button id="mm-ai" class="ai-only" title="Claude propone ramas para el nodo elegido" hidden>✨ Ideas</button>
+            <button id="mm-more" title="Más opciones" aria-label="Más opciones del mapa">⋯</button>
             <span class="spacer"></span>
             <button id="mm-zoom-out" aria-label="Alejar">−</button>
             <button id="mm-fit" title="Ajustar a la pantalla">Ajustar</button>
@@ -523,7 +529,7 @@
               <div id="map-nodes"></div>
             </div>
           </div>
-          <p class="muted hint">Toca un nodo para seleccionarlo. Doble toque para editar. Arrastra el fondo para moverte por el mapa.</p>
+          <p class="muted hint">Toca un nodo para elegirlo y doble toque para editarlo. Arrastra un nodo sobre otro para moverlo; el fondo, para desplazarte. Clic derecho (o mantener pulsado) en un nodo: más opciones. Pega una lista para crear varias ramas a la vez.</p>
         </div>
       </div>
     </section>
@@ -1238,6 +1244,7 @@
   <script src="js/69-barra-superior.js"></script>
   <script src="js/70-pensar.js"></script>
   <script src="js/71-obras.js"></script>
+  <script src="js/72-mapas-extra.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

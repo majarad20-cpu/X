@@ -289,6 +289,7 @@ function openMap(id) {
 function touchMap(map) {
   map.title = map.nodes.find((n) => !n.parent).text;
   map.updatedAt = Date.now();
+  if (typeof mmRecord === 'function') mmRecord(map); // deshacer del mapa (72-mapas-extra.js)
   save();
 }
 
@@ -356,6 +357,8 @@ const childrenOf = (map, id) => map.nodes.filter((n) => n.parent === id);
 function branchIndex(map, node) {
   if (!node.parent) return -1;
   let n = node;
+  // Un color elegido en el nodo o en uno de sus padres manda (72-mapas-extra.js).
+  for (let x = node; x?.parent; x = map.nodes.find((y) => y.id === x.parent)) if (Number.isInteger(x.color)) return x.color % BRANCH_COUNT;
   while (n.parent && n.parent !== 'root') n = map.nodes.find((x) => x.id === n.parent);
   return childrenOf(map, 'root').indexOf(n) % BRANCH_COUNT;
 }
@@ -391,7 +394,7 @@ function computeLayout(map, sizes) {
   const left = [];
   let acc = 0;
   top.forEach((k) => {
-    if (acc < total / 2 || !right.length) {
+    if (acc < total / 2 || !right.length || map.layout === 'right') {
       right.push(k);
       acc += subH[k.id];
     } else left.push(k);
@@ -512,7 +515,8 @@ function renderMap() {
         input.addEventListener('blur', () => commit(true));
         node.append(input);
       } else {
-        node.append(el('span', { className: 'mm-text' }, n.text));
+        node.append(el('span', { className: 'mm-text' }, n.icon ? `${n.icon} ${n.text}` : n.text));
+        if (typeof mmNodeExtras === 'function') mmNodeExtras(map, n, node); // 72-mapas-extra.js
       }
       if (kids && n.parent) {
         const fold = el('button', { className: 'mm-fold', title: n.collapsed ? 'Desplegar' : 'Plegar', ariaLabel: n.collapsed ? `Desplegar ${kids} ramas` : 'Plegar rama' }, n.collapsed ? `+${kids}` : '−');
@@ -526,7 +530,7 @@ function renderMap() {
       }
       node.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (editingNode === n.id) return;
+        if (editingNode === n.id || (typeof mmJustDragged === 'function' && mmJustDragged())) return;
         selectedNode = n.id;
         renderMap();
         $('#map-canvas').focus({ preventScroll: true });
@@ -662,6 +666,7 @@ function deleteNode() {
     map.updatedAt = Date.now();
     selectedNode = sel.parent;
   });
+  if (typeof mmRecord === 'function') mmRecord(map);
 }
 
 // Moverse con las flechas al nodo más cercano en esa dirección.
@@ -809,7 +814,7 @@ async function exportMap() {
     ctx.fillStyle = depth === 0 ? v('--on-accent') : v('--text');
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
-    const lines = wrapText(ctx, n.text, p.w - (depth === 0 ? 30 : 20));
+    const lines = wrapText(ctx, n.icon ? `${n.icon} ${n.text}` : n.text, p.w - (depth === 0 ? 30 : 20));
     const lh = size * 1.3;
     lines.forEach((l, i) => ctx.fillText(l, p.x + p.w / 2, p.y + p.h / 2 + (i - (lines.length - 1) / 2) * lh));
   });

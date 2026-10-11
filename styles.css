@@ -2872,3 +2872,13 @@ body.gs-open #note-menu { z-index: 96; }
 .work-ch-name { flex: 1; text-align: left; }
 .work-idea span { flex: 1; }
 .work-idea-form input { flex: 1; }
+
+/* Mapas mentales: arrastrar, estilo y lista (72-mapas-extra.js) */
+.mm-node { touch-action: none; }
+.mm-node.mm-dragging { opacity: .35; }
+.mm-node.mm-drop { outline: 3px dashed var(--accent); outline-offset: 3px; }
+.mm-ghost { position: fixed !important; z-index: 90; pointer-events: none; opacity: .85; transform: none !important; box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+.mm-link { border: 0; background: none; padding: 0 0 0 6px; font-size: .85em; cursor: pointer; }
+.mm-outline-modal { width: min(680px, 100%); padding: 16px 18px; gap: 10px; }
+.mm-outline-modal h3 { margin: 0; }
+.mm-outline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9rem; line-height: 1.5; tab-size: 2; min-height: 300px; }
