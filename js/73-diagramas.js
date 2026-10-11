@@ -136,7 +136,7 @@ function dgOrg(map, sizes) {
   const pos = {};
   const paths = [];
   const W = {};
-  const leafGroup = (n) => n.parent && dgKids(map, n.id).length && dgKids(map, n.id).every((k) => !dgKids(map, k.id).length);
+  const leafGroup = (n) => !map.noGroup && n.parent && dgKids(map, n.id).length && dgKids(map, n.id).every((k) => !dgKids(map, k.id).length);
   const measure = (n) => {
     const ks = dgKids(map, n.id);
     const own = sizes[n.id].w;
@@ -497,13 +497,14 @@ $('#mm-kind').addEventListener('click', (e) => {
   const map = currentMap();
   if (!map) return;
   const cur = diagramOf(map).id;
-  const edges = ['mindmap', 'radial', 'org'].includes(cur);
-  const edge = map.edge || (cur === 'org' ? 'elbow' : 'curve');
+  const DEFAULT_EDGE = { org: 'elbow', flow: 'elbow', concept: 'straight' };
+  const edges = ['mindmap', 'radial', 'org', 'concept', 'flow'].includes(cur);
+  const edge = map.edge || DEFAULT_EDGE[cur] || 'curve';
   showMenu(e.currentTarget, [
     ...DIAGRAMS.map((d) => ({ label: `${d.icon} ${d.label}${d.id === cur ? '  ✓' : ''}`, action: () => setDiagram({ kind: d.id === 'mindmap' ? null : d.id }) })),
     ...(edges ? [
       { sep: true },
-      ...[['curve', '〰 Líneas curvas'], ['straight', '／ Líneas rectas'], ['elbow', '⌐ Líneas en ángulo']].map(([id, label]) => ({ label: `${label}${edge === id ? '  ✓' : ''}`, action: () => setDiagram({ edge: id === (cur === 'org' ? 'elbow' : 'curve') ? null : id }) })),
+      ...[['curve', '〰 Líneas curvas'], ['straight', '／ Líneas rectas'], ['elbow', '⌐ Líneas en ángulo']].map(([id, label]) => ({ label: `${label}${edge === id ? '  ✓' : ''}`, action: () => setDiagram({ edge: id === (DEFAULT_EDGE[cur] || 'curve') ? null : id }) })),
     ] : []),
     ...(cur === 'matrix' ? [
       { sep: true },

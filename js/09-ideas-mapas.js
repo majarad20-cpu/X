@@ -477,7 +477,7 @@ function renderMap() {
       const b = branchIndex(map, n);
       const kids = childrenOf(map, n.id).length;
       const node = el('div', {
-        className: `mm-node depth-${Math.min(depth, 2)}${b >= 0 ? ` b${b}` : ''}${n.id === selectedNode ? ' selected' : ''}`,
+        className: `mm-node depth-${Math.min(depth, 2)}${b >= 0 ? ` b${b}` : ''}${n.shape ? ` shape-${n.shape}` : ''}${n.id === selectedNode ? ' selected' : ''}`,
         role: 'treeitem',
         ariaSelected: String(n.id === selectedNode),
         ariaLabel: n.text,
@@ -552,6 +552,7 @@ function renderMap() {
   // Otros tipos de diagrama (organigrama, espina de pescado, matriz…): 73-diagramas.js.
   const layout = typeof diagramLayout === 'function' ? diagramLayout(shown, sizes) : computeLayout(shown, sizes);
   if (typeof mmApplyOffsets === 'function') mmApplyOffsets(shown, layout); // nodos movidos a mano
+  if (typeof dgDecorate === 'function') dgDecorate(shown, layout); // conexiones y palabras de enlace
   mapLayout = layout;
   visible.forEach((n) => {
     const p = layout.pos[n.id];
@@ -564,6 +565,7 @@ function renderMap() {
   svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
   const NS = 'http://www.w3.org/2000/svg';
   if (layout.paths) svg.replaceChildren(diagramSvg(layout));
+  if (typeof dgRenderLabels === 'function') dgRenderLabels(map, layout, nodesEl);
   else svg.replaceChildren(
     ...visible.filter((n) => n.parent).map((n) => {
       const path = document.createElementNS(NS, 'path');
@@ -804,7 +806,8 @@ async function exportMap() {
     const depth = depthOf(map, n);
     const color = depth === 0 ? v('--accent') : v(`--b${branchIndex(map, n)}`);
     ctx.beginPath();
-    ctx.roundRect(p.x, p.y, p.w, p.h, 10);
+    if (typeof dgShapePath === 'function') dgShapePath(ctx, n.shape, p); // formas (73-diagramas.js)
+    else ctx.roundRect(p.x, p.y, p.w, p.h, 10);
     ctx.fillStyle = depth === 0 ? color : v('--surface');
     ctx.fill();
     ctx.lineWidth = depth === 1 ? 2 : 1;

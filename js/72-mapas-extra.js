@@ -7,7 +7,7 @@
 
 // ---------- Deshacer / rehacer ----------
 const mmHist = { id: null, past: [], future: [], last: '', at: 0 };
-const mmJson = (map) => JSON.stringify(map.nodes);
+const mmJson = (map) => JSON.stringify({ nodes: map.nodes, links: map.links || [] });
 
 function mmReset(map) {
   Object.assign(mmHist, { id: map?.id || null, past: [], future: [], last: map ? mmJson(map) : '', at: 0 });
@@ -34,7 +34,10 @@ function mmStep(dir) {
   const to = dir < 0 ? mmHist.future : mmHist.past;
   if (!from.length) return;
   to.push(mmJson(map));
-  map.nodes = JSON.parse(from.pop());
+  const snap = JSON.parse(from.pop());
+  map.nodes = snap.nodes;
+  if (snap.links.length) map.links = snap.links;
+  else delete map.links;
   mmHist.last = mmJson(map);
   mmHist.at = 0;
   if (!map.nodes.some((n) => n.id === selectedNode)) selectedNode = 'root';
