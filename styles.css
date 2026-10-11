@@ -2802,7 +2802,10 @@ body.gs-open #note-menu { z-index: 96; }
   .prodbar::-webkit-scrollbar { display: none; }
 }
 /* Sin espacio (paneles abiertos, móvil): solo iconos */
-@container (max-width: 600px) {
-  .prodbar .tb-name, .prodbar .tb-chev, .prodbar .tb-today .rib-label { display: none; }
-  .tb-btn, .prodbar .rib.tb-btn { padding: 0 8px; }
+@container (max-width: 760px) {
+  .prodbar .tb-chev { display: none; }
+  .tb-btn, .prodbar .rib.tb-btn { padding: 0 7px; gap: 5px; }
+}
+@container (max-width: 540px) {
+  .prodbar .tb-name, .prodbar .tb-today .rib-label { display: none; }
 }
