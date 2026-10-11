@@ -311,9 +311,9 @@ function mmParseLines(text) {
 function mmAddLines(map, parentId, items) {
   const stack = [{ depth: -1, id: parentId }];
   let first = null;
-  items.forEach(({ depth, text }) => {
+  items.forEach(({ depth, text, icon }) => {
     while (stack.length > 1 && stack.at(-1).depth >= depth) stack.pop();
-    const node = { id: uid(), parent: stack.at(-1).id, text };
+    const node = { id: uid(), parent: stack.at(-1).id, text, ...(icon ? { icon } : {}) };
     map.nodes.push(node);
     first ||= node;
     stack.push({ depth, id: node.id });
