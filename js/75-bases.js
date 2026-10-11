@@ -284,10 +284,10 @@ function baseMenu(note, anchor) {
       peSet(note, 'icono', 'text', [...q.trim()].slice(0, 2).join(''));
       renderBases();
     } }) },
-    { label: '🏷 Campos de las entradas nuevas…', action: () => promptText({ placeholder: 'Campos separados por comas (p. ej. autor, estado, puntuacion)', initial: String(propOf(note, 'campos') || ''), action: 'Guardar', onSubmit: (q) => {
+    { label: '🏷 Campos de la base…', action: () => (typeof openFieldsManager === 'function' ? openFieldsManager(note) : promptText({ placeholder: 'Campos separados por comas (p. ej. autor, estado, puntuacion)', initial: String(propOf(note, 'campos') || ''), action: 'Guardar', onSubmit: (q) => {
       peSet(note, 'campos', 'text', q.split(',').map((x) => x.trim()).filter(Boolean).join(', '));
       renderBases();
-    } }) },
+    } })) },
     { label: '📝 Abrir como nota', action: () => openNote(note) },
     { sep: true },
     { label: '🗑 Borrar la base (las entradas no se tocan)', danger: true, action: () => {

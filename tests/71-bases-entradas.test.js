@@ -31,7 +31,9 @@ const now = new Date('2026-10-11T10:00:00').getTime();
   // Editar título, un campo, añadir campo y contenido
   await p.fill('.entry-title', 'Cien años de soledad (1967)');
   await p.fill('.entry-field:has-text("puntuacion") input', '4');
-  await p.click('#entry-modal .link:has-text("Campo")'); await p.keyboard.type('enlace'); await p.keyboard.press('Enter'); await p.clock.runFor(50);
+  await p.click('#entry-modal .link:text-is("＋ Campo")'); await p.keyboard.type('enlace'); await p.keyboard.press('Enter'); await p.clock.runFor(50);
+  await p.click('#picker-list .pk-item:has-text("Enlace (web)")'); await p.clock.runFor(50);
+  await p.click('#picker-list .pk-item:has-text("Solo en esta entrada")'); await p.clock.runFor(50);
   await p.fill('.entry-field:has-text("enlace") input', 'https://ejemplo.org');
   await p.fill('.entry-body', 'Mi reseña: obra maestra.');
   await p.click('#entry-modal button.primary'); await p.clock.runFor(100);
