@@ -328,7 +328,7 @@ function renderMaps() {
     ...list.map((m) => {
       const card = el('div', { className: 'card map-card' });
       const openBtn = el('button', { className: 'map-open' }, [
-        el('span', { className: 'map-card-title' }, m.title),
+        el('span', { className: 'map-card-title' }, typeof diagramIcon === 'function' ? `${diagramIcon(m)} ${m.title}` : m.title),
         el('span', { className: 'muted' }, `${m.nodes.length - 1} ${m.nodes.length === 2 ? 'idea' : 'ideas'} · ${new Date(m.updatedAt).toLocaleDateString('es', { day: 'numeric', month: 'short' })}`),
         miniMap(m),
       ]);
@@ -548,7 +548,9 @@ function renderMap() {
   // Medir, colocar y dibujar las conexiones.
   const sizes = {};
   visible.forEach((n) => (sizes[n.id] = { w: els[n.id].offsetWidth, h: els[n.id].offsetHeight }));
-  const layout = computeLayout({ ...map, nodes: visible.map((n) => (hidden.has(n.id) ? null : n)).filter(Boolean) }, sizes);
+  const shown = { ...map, nodes: visible.map((n) => (hidden.has(n.id) ? null : n)).filter(Boolean) };
+  // Otros tipos de diagrama (organigrama, espina de pescado, matriz…): 73-diagramas.js.
+  const layout = typeof diagramLayout === 'function' ? diagramLayout(shown, sizes) : computeLayout(shown, sizes);
   mapLayout = layout;
   visible.forEach((n) => {
     const p = layout.pos[n.id];
@@ -560,7 +562,8 @@ function renderMap() {
   svg.setAttribute('height', layout.height);
   svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
   const NS = 'http://www.w3.org/2000/svg';
-  svg.replaceChildren(
+  if (layout.paths) svg.replaceChildren(diagramSvg(layout));
+  else svg.replaceChildren(
     ...visible.filter((n) => n.parent).map((n) => {
       const path = document.createElementNS(NS, 'path');
       path.setAttribute('d', edgePath(layout.pos[n.parent], layout.pos[n.id], layout.side[n.id]));
@@ -788,7 +791,8 @@ async function exportMap() {
   ctx.fillRect(0, 0, mapLayout.width, mapLayout.height);
 
   const nodes = map.nodes.filter((n) => mapLayout.pos[n.id]);
-  nodes.filter((n) => n.parent && mapLayout.pos[n.parent]).forEach((n) => {
+  if (mapLayout.paths) diagramCanvas(ctx, mapLayout, v);
+  else nodes.filter((n) => n.parent && mapLayout.pos[n.parent]).forEach((n) => {
     ctx.strokeStyle = v(`--b${branchIndex(map, n)}`);
     ctx.lineWidth = 2;
     ctx.stroke(new Path2D(edgePath(mapLayout.pos[n.parent], mapLayout.pos[n.id], mapLayout.side[n.id])));

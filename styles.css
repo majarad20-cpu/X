@@ -2882,3 +2882,10 @@ body.gs-open #note-menu { z-index: 96; }
 .mm-outline-modal { width: min(680px, 100%); padding: 16px 18px; gap: 10px; }
 .mm-outline-modal h3 { margin: 0; }
 .mm-outline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9rem; line-height: 1.5; tab-size: 2; min-height: 300px; }
+
+/* Tipos de diagrama (73-diagramas.js) */
+.mm-kind { font-weight: 600; }
+.mm-kind-hint { margin: 6px 0 0; }
+#map-form { flex-wrap: wrap; }
+#map-form #map-title { flex: 1; min-width: 200px; }
+.dg-path { stroke-linecap: round; stroke-linejoin: round; }

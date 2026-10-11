@@ -492,7 +492,9 @@
         <div id="maps-list-pane">
           <form id="map-form" class="card row">
             <input id="map-title" type="text" placeholder="Tema central del nuevo mapa (p. ej. Vacaciones de verano)" required maxlength="80">
+            <select id="map-kind" aria-label="Tipo de diagrama"><option value="mindmap">🧠 Mapa mental</option><option value="radial">🌞 Mapa radial</option><option value="org">🏢 Organigrama / árbol</option><option value="outline">🗂️ Esquema (cuadro sinóptico)</option><option value="fishbone">🐟 Espina de pescado</option><option value="process">➡️ Proceso</option><option value="timeline">📅 Línea de tiempo</option><option value="matrix">▦ Matriz</option><option value="pyramid">🔺 Pirámide</option></select>
             <button type="submit" class="primary">Crear mapa</button>
+            <button type="button" id="map-templates" title="Empezar desde una plantilla">📋 Plantillas</button>
           </form>
           <div id="map-list" class="map-grid"></div>
           <p id="map-empty" class="empty">Crea tu primer mapa mental: escribe un tema central y ve sacando ramas.</p>
@@ -506,6 +508,7 @@
             <button id="map-refresh" class="chip" hidden title="Vuelve a generar el mapa con los títulos y listas actuales de la nota">↻ Actualizar desde la nota</button>
           </div>
           <div class="map-actions" role="toolbar" aria-label="Acciones del mapa">
+            <button id="mm-kind" class="mm-kind" title="Tipo de diagrama y estilo">🧠 Mapa mental ▾</button>
             <button id="mm-child" title="Añadir rama (Tab)">+ Rama</button>
             <button id="mm-sibling" title="Añadir hermano (Enter)">+ Hermano</button>
             <button id="mm-edit" title="Editar texto (F2 o doble clic)">Editar</button>
@@ -529,6 +532,7 @@
               <div id="map-nodes"></div>
             </div>
           </div>
+          <p id="mm-kind-hint" class="muted hint mm-kind-hint"></p>
           <p class="muted hint">Toca un nodo para elegirlo y doble toque para editarlo. Arrastra un nodo sobre otro para moverlo; el fondo, para desplazarte. Clic derecho (o mantener pulsado) en un nodo: más opciones. Pega una lista para crear varias ramas a la vez.</p>
         </div>
       </div>
@@ -1245,6 +1249,7 @@
   <script src="js/70-pensar.js"></script>
   <script src="js/71-obras.js"></script>
   <script src="js/72-mapas-extra.js"></script>
+  <script src="js/73-diagramas.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
