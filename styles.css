@@ -2945,3 +2945,15 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .fm-checks { display: grid; gap: 4px; font-size: .9rem; }
 .fm-check { display: flex; gap: 8px; align-items: center; }
 @media (max-width: 540px) { .fm-row { grid-template-columns: 1fr 1fr auto auto auto; } }
+
+/* Importar en una base (78-bases-importar.js) */
+.imp-card { width: min(760px, 100%); }
+.imp-box { display: grid; gap: 10px; }
+.imp-picks { display: flex; flex-wrap: wrap; gap: 10px; }
+.imp-pick { display: grid; gap: 2px; font-size: .85rem; flex: 1 1 200px; }
+.imp-cols { display: grid; gap: 6px; max-height: 42vh; overflow-y: auto; }
+.imp-cols-head { font-size: .85rem; }
+.imp-col { display: grid; grid-template-columns: auto minmax(110px, 1fr) minmax(120px, 30%) minmax(0, 1.2fr); gap: 6px; align-items: center; }
+.imp-sample { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-paste { min-height: 180px; font-family: var(--mono, monospace); font-size: .85rem; }
+@media (max-width: 540px) { .imp-col { grid-template-columns: auto 1fr 1fr; } .imp-sample { grid-column: 2 / -1; } }
