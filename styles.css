@@ -2079,6 +2079,10 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
 .dv-allday.np-note-link { margin-top: 4px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
 .dv-block.np-dv-note { display: block; text-decoration: none; cursor: pointer; touch-action: auto; border-left-color: var(--accent); border-left-style: dotted; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); white-space: nowrap; text-overflow: ellipsis; }
 .today-notes { padding: 10px 14px; margin-bottom: 12px; }
+.today-compass { padding: 10px 14px; margin-bottom: 12px; border-left: 3px solid var(--accent); }
+.compass-label { font-size: .8rem; color: var(--muted); }
+.compass-text { margin: 4px 0 6px; font-size: 1.02rem; line-height: 1.4; }
+.compass-actions { display: flex; gap: 12px; }
 .today-notes-title { font-size: .9rem; margin: 0 0 6px; color: var(--muted); }
 
 /* ---------- Consultas por propiedad y tablero de notas (```tablero) ---------- */
@@ -2767,3 +2771,4 @@ body.gs-open #note-menu { z-index: 96; }
 .note-undo .undo-label { font-size: .8rem; }
 .note-undo .undo-btn:disabled { opacity: .4; cursor: default; background: none; }
 @media (max-width: 700px) { .note-undo .undo-label { display: none; } }
+.compass-goals { margin: 4px 0; padding-left: 20px; font-size: .9rem; }

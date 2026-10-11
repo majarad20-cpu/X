@@ -11,7 +11,7 @@ const REVIEW_STEPS = [
   { id: 'habits', title: 'Hábitos', hint: 'Cómo fue la constancia esta semana.' },
   { id: 'reflect', title: 'Reflexión y prioridades', hint: 'Cierra la semana y elige tus 3 prioridades.' },
 ];
-const review = { step: 0, decisions: [], reflection: { good: '', bad: '', p1: '', p2: '', p3: '' } };
+const review = { step: 0, decisions: [], reflection: { good: '', bad: '', align: '', p1: '', p2: '', p3: '' } };
 
 function nextMonday() {
   return addDays(weekStart(new Date()), 7);
@@ -172,6 +172,7 @@ function renderReviewStep() {
     body.replaceChildren(
       field('good', '¿Qué salió bien esta semana?'),
       field('bad', '¿Qué no salió como esperabas y por qué?'),
+      ...(typeof compassNote === 'function' ? [compassPrompt(field)] : []),
       el('div', { className: 'prompt' }, [el('span', {}, 'Las 3 prioridades de la próxima semana'), prio('p1', 1), prio('p2', 2), prio('p3', 3)]),
       el('label', { className: 'switch rv-tasks' }, [el('input', { type: 'checkbox', id: 'review-prio-tasks', checked: true }), 'Crear también las prioridades como tareas para el lunes'])
     );
@@ -208,6 +209,7 @@ function finishReview() {
     '## 🔧 Lo que no salió como esperaba',
     review.reflection.bad.trim() || '—',
     '',
+    ...(review.reflection.align.trim() ? ['## 🧭 ¿Fue en la dirección de mi brújula?', review.reflection.align.trim(), ''] : []),
     '## 🎯 Prioridades de la próxima semana',
     ...(prios.length ? prios.map((p) => `- [ ] ${p} 📅 ${monday}`) : ['—']),
     '',
@@ -224,7 +226,7 @@ function finishReview() {
   save();
   review.step = 0;
   review.decisions = [];
-  review.reflection = { good: '', bad: '', p1: '', p2: '', p3: '' };
+  review.reflection = { good: '', bad: '', align: '', p1: '', p2: '', p3: '' };
   showToastMessage('Revisión guardada en Revisiones/');
 }
 
