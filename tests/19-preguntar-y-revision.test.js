@@ -54,7 +54,7 @@ const mock = (opts) => {
 
   // ---- Preguntar con herramientas
   let p = await open({ tools: true });
-  await p.click('.rib[data-view=ask]');
+  await p.click('[data-group=write] .tb-head'); await p.click('.rib[data-view=ask]');
   console.log('ask tab:', await p.textContent('.ws-tab.active'), '| empty visible:', await p.isVisible('#ask-empty'), '| form:', await p.isVisible('#ask-form'));
   await p.fill('#ask-input', '¿Qué colores decidimos para la web?');
   await p.press('#ask-input', 'Enter'); await p.clock.runFor(200);
@@ -64,10 +64,10 @@ const mock = (opts) => {
   await p.screenshot({ path: S + '/ask.png' });
   await p.click('.ask-msg.assistant a.wikilink');
   console.log('link opened:', await p.textContent('.ws-tab.active'));
-  await p.click('.rib[data-view=ask]');
+  await p.click('[data-group=write] .tb-head'); await p.click('.rib[data-view=ask]');
   await p.click('#ask-save');
   console.log('saved note:', await p.evaluate(() => state.notes.filter(n => n.path.startsWith('Preguntas/')).map(n => n.path)));
-  await p.click('.rib[data-view=ask]');
+  await p.click('[data-group=write] .tb-head'); await p.click('.rib[data-view=ask]');
   await p.click('#ask-clear');
   console.log('cleared:', await p.$$eval('.ask-msg', n => n.length), '| empty visible:', await p.isVisible('#ask-empty'));
 

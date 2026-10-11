@@ -2802,7 +2802,38 @@ body.gs-open #note-menu { z-index: 96; }
   .prodbar::-webkit-scrollbar { display: none; }
 }
 /* Sin espacio (paneles abiertos, móvil): solo iconos */
-@container (max-width: 600px) {
-  .prodbar .tb-name, .prodbar .tb-chev, .prodbar .tb-today .rib-label { display: none; }
-  .tb-btn, .prodbar .rib.tb-btn { padding: 0 8px; }
+@container (max-width: 760px) {
+  .prodbar .tb-chev { display: none; }
+  .tb-btn, .prodbar .rib.tb-btn { padding: 0 7px; gap: 5px; }
 }
+@container (max-width: 540px) {
+  .prodbar .tb-name, .prodbar .tb-today .rib-label { display: none; }
+}
+
+/* Pensar (70-pensar.js): ánimo y constancia, tal día como hoy */
+.journal-insights { padding: 10px 14px; margin-bottom: 12px; }
+.journal-insights summary { cursor: pointer; font-weight: 600; }
+.ji-stats { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 0 4px; }
+.ji-stat { display: flex; flex-direction: column; }
+.ji-stat strong { font-size: 1.4rem; line-height: 1.2; }
+.ji-stat span { font-size: .8rem; }
+.ji-block { margin-top: 12px; }
+.ji-block h4 { margin: 0 0 6px; font-size: .85rem; color: var(--muted); font-weight: 600; }
+.mood-chart { width: 100%; max-width: 520px; height: auto; display: block; }
+.mood-chart .mc-grid { stroke: var(--border); stroke-width: 1; }
+.mood-chart .mc-axis { font-size: 10px; fill: var(--muted); }
+.mood-chart .mc-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.mood-chart .mc-dot { stroke: var(--surface, var(--bg)); stroke-width: 1.5; }
+.hm-wrap { overflow-x: auto; padding-bottom: 2px; }
+.year-heatmap { width: 100%; min-width: 520px; height: auto; display: block; cursor: pointer; }
+.year-heatmap .hm-cell { fill: var(--border); opacity: .55; }
+.year-heatmap .hm-cell.on { fill: var(--accent); opacity: .45; }
+.year-heatmap .hm-cell.has-mood { opacity: .9; }
+.hm-legend { display: flex; align-items: center; gap: 4px; font-size: .75rem; margin-top: 6px; }
+.hm-legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+.otd-card { padding: 10px 14px; margin-bottom: 12px; border-left: 3px solid #f08c00; }
+.otd-title { margin: 0 0 6px; font-size: .9rem; color: var(--muted); }
+.otd-item + .otd-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.otd-head { display: flex; align-items: center; gap: 8px; }
+.otd-head .link { margin-left: auto; }
+.otd-text { margin: 4px 0 0; line-height: 1.45; }

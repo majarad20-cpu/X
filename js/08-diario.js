@@ -78,7 +78,8 @@ const entryIsEmpty = (e) => !e.text && !(e.sections || []).some((s) => s.a);
 
 function renderComposer() {
   $$('[data-jkind]').forEach((b) => b.classList.toggle('active', b.dataset.jkind === journalKind));
-  $('#journal-hint').textContent = JOURNAL_KINDS[journalKind].hint;
+  const kind = JOURNAL_KINDS[journalKind];
+  $('#journal-hint').replaceChildren(kind.hint, ...(kind.hintExtra ? [' ', kind.hintExtra()] : [])); // «Otra pregunta» (70-pensar.js)
   const draft = readDraft();
   const values = draft.kind === journalKind ? draft : {};
   $('#journal-fields').replaceChildren(...journalFields(journalKind, values));
@@ -565,6 +566,7 @@ function renderJournal() {
   $('#journal-list').replaceChildren(...nodes);
   $('#journal-empty').hidden = list.length > 0;
   $('#journal-empty').textContent = days.length ? 'Ninguna entrada coincide con la búsqueda.' : 'Tu diario está vacío. Escribe la primera entrada arriba.';
+  if (typeof renderJournalInsights === 'function') renderJournalInsights(days); // 70-pensar.js
 }
 
 $('#today-journal').addEventListener('click', () => {
