@@ -2890,3 +2890,19 @@ body.gs-open #note-menu { z-index: 96; }
 #map-form #map-title { flex: 1; min-width: 200px; }
 .dg-path { stroke-linecap: round; stroke-linejoin: round; }
 .mm-node.mm-moving { box-shadow: 0 10px 26px rgb(0 0 0 / .22); z-index: 2; }
+
+/* Formas, conexiones y etiquetas de los mapas (74-conceptual.js) */
+.mm-node.shape-oval { border-radius: 999px; padding-left: 18px; padding-right: 18px; }
+.mm-node.shape-circle { border-radius: 50%; min-width: 86px; min-height: 86px; display: grid; place-items: center; aspect-ratio: 1; padding: 12px; }
+.mm-node.shape-cloud { border-radius: 48% 52% 45% 55% / 60% 50% 50% 40%; padding: 12px 22px; }
+.mm-node.shape-note { border-radius: 3px; background: #fff3a8; color: #3b3200; border-color: #e6d36a; box-shadow: 2px 3px 8px rgb(0 0 0 / .14); }
+.mm-node.shape-diamond, .mm-node.shape-hex { border: 0; background: color-mix(in srgb, var(--bc) 22%, var(--surface)); }
+.mm-node.shape-diamond { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); padding: 22px 34px; min-width: 110px; }
+.mm-node.shape-hex { clip-path: polygon(14% 0, 86% 0, 100% 50%, 86% 100%, 14% 100%, 0 50%); padding: 10px 26px; }
+.mm-node.shape-diamond.selected, .mm-node.shape-hex.selected { background: color-mix(in srgb, var(--bc) 40%, var(--surface)); }
+.mm-elabel { position: absolute; top: 0; left: 0; z-index: 1; border: 0; border-radius: 8px; padding: 1px 7px; background: var(--bg); color: var(--muted); font: 600 .75rem/1.5 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+.mm-elabel.empty { opacity: .55; }
+.mm-elabel:hover { color: var(--accent); }
+.mm-handle { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--accent); background: var(--surface); color: var(--accent); font-size: .75rem; line-height: 1; padding: 0; cursor: crosshair; touch-action: none; z-index: 3; }
+.mm-temp-link { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 5; fill: none; }
+.mm-score { color: var(--accent); font-weight: 700; }
