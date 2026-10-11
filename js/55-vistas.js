@@ -46,7 +46,8 @@ function addViewNote(q, title, key, value) {
   return note;
 }
 
-const viewOpen = (n, e) => openNote(n, { newTab: !!(e?.ctrlKey || e?.metaKey) });
+// En una base (76-bases-entradas.js) un toque abre la ficha de la entrada en vez de la nota.
+const viewOpen = (n, e) => (typeof viewEntryOpen === 'function' && viewEntryOpen(n, e)) || openNote(n, { newTab: !!(e?.ctrlKey || e?.metaKey) });
 
 // ---------- Galería ----------
 const GALLERY_SIZES = { pequeno: 's', small: 's', mediano: 'm', medium: 'm', grande: 'l', large: 'l' };

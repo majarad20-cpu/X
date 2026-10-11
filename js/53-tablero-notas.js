@@ -121,7 +121,7 @@ function boardNoteCard(n, q, cols, ci) {
     tags.length ? el('div', { className: 'nb-tags' }, tags.slice(0, 6).map((t) => el('span', { className: 'nb-tag' }, `#${t}`))) : '',
   ]);
   card.dataset.id = n.id;
-  const open = (e) => openNote(n, { newTab: !!(e?.ctrlKey || e?.metaKey) });
+  const open = (e) => (typeof viewEntryOpen === 'function' && viewEntryOpen(n, e)) || openNote(n, { newTab: !!(e?.ctrlKey || e?.metaKey) });
   const move = (c) => c && c !== cols[ci] && moveBoardNote(n, q.group, c.value);
   let pt = '';
   // Con ratón se arrastra desde cualquier punto; con el dedo, desde el asa (así la página se desplaza).

@@ -23,8 +23,8 @@ const now = new Date('2026-10-11T10:00:00').getTime();
   // Nueva entrada: nota en la carpeta con los campos y el diálogo de propiedades
   await p.click('.base-top button:has-text("Nueva entrada")'); await p.clock.runFor(50);
   await p.keyboard.type('Rayuela'); await p.keyboard.press('Enter'); await p.clock.runFor(100);
-  check('entrada creada', await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Biblioteca/Rayuela'); return [!!n, ['autor', 'estado', 'puntuacion', 'genero'].every((k) => n.body.includes(`${k}:`)), !document.getElementById('qb-props').hidden]; }), [true, true, true]);
-  await p.evaluate(() => qbPropsClose()); await p.clock.runFor(50);
+  check('entrada creada', await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Biblioteca/Rayuela'); return [!!n, ['autor', 'estado', 'puntuacion', 'genero'].every((k) => n.body.includes(`${k}:`)), !document.getElementById('entry-modal').hidden]; }), [true, true, true]);
+  await p.keyboard.press('Escape'); await p.clock.runFor(50);
   check('tabla con 2 filas', await p.$$eval('.base-content table tbody tr', (r) => r.length), 2);
   // Tablero (Kanban) sin abrir ninguna nota
   await p.click('.base-tabs .seg:has-text("Por estado")'); await p.clock.runFor(50);

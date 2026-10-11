@@ -201,7 +201,8 @@ function newEntry(note, v) {
       const keys = fields.length ? fields : [...new Set(state.notes.filter((n) => folderOf(n.path) === folder && !n.enc).slice(0, 20).flatMap((n) => parseProps(n.body).props.map((p) => p.key)))];
       const entry = createNote({ folder, title, body: `${propsBlock(Object.fromEntries(keys.map((k) => [k, ''])))}\n`, open: false });
       renderBases();
-      qbOpenProps(entry);
+      if (typeof openEntry === 'function') openEntry(entry); // ficha (76-bases-entradas.js)
+      else qbOpenProps(entry);
     },
   });
 }
@@ -290,9 +291,8 @@ function baseMenu(note, anchor) {
     { label: '📝 Abrir como nota', action: () => openNote(note) },
     { sep: true },
     { label: '🗑 Borrar la base (las entradas no se tocan)', danger: true, action: () => {
-      if (typeof trashNotes === 'function') trashNotes([note]);
-      else deleteNote(note);
       bases.open = null;
+      deleteNote(note);
       renderAll();
     } },
   ]);
