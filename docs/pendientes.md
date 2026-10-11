@@ -36,12 +36,9 @@ Actualizado el 11/10/2026. La app se usa desde el enlace de Claude, instalado co
 - Grafo «neuronal».
 
 ## Ideas nuevas
-- **Planificación estratégica de vida («Mi brújula»):**
-  - quién soy, filosofía, valores y principios;
-  - misión y visión;
-  - roles;
-  - objetivos de vida por áreas (10, 5 y 1 año), enlazados con proyectos y hábitos.
-  - Se recordarían en Hoy y en la revisión semanal. Encaja con «Áreas» de la Fase 2.
+- **Mi brújula, siguiente paso:** la versión sencilla ya está hecha (js/68-brujula.js). Faltan:
+  - enlazar cada objetivo con sus proyectos y hábitos y ver su avance (encaja con «Áreas» de la Fase 2);
+  - redactarla con ayuda de Claude.
 - Diario en la bitácora, en Claude y en «Preguntar».
 
 ## Descartado por ahora

@@ -26,6 +26,7 @@
       <div class="rib-group" data-group="plan">
         <button class="rib-ghead" aria-expanded="true" title="Plegar o desplegar «Planificar»"><span class="rib-gname">Planificar</span><span class="rib-gchev" aria-hidden="true">▾</span></button>
         <div class="rib-gitems">
+          <button class="rib" id="rib-compass" title="Mi brújula: quién soy, valores y objetivos de vida" aria-label="Mi brújula"><span class="ico" data-icon="compass"></span><span class="rib-label">Mi brújula</span></button>
           <button class="rib" data-view="today" title="Hoy" aria-label="Hoy"><span class="ico" data-icon="sun"></span><span class="rib-label">Hoy</span></button>
           <button class="rib" data-view="tasks" title="Tareas" aria-label="Tareas"><span class="ico" data-icon="check"></span><span class="rib-label">Tareas</span></button>
           <button class="rib" data-view="projects" title="Proyectos" aria-label="Proyectos"><span class="ico" data-icon="briefcase"></span><span class="rib-label">Proyectos</span></button>
@@ -206,6 +207,7 @@
       </div>
 
       <div id="today-calendar" class="today-calendar" hidden></div>
+      <div id="today-compass" class="card today-compass" hidden></div>
       <div id="today-notes" class="card today-notes" hidden></div>
 
       <h2 class="section-title">Para hoy</h2>
@@ -1216,6 +1218,7 @@
   <script src="js/65-finanzas.js"></script>
   <script src="js/66-pomodoro-extra.js"></script>
   <script src="js/67-deshacer.js"></script>
+  <script src="js/68-brujula.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>
