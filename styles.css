@@ -2923,3 +2923,14 @@ body.gs-open #note-menu { z-index: 96; }
 .base-content { min-height: 200px; }
 .base-content .query { margin: 0; }
 #views-pane main:has(#view-bases.active) { max-width: none; }
+
+/* Ficha de una entrada de base (76-bases-entradas.js) */
+.entry-card { width: min(620px, 100%); padding: 16px 18px; gap: 10px; overflow-y: auto; }
+.entry-head { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.entry-head .spacer, .entry-actions .spacer { flex: 1; }
+.entry-title { font-size: 1.25rem; font-weight: 700; padding: 6px 10px; }
+.entry-fields { display: grid; gap: 6px; }
+.entry-field { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; align-items: center; gap: 8px; }
+.entry-key { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.entry-body { min-height: 120px; }
+.entry-actions { flex-wrap: wrap; gap: 8px; }
