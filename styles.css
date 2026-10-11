@@ -2889,3 +2889,4 @@ body.gs-open #note-menu { z-index: 96; }
 #map-form { flex-wrap: wrap; }
 #map-form #map-title { flex: 1; min-width: 200px; }
 .dg-path { stroke-linecap: round; stroke-linejoin: round; }
+.mm-node.mm-moving { box-shadow: 0 10px 26px rgb(0 0 0 / .22); z-index: 2; }

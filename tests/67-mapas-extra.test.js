@@ -27,12 +27,13 @@ const seed = {
   // Arrastrar «Japón» sobre «Presupuesto»
   const box = async (id) => (await p.$(`#map-nodes [data-id="${id}"]`)).boundingBox();
   const from = await box('a1'); const to = await box('b');
+  await p.keyboard.down('Shift');
   await p.mouse.move(from.x + 10, from.y + 10); await p.mouse.down();
   await p.mouse.move(from.x + 40, from.y + 30, { steps: 4 });
   await p.mouse.move(to.x + 15, to.y + 10, { steps: 6 });
-  check('marca destino', await p.evaluate(() => !!document.querySelector('.mm-node.mm-drop')), true);
-  await p.mouse.up(); await p.clock.runFor(100);
-  check('arrastrado', await p.evaluate(() => currentMap().nodes.find((n) => n.id === 'a1').parent), 'b');
+  check('Mayús: marca destino', await p.evaluate(() => !!document.querySelector('.mm-node.mm-drop')), true);
+  await p.mouse.up(); await p.keyboard.up('Shift'); await p.clock.runFor(100);
+  check('Mayús+arrastrar cambia de rama', await p.evaluate(() => currentMap().nodes.find((n) => n.id === 'a1').parent), 'b');
   // Deshacer y rehacer
   await p.focus('#map-canvas'); await p.keyboard.press('Control+z'); await p.clock.runFor(50);
   check('deshacer', await p.evaluate(() => currentMap().nodes.find((n) => n.id === 'a1').parent), 'a');
@@ -69,5 +70,34 @@ const seed = {
   await p.evaluate(() => { selectedNode = 'a'; renderMap(); });
   await p.click('#map-nodes [data-id="a"]', { button: 'right' }); await p.click('#note-menu .menu-item:has-text("Crear nota de este nodo")'); await p.clock.runFor(100);
   check('nota del nodo', await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Destino'); return [!!n, n.body.includes('- Italia\n  - Roma'), currentMap().nodes.find((x) => x.id === 'a').noteId === n.id]; }), [true, true, true]);
+  // ---------- Mover libremente ----------
+  await p.evaluate(() => { openMap(currentMap().id); mmFoldAll(false); currentMap().kind = undefined; mmResetPositions(true); selectedNode = 'b'; renderMap(); fitMap(); });
+  const b0 = await box('b'); const k0 = await p.evaluate(() => { const m = currentMap(); const k = childrenOf(m, 'b')[0]; return [k.id, mapLayout.pos[k.id].x, mapLayout.pos[k.id].y, mapLayout.pos.b.x, mapLayout.pos.b.y]; });
+  await p.mouse.move(b0.x + 10, b0.y + 8); await p.mouse.down();
+  await p.mouse.move(b0.x + 60, b0.y + 120, { steps: 8 }); await p.clock.runFor(50);
+  await p.mouse.up(); await p.clock.runFor(100);
+  const after = await p.evaluate((kid) => { const m = currentMap(); const n = m.nodes.find((x) => x.id === 'b'); return [n.dx, n.dy, n.parent, mapLayout.pos[kid].x - mapLayout.pos.b.x, mapLayout.pos[kid].y - mapLayout.pos.b.y]; }, k0[0]);
+  check('movido libremente (sin cambiar de rama)', [after[0] > 30, after[1] > 80, after[2]], [true, true, 'root']);
+  check('sus hijos lo acompañan', [after[3], after[4]], [k0[1] - k0[3], k0[2] - k0[4]]);
+  await p.focus('#map-canvas'); await p.keyboard.press('Control+z'); await p.clock.runFor(50);
+  check('deshacer el movimiento', await p.evaluate(() => currentMap().nodes.find((x) => x.id === 'b').dx || 0), 0);
+  await p.keyboard.press('Control+y'); await p.clock.runFor(50);
+  // En un organigrama, la línea hasta la idea movida se vuelve a trazar
+  await p.evaluate(() => { currentMap().kind = 'org'; renderMap(); });
+  check('línea que sigue a la idea', await p.evaluate(() => { const g = document.querySelector('#map-edges g'); return [...g.querySelectorAll('path')].some((x) => x.getAttribute('d').includes('C')); }), true);
+  // Doble clic en un hueco: idea nueva ahí
+  const cv = await (await p.$('#map-canvas')).boundingBox();
+  const n0 = await p.evaluate(() => currentMap().nodes.length);
+  await p.evaluate(() => { selectedNode = 'root'; renderMap(); });
+  await p.mouse.dblclick(cv.x + cv.width - 60, cv.y + cv.height - 40); await p.clock.runFor(100);
+  check('doble clic crea idea', await p.evaluate((n) => [currentMap().nodes.length === n + 1, !!document.querySelector('.mm-input')], n0), [true, true]);
+  const spot = await p.evaluate(() => { const el = document.querySelector('.mm-input').closest('.mm-node').getBoundingClientRect(); return [el.x + el.width / 2, el.y + el.height / 2]; });
+  await p.keyboard.type('Aquí'); await p.keyboard.press('Enter'); await p.clock.runFor(50);
+  check('aparece donde se hizo doble clic', Math.abs(spot[0] - (cv.x + cv.width - 60)) < 30 && Math.abs(spot[1] - (cv.y + cv.height - 40)) < 30, true);
+  // Colgar de otra idea desde el menú
+  await p.evaluate(() => { selectedNode = currentMap().nodes.find((x) => x.text === 'Aquí').id; mmPickParent(); }); await p.clock.runFor(50);
+  await p.click('#picker-list .pk-item:has-text("Presupuesto")'); await p.clock.runFor(50);
+  check('colgar de otra idea', await p.evaluate(() => { const n = currentMap().nodes.find((x) => x.text === 'Aquí'); return [n.parent, n.dx === undefined]; }), ['b', true]);
+  check('sin botón de hermano', await p.isHidden('#mm-sibling'), true);
   console.log('errors:', errs); await b.close();
 })();

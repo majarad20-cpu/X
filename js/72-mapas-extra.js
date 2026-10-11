@@ -133,11 +133,18 @@ function mmNodeExtras(map, n, node) {
   node.addEventListener('pointerdown', (e) => mmPointerDown(e, map, n, node));
 }
 
+// Arrastrar una idea la mueve libremente por el plano (con todo lo que cuelga de ella) y las líneas
+// la siguen. Con Mayús, o desde el menú, se suelta sobre otra idea para cambiarla de rama.
+let mmDragActive = false;
 function mmPointerDown(e, map, n, node) {
   if (e.button !== 0 || editingNode || e.target.closest('.mm-fold, .mm-link')) return;
   const start = { x: e.clientX, y: e.clientY };
+  const reparent = e.shiftKey;
+  const base = { dx: n.dx || 0, dy: n.dy || 0 };
   let ghost = null;
   let target = null;
+  let dragging = false;
+  let frame = 0;
   const press = e.pointerType !== 'mouse' && setTimeout(() => {
     // Pulsación larga sin moverse: menú del nodo (en tablet y móvil).
     cleanup();
@@ -147,9 +154,23 @@ function mmPointerDown(e, map, n, node) {
     showMenu({ x: start.x, y: start.y }, mmMenuItems());
   }, 550);
   const move = (ev) => {
-    if (!ghost && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
+    if (!dragging && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
     clearTimeout(press);
-    if (!n.parent) return; // el tema central no se mueve
+    if (!n.parent) return; // el tema central se queda; el fondo se arrastra para moverse por el mapa
+    dragging = true;
+    if (!reparent) {
+      // Mover: se redibuja a cada fotograma con el nuevo desplazamiento.
+      mmDragActive = true;
+      selectedNode = n.id;
+      n.dx = Math.round(base.dx + (ev.clientX - start.x) / mapZoom);
+      n.dy = Math.round(base.dy + (ev.clientY - start.y) / mapZoom);
+      if (!frame) frame = requestAnimationFrame(() => {
+        frame = 0;
+        renderMap();
+        $(`#map-nodes [data-id="${n.id}"]`)?.classList.add('mm-moving');
+      });
+      return;
+    }
     if (!ghost) {
       ghost = node.cloneNode(true);
       ghost.classList.add('mm-ghost');
@@ -168,19 +189,36 @@ function mmPointerDown(e, map, n, node) {
   };
   const cleanup = () => {
     clearTimeout(press);
+    cancelAnimationFrame(frame);
+    frame = 0;
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
-    document.removeEventListener('pointercancel', cleanup);
+    document.removeEventListener('pointercancel', cancel);
     ghost?.remove();
     node.classList.remove('mm-dragging');
     target?.classList.remove('mm-drop');
   };
+  const cancel = () => {
+    cleanup();
+    if (dragging && !reparent) {
+      Object.assign(n, base);
+      mmDragActive = false;
+      renderMap();
+    }
+  };
   const up = () => {
     const dropOn = target?.dataset.id;
-    const dragged = !!ghost;
     cleanup();
-    if (!dragged) return;
+    if (!dragging) return;
     mmDragEnd = Date.now();
+    mmDragActive = false;
+    if (!reparent) {
+      if (!n.dx) delete n.dx;
+      if (!n.dy) delete n.dy;
+      touchMap(map);
+      renderMap();
+      return;
+    }
     if (dropOn && mmMove(map, n.id, dropOn)) {
       selectedNode = n.id;
       renderMap();
@@ -188,8 +226,77 @@ function mmPointerDown(e, map, n, node) {
   };
   document.addEventListener('pointermove', move);
   document.addEventListener('pointerup', up);
-  document.addEventListener('pointercancel', cleanup);
+  document.addEventListener('pointercancel', cancel);
 }
+
+// Cambiar de rama desde el menú (sin arrastrar): se elige la idea de la que colgará.
+function mmPickParent() {
+  const map = currentMap();
+  const node = map && mmNode(map, selectedNode);
+  if (!node?.parent) return;
+  const banned = mmDescendants(map, node.id);
+  pickFrom('Colgar esta idea de…', map.nodes.filter((x) => x.id !== node.id && x.id !== node.parent && !banned.has(x.id)).map((x) => ({
+    label: `${x.icon ? `${x.icon} ` : ''}${x.text}`,
+    detail: x.parent ? '' : 'Tema central',
+    action: () => {
+      delete node.dx;
+      delete node.dy;
+      if (mmMove(map, node.id, x.id)) renderMap();
+    },
+  })));
+}
+
+// Volver a la colocación automática.
+function mmResetPositions(all) {
+  const map = currentMap();
+  if (!map) return;
+  const ids = all ? null : new Set([selectedNode, ...mmDescendants(map, selectedNode)]);
+  map.nodes.forEach((x) => {
+    if (ids && !ids.has(x.id)) return;
+    delete x.dx;
+    delete x.dy;
+  });
+  touchMap(map);
+  renderMap();
+  if (all) fitMap();
+}
+
+// Doble clic en un hueco del plano: idea nueva conectada a la elegida, justo ahí.
+$('#map-canvas').addEventListener('dblclick', (e) => {
+  if (e.target.closest('.mm-node') || editingNode) return;
+  const map = currentMap();
+  if (!map || !mapLayout) return;
+  const parent = mmNode(map, selectedNode) || mmNode(map, 'root');
+  const node = { id: uid(), parent: parent.id, text: 'Nueva idea' };
+  map.nodes.push(node);
+  parent.collapsed = false;
+  selectedNode = node.id;
+  const c = $('#map-canvas');
+  const centerOf = () => {
+    const r = $(`#map-nodes [data-id="${node.id}"]`)?.getBoundingClientRect();
+    return r ? [r.left + r.width / 2, r.top + r.height / 2] : null;
+  };
+  // Sin que el lienzo se desplace solo: se mide dónde cae y se corrige hasta el punto del clic.
+  mmDragActive = true;
+  try {
+    renderMap();
+    const at = centerOf();
+    if (at) {
+      node.dx = Math.round((e.clientX - at[0]) / mapZoom);
+      node.dy = Math.round((e.clientY - at[1]) / mapZoom);
+    }
+    editingNode = node.id;
+    touchMap(map);
+    renderMap();
+    const now = centerOf();
+    if (now) {
+      c.scrollLeft += now[0] - e.clientX;
+      c.scrollTop += now[1] - e.clientY;
+    }
+  } finally {
+    mmDragActive = false;
+  }
+});
 
 // ---------- Estilo: color e icono ----------
 const MM_ICONS = ['⭐', '❗', '❓', '✅', '💡', '🎯', '⚠️', '❤️', '🔥', '📌', '💰', '📅', '👤', '🔗', '🚀', '🧩'];
@@ -232,13 +339,14 @@ function mmMenuItems() {
   const kids = childrenOf(map, node.id).length;
   const note = node.noteId && noteById(node.noteId);
   return [
-    { label: '＋ Rama', kbd: 'Tab', action: () => addNode('child') },
-    ...(isRoot ? [] : [{ label: '＋ Hermano', kbd: 'Enter', action: () => addNode('sibling') }]),
+    { label: '＋ Nueva idea conectada', kbd: 'Tab', action: () => addNode('child') },
     { label: '✏️ Editar texto', kbd: 'F2', action: startNodeEdit },
     { label: '🎨 Color e icono…', action: () => mmStyleMenu({ x: innerWidth / 2 - 100, y: 140 }) },
     ...(aiReady() ? [{ label: '✨ Ideas de Claude para esta rama', action: mmAiIdeas }] : []),
     { sep: true },
     ...(isRoot ? [] : [
+      { label: '↪ Colgar de otra idea…', kbd: 'Mayús+arrastrar', action: mmPickParent },
+      ...(node.dx || node.dy ? [{ label: '↺ Volver a su sitio', action: () => mmResetPositions(false) }] : []),
       { label: '⬆ Subir', kbd: 'Alt+↑', action: () => mmShift(-1) },
       { label: '⬇ Bajar', kbd: 'Alt+↓', action: () => mmShift(1) },
     ]),
@@ -258,6 +366,8 @@ $('#mm-more').addEventListener('click', (e) => {
   const map = currentMap();
   if (!map) return;
   showMenu(e.currentTarget, [
+    { label: '↺ Colocar todo automáticamente', disabled: !map.nodes.some((x) => x.dx || x.dy), action: () => mmResetPositions(true) },
+    { sep: true },
     { label: '▾ Plegar todas las ramas', action: () => mmFoldAll(true) },
     { label: '▸ Desplegar todo', action: () => mmFoldAll(false) },
     { sep: true },

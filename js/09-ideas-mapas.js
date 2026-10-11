@@ -551,6 +551,7 @@ function renderMap() {
   const shown = { ...map, nodes: visible.map((n) => (hidden.has(n.id) ? null : n)).filter(Boolean) };
   // Otros tipos de diagrama (organigrama, espina de pescado, matriz…): 73-diagramas.js.
   const layout = typeof diagramLayout === 'function' ? diagramLayout(shown, sizes) : computeLayout(shown, sizes);
+  if (typeof mmApplyOffsets === 'function') mmApplyOffsets(shown, layout); // nodos movidos a mano
   mapLayout = layout;
   visible.forEach((n) => {
     const p = layout.pos[n.id];
@@ -593,6 +594,7 @@ function renderMap() {
 
 // Desplaza el lienzo para que el nodo quede a la vista.
 function revealNode(id) {
+  if (typeof mmDragActive !== 'undefined' && mmDragActive) return; // mientras se arrastra, el lienzo no salta
   const p = mapLayout?.pos[id];
   if (!p) return;
   const c = $('#map-canvas');
