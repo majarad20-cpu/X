@@ -2229,6 +2229,18 @@ body.qb-modal-open #note-menu { z-index: 96; }
 /* ---------- Planificar mi día y notas de voz (58-plan-dia.js, 35-voz.js) ---------- */
 .pld-modal { width: min(860px, 100%); }
 .pld-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.pld-body > * { flex-shrink: 0; }
+.pld-add { flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.pld-add label { display: inline-flex; align-items: center; gap: 4px; font-size: .9rem; }
+#pld-add-title { flex: 1 1 220px; min-width: 0; }
+#pld-add-dur { width: 5em; }
+.pld-add-help { margin: -4px 0 0; font-size: .8rem; }
+.pld-timeline { cursor: copy; }
+.pld-dur-wrap { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; }
+.pld-times input.pld-dur { width: 4.5em; }
+.pld-blk.pld-new, .pld-row.pld-new { border-left-style: dashed; }
+.pld-todo { list-style: none; padding-left: 0 !important; display: flex; flex-direction: column; gap: 4px; }
+.pld-todo li { display: flex; gap: 6px; align-items: center; }
 .pld-form label { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; }
 #pld-hint { width: 100%; box-sizing: border-box; resize: vertical; }
 #pld-status { font-size: .88rem; }

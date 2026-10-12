@@ -64,7 +64,7 @@ function pdPrompt(ctx, hint) {
     subtareasPendientes: (t.subtasks || []).filter((s) => !s.done).length,
     vencida: !!(t.due && t.due < dateKey()),
   }));
-  const events = pd.events.map((e) => ({ titulo: e.title, inicio: hm(e.start), fin: hm(e.end) }));
+  const events = ctx.events.map((e) => ({ titulo: e.title, inicio: hm(e.start), fin: hm(e.end) }));
   return `Eres un asistente de productividad. Organiza el día de esta persona en bloques de tiempo.
 
 Día: ${d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (${pd.key}).
@@ -174,11 +174,20 @@ function pdDialog() {
         <label>Desde <input id="pld-from" type="time" step="300"></label>
         <label>hasta <input id="pld-to" type="time" step="300"></label>
       </div>
-      <textarea id="pld-hint" rows="2" maxlength="1000" placeholder="Opcional: «hoy quiero terminar el informe por la mañana»" aria-label="Indicaciones para el plan"></textarea>
+      <div class="row pld-add" role="group" aria-label="Añadir al plan">
+        <input id="pld-add-title" type="text" list="pld-add-list" maxlength="120" placeholder="＋ Añadir una tarea o actividad (p. ej. Gimnasio)" aria-label="Tarea o actividad">
+        <datalist id="pld-add-list"></datalist>
+        <label>de <input id="pld-add-from" type="time" step="300" aria-label="Hora de inicio"></label>
+        <label>a <input id="pld-add-to" type="time" step="300" aria-label="Hora de fin"></label>
+        <label>o dura <input id="pld-add-dur" type="number" min="5" max="720" step="5" placeholder="30" aria-label="Duración en minutos"> min</label>
+        <button id="pld-add-go" type="button">Añadir</button>
+      </div>
+      <p class="muted pld-add-help">Pon la hora de inicio y la de fin, o el inicio y cuánto dura. Sin hora, va al primer hueco libre. También puedes tocar la línea de tiempo para elegir la hora.</p>
+      <textarea id="pld-hint" rows="2" maxlength="1000" placeholder="Opcional, para Claude: «hoy quiero terminar el informe por la mañana»" aria-label="Indicaciones para el plan"></textarea>
       <div class="row"><button id="pld-go" class="primary">✨ Proponer plan</button><button id="pld-stop" hidden>Detener</button><span id="pld-status" class="muted" role="status"></span></div>
       <p id="pld-label" class="pld-label" hidden></p>
       <div class="pld-main">
-        <div id="pld-timeline" class="pld-timeline" aria-hidden="true"></div>
+        <div id="pld-timeline" class="pld-timeline" title="Toca para añadir algo a esa hora"></div>
         <div class="pld-side"><ul id="pld-list" class="pld-list"></ul><div id="pld-out" class="pld-out"></div></div>
       </div>
       <label class="switch pld-gcal" id="pld-gcal-wrap"><input id="pld-gcal" type="checkbox"> Crear también los bloques en Google Calendar</label>
@@ -201,6 +210,17 @@ function pdDialog() {
     save();
     pdRender();
   };
+  $('#pld-add-go').addEventListener('click', pdAddManual);
+  ['#pld-add-title', '#pld-add-from', '#pld-add-to', '#pld-add-dur'].forEach((id) => $(id).addEventListener('keydown', (e) => e.key === 'Enter' && (e.preventDefault(), pdAddManual())));
+  // Tocar un hueco de la línea de tiempo: esa hora (redondeada a 15 min) en «de».
+  $('#pld-timeline').addEventListener('click', (e) => {
+    if (e.target.closest('.pld-blk')) return;
+    const tl = $('#pld-timeline');
+    const m = Math.round(((e.clientY - tl.getBoundingClientRect().top) / PD_PX) * 4) * 15 + (Number(tl.dataset.h0) || 0) * 60;
+    $('#pld-add-from').value = hm(Math.max(0, Math.min(23 * 60 + 45, m)));
+    $('#pld-add-to').value = '';
+    $('#pld-add-title').focus();
+  });
   $('#pld-from').addEventListener('change', hours);
   $('#pld-to').addEventListener('change', hours);
   box.addEventListener('keydown', (e) => {
@@ -240,13 +260,15 @@ async function openPlanDay(key = dateKey()) {
   $('#pld-from').value = h.from;
   $('#pld-to').value = h.to;
   $('#pld-gcal').checked = false;
+  ['#pld-add-title', '#pld-add-from', '#pld-add-to', '#pld-add-dur'].forEach((id) => ($(id).value = ''));
+  $('#pld-add-list').replaceChildren(...pd.tasks.map((t) => el('option', { value: pdTitle(t.title, 120) })));
   $('#pld-gcal-wrap').hidden = !cal.mcp;
   $('#pld-go').textContent = aiReady() ? '✨ Proponer plan con Claude' : '⚡ Proponer plan automático';
   $('#pld-label').hidden = true;
   $('#pld').hidden = false;
   $('#pld-status').textContent = pd.tasks.length ? `${plural(pd.tasks.length, 'tarea pendiente', 'tareas pendientes')} para planificar.` : 'No hay tareas pendientes para ese día.';
   pdRender();
-  $('#pld-hint').focus();
+  $('#pld-add-title').focus();
   if (cal.mcp) {
     try {
       const evs = await pdEvents(key);
@@ -260,12 +282,21 @@ async function openPlanDay(key = dateKey()) {
   }
 }
 
+// Lo añadido a mano se queda: cuenta como ocupado y sus tareas no se vuelven a planificar.
+function pdKeepManual(res, manual) {
+  const taken = new Set(manual.map((b) => b.task).filter(Boolean));
+  res.blocks = res.blocks.filter((b) => !(b.task && taken.has(b.task)) && !manual.some((m) => pdOverlap(m, b))).concat(manual).sort((a, b) => a.start - b.start);
+  return res;
+}
+
 async function pdPropose() {
-  const ctx = pdCtx();
+  const manual = pd.blocks.filter((b) => b.manual);
+  const base = pdCtx();
+  const ctx = { ...base, events: base.events.concat(manual.map((b) => ({ title: b.title, start: b.start, end: b.end }))) };
   if (!pd.tasks.length) return ($('#pld-status').textContent = 'No hay tareas pendientes para ese día.');
   if (ctx.to <= ctx.lower) return ($('#pld-status').textContent = 'El horario de trabajo de ese día ya ha terminado.');
   const local = (why = '') => {
-    Object.assign(pd, pdLocalPlan(ctx), { auto: true });
+    Object.assign(pd, pdKeepManual(pdLocalPlan(ctx), manual), { auto: true });
     $('#pld-status').textContent = why;
     pdRender();
   };
@@ -278,7 +309,7 @@ async function pdPropose() {
   try {
     const raw = await askJSON(pdPrompt(ctx, $('#pld-hint').value.trim()), { signal: pd.ctl.signal });
     if (pd.key !== key) return;
-    const res = pdValidate(raw, ctx);
+    const res = pdKeepManual(pdValidate(raw, ctx), manual);
     Object.assign(pd, res, { auto: false });
     $('#pld-status').textContent = res.dropped ? `Se descartaron ${plural(res.dropped, 'bloque no válido', 'bloques no válidos')} (horas fuera del horario, solapes o tareas desconocidas).` : '';
     pdRender();
@@ -297,11 +328,60 @@ async function pdPropose() {
   }
 }
 
+// ---------- Añadir a mano ----------
+// Primer hueco libre de «dur» minutos desde «from» (eventos y bloques ocupan; 10 min entre bloques).
+function pdFreeSlot(ctx, dur, skip = null) {
+  const busy = ctx.events.concat(pd.blocks.filter((b) => b !== skip).map((b) => ({ start: b.start, end: b.end + 10 })));
+  let s = ctx.lower;
+  while (s + dur <= 24 * 60) {
+    const cand = { start: s, end: s + dur };
+    const hit = busy.filter((b) => pdOverlap(b, cand)).sort((a, b) => b.end - a.end)[0];
+    if (!hit) return s;
+    s = hit.end;
+  }
+  return null;
+}
+
+// Una tarea pendiente (por su nombre) o una actividad nueva, con hora de inicio y fin o duración.
+function pdAddManual() {
+  const name = pdTitle($('#pld-add-title').value, 120);
+  if (!name) return $('#pld-add-title').focus();
+  const ctx = pdCtx();
+  const task = pd.tasks.find((t) => pdTitle(t.title, 120).toLowerCase() === name.toLowerCase()) || null;
+  let start = pdMin($('#pld-add-from').value);
+  let end = pdMin($('#pld-add-to').value);
+  const dur = Math.round(Number($('#pld-add-dur').value)) || null;
+  const len = Math.min(720, Math.max(5, dur || Number(task?.duration) || 30));
+  if (start === null && end !== null) start = end - len;
+  if (start === null) start = pdFreeSlot(ctx, len);
+  if (start === null || start < 0) return ($('#pld-status').textContent = 'No queda un hueco libre así de largo: ponle una hora.');
+  if (end === null || end <= start) end = Math.min(24 * 60, start + len);
+  const blk = task ? pd.blocks.find((b) => b.task === task) : null;
+  if (blk) Object.assign(blk, { start, end, fixed: false, manual: true, motivo: 'Añadida a mano' });
+  else pd.blocks.push({ task, title: task ? task.title : name, start, end, motivo: task ? 'Añadida a mano' : 'Actividad nueva', manual: true, isNew: !task });
+  pd.blocks.sort((a, b) => a.start - b.start);
+  ['#pld-add-title', '#pld-add-from', '#pld-add-to', '#pld-add-dur'].forEach((id) => ($(id).value = ''));
+  $('#pld-status').textContent = `«${task ? task.title : name}» de ${hm(start)} a ${hm(end)}`;
+  pdRender();
+  $('#pld-add-title').focus();
+}
+
+// Una pendiente al primer hueco libre (con su duración o 30 min).
+function pdPlaceTask(t) {
+  const ctx = pdCtx();
+  const len = Math.min(240, Number(t.duration) || 30);
+  const start = pdFreeSlot(ctx, len);
+  if (start === null) return ($('#pld-status').textContent = 'No queda un hueco libre: ponle una hora arriba.');
+  pd.blocks.push({ task: t, title: t.title, start, end: start + len, motivo: 'Añadida a mano', manual: true });
+  pd.blocks.sort((a, b) => a.start - b.start);
+  pdRender();
+}
+
 // Bloques con algún problema tras editarlos a mano (horas al revés, fuera del horario o solapes).
 function pdProblems(ctx) {
   const bad = new Set();
   pd.blocks.forEach((b, i) => {
-    if (b.end <= b.start || b.start < ctx.from || b.end > ctx.to || ctx.events.some((e) => pdOverlap(e, b)) || pd.blocks.some((o, j) => j !== i && pdOverlap(o, b))) bad.add(b);
+    if (b.end <= b.start || (!b.manual && (b.start < ctx.from || b.end > ctx.to)) || ctx.events.some((e) => pdOverlap(e, b)) || pd.blocks.some((o, j) => j !== i && pdOverlap(o, b))) bad.add(b);
   });
   return bad;
 }
@@ -324,9 +404,10 @@ function pdRender() {
   nodes.push(el('div', { className: 'pld-off', style: `top:0;height:${y(ctx.from)}px` }), el('div', { className: 'pld-off', style: `top:${y(ctx.to)}px;height:${y(h1 * 60) - y(ctx.to)}px` }));
   const place = (s, e) => `top:${y(s)}px;height:${Math.max(16, y(e) - y(s) - 2)}px`;
   pd.events.forEach((e) => nodes.push(el('div', { className: 'pld-blk pld-ev', style: place(e.start, e.end), title: `${hm(e.start)}–${hm(e.end)} ${e.title}` }, `📅 ${e.title}`)));
-  pd.blocks.forEach((b) => nodes.push(el('div', { className: `pld-blk ${b.task ? `p${b.task.priority}` : 'pld-break'}${bad.has(b) ? ' bad' : ''}`, style: place(b.start, Math.max(b.end, b.start + 5)), title: `${hm(b.start)}–${hm(b.end)} ${b.title}` }, `${hm(b.start)} ${b.title}`)));
+  pd.blocks.forEach((b) => nodes.push(el('div', { className: `pld-blk ${b.task ? `p${b.task.priority}` : b.isNew ? 'p2 pld-new' : 'pld-break'}${bad.has(b) ? ' bad' : ''}`, style: place(b.start, Math.max(b.end, b.start + 5)), title: `${hm(b.start)}–${hm(b.end)} ${b.title}` }, `${hm(b.start)} ${b.title}`)));
   const tl = $('#pld-timeline');
   tl.style.height = `${y(h1 * 60) + 8}px`;
+  tl.dataset.h0 = h0;
   tl.replaceChildren(...nodes);
 
   // Lista editable
@@ -335,35 +416,50 @@ function pdRender() {
       // Las de hora fija conservan su hora.
       const s = el('input', { type: 'time', value: hm(b.start), step: 300, disabled: !!b.fixed, ariaLabel: `Inicio de ${b.title}` });
       const e = el('input', { type: 'time', value: hm(b.end), step: 300, disabled: !!b.fixed, ariaLabel: `Fin de ${b.title}` });
-      const upd = () => {
+      const d = el('input', { type: 'number', className: 'pld-dur', min: 5, max: 720, step: 5, value: Math.max(0, b.end - b.start), disabled: !!b.fixed, ariaLabel: `Duración de ${b.title} en minutos`, title: 'Duración (min)' });
+      const upd = (keepDur) => {
         const a = pdMin(s.value);
-        const z = pdMin(e.value);
+        const z = keepDur ? (a ?? 0) + (b.end - b.start) : pdMin(e.value);
         if (a === null || z === null) return;
         b.start = a;
-        b.end = z;
+        b.end = Math.min(24 * 60, z);
         pdRender();
       };
-      s.addEventListener('change', upd);
-      e.addEventListener('change', upd);
+      // Cambiar el inicio mueve el bloque entero; el fin o la duración cambian su largo.
+      s.addEventListener('change', () => upd(true));
+      e.addEventListener('change', () => upd(false));
+      d.addEventListener('change', () => {
+        const n = Math.round(Number(d.value));
+        if (!(n >= 5)) return pdRender();
+        b.end = Math.min(24 * 60, b.start + n);
+        pdRender();
+      });
       const x = el('button', { className: 'side-btn pld-del', ariaLabel: `Quitar ${b.title}`, title: 'Quitar este bloque' }, '✕');
       x.addEventListener('click', () => {
         pd.blocks = pd.blocks.filter((o) => o !== b);
-        if (b.task) pd.fuera.push({ task: b.task, motivo: 'Quitado del plan' });
+        if (b.task && !b.manual) pd.fuera.push({ task: b.task, motivo: 'Quitado del plan' });
         pdRender();
       });
-      return el('li', { className: `pld-row ${b.task ? `p${b.task.priority}` : 'pld-break'}${bad.has(b) ? ' bad' : ''}` }, [
-        el('div', { className: 'pld-times' }, [s, '–', e]),
-        el('div', { className: 'pld-info' }, [el('strong', {}, b.title), b.motivo ? el('span', { className: 'muted' }, b.motivo) : '', b.task?.virtual ? el('span', { className: 'muted' }, '📝 De una nota') : '']),
+      return el('li', { className: `pld-row ${b.task ? `p${b.task.priority}` : b.isNew ? 'p2 pld-new' : 'pld-break'}${bad.has(b) ? ' bad' : ''}` }, [
+        el('div', { className: 'pld-times' }, [s, '–', e, el('span', { className: 'pld-dur-wrap' }, [d, el('span', { className: 'muted' }, 'min')])]),
+        el('div', { className: 'pld-info' }, [el('strong', {}, `${b.isNew ? '🆕 ' : ''}${b.title}`), b.motivo ? el('span', { className: 'muted' }, b.motivo) : '', b.task?.virtual ? el('span', { className: 'muted' }, '📝 De una nota') : '']),
         x,
       ]);
     })
   );
-  const out = pd.fuera.filter((f) => !pd.blocks.some((b) => b.task === f.task));
+  // Pendientes sin bloque (con el motivo si se quedaron fuera de la propuesta), con «＋» para ponerlas.
+  const why = new Map(pd.fuera.map((f) => [f.task, f.motivo]));
+  const out = pd.tasks.filter((t) => !pd.blocks.some((b) => b.task === t));
+  const planned = pd.blocks.length || pd.auto;
   $('#pld-out').replaceChildren(
     ...(pd.note ? [el('p', { className: 'lock-error' }, pd.note)] : []),
-    ...(out.length && (pd.blocks.length || pd.auto) ? [el('h4', {}, 'Fuera del plan'), el('ul', {}, out.map((f) => el('li', {}, [f.task.title, el('span', { className: 'muted' }, ` · ${f.motivo}`)])))] : [])
+    ...(out.length ? [el('h4', {}, planned ? 'Fuera del plan' : 'Por planificar'), el('ul', { className: 'pld-todo' }, out.map((t) => {
+      const add = el('button', { type: 'button', className: 'side-btn pld-place', title: 'Ponerla en el primer hueco libre', ariaLabel: `Añadir ${t.title} al plan` }, '＋');
+      add.addEventListener('click', () => pdPlaceTask(t));
+      return el('li', {}, [add, el('span', {}, [t.title, t.duration ? el('span', { className: 'muted' }, ` · ${t.duration} min`) : '', why.has(t) ? el('span', { className: 'muted' }, ` · ${why.get(t)}`) : ''])]);
+    }))] : [])
   );
-  const n = pd.blocks.filter((b) => b.task).length;
+  const n = pd.blocks.filter((b) => b.task || b.isNew).length;
   $('#pld-accept').disabled = !n || bad.size > 0;
   $('#pld-accept').textContent = bad.size ? 'Corrige las horas marcadas' : n ? `Aceptar (${plural(n, 'tarea', 'tareas')})` : 'Aceptar';
 }
@@ -395,17 +491,19 @@ async function pdAccept() {
   const key = pd.key;
   const run = pd.run;
   const chosen = pd.blocks.filter((b) => b.task).map((b) => ({ ...b, task: pdFresh(b.task) })).filter((b) => b.task);
-  if (!chosen.length) return showToastMessage('Las tareas del plan ya no existen.');
+  // Actividades nuevas: se crean como tareas de ese día con su hora y duración.
+  const fresh = pd.blocks.filter((b) => b.isNew).map((b) => ({ ...b, task: { id: `nueva-${uid()}`, title: b.title } }));
+  if (!chosen.length && !fresh.length) return showToastMessage('Las tareas del plan ya no existen.');
   let res = { text: '', made: {} };
   if ($('#pld-gcal').checked && cal.mcp) {
     $('#pld-accept').disabled = true;
     $('#pld-status').textContent = 'Creando los eventos en Google Calendar…';
-    res = await pdCreateEvents(key, chosen);
+    res = await pdCreateEvents(key, chosen.concat(fresh));
     if (pd.run !== run || $('#pld').hidden) return pdCancelled(res.made);
   }
   closePlanDay();
   const made = Object.keys(res.made).length;
-  withUndo(`Plan aplicado: ${plural(chosen.length, 'tarea con hora', 'tareas con hora')}${res.text ? ` · ${res.text}` : ''}${made ? ' · Deshacer no borra los eventos del calendario' : ''}`, () => {
+  withUndo(`Plan aplicado: ${plural(chosen.length + fresh.length, 'tarea con hora', 'tareas con hora')}${res.text ? ` · ${res.text}` : ''}${made ? ' · Deshacer no borra los eventos del calendario' : ''}`, () => {
     // El registro de eventos va dentro del cambio: al deshacer vuelve a como estaba.
     const g = (state.settings.planEvents ||= {});
     Object.assign(g, res.made);
@@ -415,6 +513,13 @@ async function pdAccept() {
       pdApplyTask(b.task, key, b.start, b.end - b.start);
       const ev = g[pdEventKey(b.task)];
       if (!b.task.virtual && ev?.day === key) b.task.calEventId = ev.id;
+    }
+    for (const b of fresh) {
+      const t = addTask(b.title, { raw: true, due: key, time: hm(b.start) });
+      const dur = b.end - b.start;
+      if (dur !== DV_DEFAULT_MIN) t.duration = dur;
+      const ev = g[b.task.id];
+      if (ev?.day === key) t.calEventId = ev.id;
     }
   });
   if (res.text && calEnabled()) loadCalendar({ refresh: true });
