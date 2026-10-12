@@ -105,6 +105,8 @@ const mock = (opts) => {
   console.log('fuera:', await p.textContent('#pld-out'), '| xss:', await p.evaluate(() => window.__xss ?? 'no'), await p.$$eval('#pld img', (n) => n.length));
   // Editar la hora del informe y quitar el bloque raro
   await p.fill('#pld-list li:nth-child(1) input[type=time] >> nth=0', '09:15'); await p.dispatchEvent('#pld-list li:nth-child(1) input[type=time] >> nth=0', 'change');
+  // Cambiar el inicio mueve el bloque entero: el fin se vuelve a poner a las 10:30
+  await p.fill('#pld-list li:nth-child(1) input[type=time] >> nth=1', '10:30'); await p.dispatchEvent('#pld-list li:nth-child(1) input[type=time] >> nth=1', 'change');
   await p.click('#pld-list li:has-text("img") .pld-del');
   // Una hora que choca con la reunión bloquea Aceptar
   await p.fill('#pld-list li:has-text("propuesta") input[type=time] >> nth=1', '11:30'); await p.dispatchEvent('#pld-list li:has-text("propuesta") input[type=time] >> nth=1', 'change');
