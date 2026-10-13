@@ -45,12 +45,15 @@ async function runGoogleAutomations() {
 }
 
 // ---------- Copia en Google Drive ----------
-// Carpeta «Enfoque» en Mi unidad: se busca una vez y se recuerda su id.
+// Carpeta «Enfoque» en Mi unidad: se busca una vez y se recuerda su id (renombrarla o moverla no
+// importa). Si hay que buscarla de nuevo, vale también con un número delante, como «4.- ENFOQUE».
+const DRIVE_FOLDER_RE = /^[\s\d.)\-_]*enfoque\s*$/i;
 async function driveFolder() {
   const g = gSettings();
   if (g.driveFolder) return g.driveFolder;
-  const found = await gCall(DRIVE, 'search_files', { query: `title = 'Enfoque' and mimeType = '${FOLDER_MIME}' and owner = 'me'`, pageSize: 5, excludeContentSnippets: true });
-  let folder = (found.files || []).find((f) => f.mimeType === FOLDER_MIME);
+  const found = await gCall(DRIVE, 'search_files', { query: `title contains 'Enfoque' and mimeType = '${FOLDER_MIME}' and owner = 'me'`, pageSize: 20, excludeContentSnippets: true });
+  const dirs = (found.files || []).filter((f) => f.mimeType === FOLDER_MIME && DRIVE_FOLDER_RE.test(f.title || '')).sort((a, b) => (a.title === 'Enfoque' ? 0 : 1) - (b.title === 'Enfoque' ? 0 : 1) || String(a.createdTime || '').localeCompare(String(b.createdTime || '')));
+  let folder = dirs[0];
   if (!folder) folder = await gCall(DRIVE, 'create_file', { title: 'Enfoque', contentMimeType: FOLDER_MIME });
   if (!folder?.id) throw new Error('sin carpeta');
   Object.assign(gSettings(), { driveFolder: folder.id, driveFolderUrl: folder.viewUrl || `https://drive.google.com/drive/folders/${folder.id}` });
