@@ -94,6 +94,14 @@ const mock = () => {
   await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Estocismo/Dicotomía del control'); n.body += '\nMás'; n.updatedAt = Date.now(); save(); });
   await p.clock.runFor(40000);
   check('guardada en su carpeta', await p.evaluate(() => window.__files.filter((f) => !f.trashed && f.title === 'Dicotomía del control.md').map((f) => [f.parentId, f.text.endsWith('Más')])), [['est', true]]);
+  // Carpeta renombrada («4.- ENFOQUE»): si hay que volver a buscarla, se encuentra igual
+  check('carpeta renombrada', await p.evaluate(async () => {
+    const f = window.__files.find((x) => x.title === 'Enfoque');
+    f.title = '4.- ENFOQUE';
+    window.__files.push({ id: 'otra', title: 'Enfoque viejo', mimeType: 'application/vnd.google-apps.folder', modifiedTime: '2024-01-01T00:00:00Z' });
+    delete gSettings().driveFolder;
+    return [await driveFolder() === f.id, window.__files.filter((x) => /enfoque/i.test(x.title)).length];
+  }), [true, 2]);
   console.log('errors:', JSON.stringify(errs)); await b.close();
   process.exit(errs.length ? 1 : 0);
 })();
