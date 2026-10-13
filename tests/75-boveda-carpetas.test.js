@@ -1,0 +1,99 @@
+const { chromium, launchOptions } = require('./helpers');
+const url = process.argv[2];
+const now = new Date('2026-10-09T10:00:00').getTime();
+const mock = () => {
+  window.__calls = [];
+  const files = [];
+  window.__files = files;
+  const FOLDER = 'application/vnd.google-apps.folder';
+  const live = () => files.filter((f) => !f.trashed);
+  const mcp = {
+    callTool: async (server, tool, input) => {
+      window.__calls.push([server, tool, input]);
+      if (server !== 'Google Drive') throw { code: 'tool_error', message: 'no' };
+      if (tool === 'search_files') {
+        const q = input.query;
+        const t = q.match(/title = '([^']+)'/);
+        const since = q.match(/modifiedTime > '([^']+)'/);
+        const parents = [...q.matchAll(/parentId = '([^']+)'/g)].map((m) => m[1]);
+        let out = live();
+        if (t) out = out.filter((f) => f.title === t[1]);
+        if (parents.length) out = out.filter((f) => parents.includes(f.parentId));
+        if (since) out = out.filter((f) => f.modifiedTime > since[1]);
+        if (/mimeType = 'application\/vnd.google-apps.folder'/.test(q)) out = out.filter((f) => f.mimeType === FOLDER);
+        return { payload: { files: out.map(({ text, trashed, ...f }) => f) } };
+      }
+      if (tool === 'create_file') {
+        if (input.contentMimeType !== FOLDER && !input.textContent) throw { code: 'tool_error', message: 'Only the following first-party mimetypes are supported for empty files' };
+        const f = { id: 'f' + files.length, title: input.title, mimeType: input.contentMimeType, parentId: input.parentId, modifiedTime: new Date().toISOString(), text: input.textContent };
+        files.push(f);
+        const { text, ...meta } = f;
+        return { payload: meta };
+      }
+      if (tool === 'trash_file') {
+        const f = files.find((x) => x.id === input.fileId);
+        if (f) f.trashed = true;
+        return { payload: {} };
+      }
+      if (tool === 'download_file_content') {
+        const f = files.find((x) => x.id === input.fileId);
+        return { payload: { id: f.id, content: btoa(String.fromCharCode(...new TextEncoder().encode(f.text))) } };
+      }
+      throw { code: 'tool_error', message: 'no' };
+    },
+  };
+  window.claude = { use: async (n) => (n === 'mcp' ? mcp : null) };
+};
+(async () => {
+  const b = await chromium.launch(launchOptions);
+  const c = await b.newContext({ viewport: { width: 1280, height: 900 } });
+  await c.addInitScript(mock);
+  await c.addInitScript((s) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify(s)); }, {
+    tasks: [], habits: [], settings: { notesWelcome: true },
+    notes: [{ id: 'a', path: 'Inicio', body: '# Inicio', createdAt: now, updatedAt: now }],
+    updatedAt: 1,
+  });
+  await c.route(/fonts\.g/, (r) => r.abort());
+  const p = await c.newPage(); const errs = [];
+  const check = (label, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); console.log(`${label}: ${JSON.stringify(got)}${ok ? ' ok' : ` ESPERADO ${JSON.stringify(want)}`}`); if (!ok) errs.push(label); };
+  p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
+  await p.clock.install({ time: new Date(now) });
+  await p.goto(url); await p.clock.runFor(1500);
+  for (let i = 0; i < 20 && !(await p.evaluate(() => gAvailable())); i++) await p.clock.runFor(500);
+  await p.evaluate(() => { const i = document.getElementById('gvault-on'); i.checked = true; i.dispatchEvent(new Event('change')); });
+  await p.clock.runFor(2000);
+  // Copias de carpetas de Obsidian con fechas antiguas: una en «Enfoque» y otra en «Enfoque/Notas»
+  await p.evaluate(() => {
+    const F = 'application/vnd.google-apps.folder';
+    const enfoque = window.__files.find((x) => x.title === 'Enfoque' && x.mimeType === F);
+    const notas = window.__files.find((x) => x.title === 'Notas' && x.mimeType === F);
+    const old = '2024-01-01T00:00:00Z';
+    const add = (f) => window.__files.push({ modifiedTime: old, mimeType: 'text/markdown', ...f });
+    add({ id: 'est', title: 'Estocismo', mimeType: F, parentId: enfoque.id });
+    add({ id: 'e1', title: 'Dicotomía del control.md', parentId: 'est', text: '# Dicotomía\nVer [[Séneca]]' });
+    add({ id: 'sen', title: 'Autores', mimeType: F, parentId: 'est' });
+    add({ id: 'e2', title: 'Séneca.md', parentId: 'sen', text: 'Cartas a Lucilio\r\n' });
+    add({ id: 'obs', title: '.obsidian', mimeType: F, parentId: 'est' });
+    add({ id: 'e3', title: 'workspace.md', parentId: 'obs', text: 'x' });
+    add({ id: 'img', title: 'foto.png', mimeType: 'image/png', parentId: 'est', text: 'x' });
+    add({ id: 'ma', title: 'Marco Aurelio', mimeType: F, parentId: notas.id });
+    add({ id: 'e4', title: 'Meditaciones.md', parentId: 'ma', text: 'Libro II' });
+  });
+  await p.evaluate(() => syncVault({ manual: true }));
+  await p.clock.runFor(1000);
+  check('notas traídas', await p.evaluate(() => state.notes.map((n) => n.path).sort()), ['Estocismo/Autores/Séneca', 'Estocismo/Dicotomía del control', 'Inicio', 'Marco Aurelio/Meditaciones']);
+  check('contenido', await p.evaluate(() => state.notes.find((n) => n.path === 'Estocismo/Autores/Séneca').body), 'Cartas a Lucilio\n');
+  check('enlace resuelto', await p.evaluate(() => !!findNoteByName('Séneca')), true);
+  // Otra sincronización no duplica ni vuelve a subir
+  const creates = await p.evaluate(() => window.__calls.filter((x) => x[1] === 'create_file').length);
+  await p.evaluate(() => syncVault({ manual: true }));
+  await p.clock.runFor(40000);
+  check('sin duplicados', await p.evaluate(() => state.notes.length), 4);
+  check('sin resubir', await p.evaluate(() => window.__calls.filter((x) => x[1] === 'create_file').length), creates);
+  // Editar una nota de Estocismo se guarda en su carpeta de Drive
+  await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Estocismo/Dicotomía del control'); n.body += '\nMás'; n.updatedAt = Date.now(); save(); });
+  await p.clock.runFor(40000);
+  check('guardada en su carpeta', await p.evaluate(() => window.__files.filter((f) => !f.trashed && f.title === 'Dicotomía del control.md').map((f) => [f.parentId, f.text.endsWith('Más')])), [['est', true]]);
+  console.log('errors:', JSON.stringify(errs)); await b.close();
+  process.exit(errs.length ? 1 : 0);
+})();
