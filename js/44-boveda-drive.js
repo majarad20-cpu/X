@@ -237,13 +237,71 @@ async function pullVault() {
   return changed;
 }
 
+// Busca en toda la bóveda (y en las carpetas que pusiste directamente en «Enfoque», como una
+// carpeta de Obsidian copiada) los .md que la app aún no conoce, aunque su fecha sea antigua: al copiar
+// una carpeta, Drive conserva la fecha original y el repaso normal (por cambios recientes) no los ve.
+// Las carpetas que empiezan por «.» (como .obsidian) se saltan. Si ya hay una nota con esa ruta, se
+// enlaza con el archivo en vez de duplicarla.
+async function scanVaultNew() {
+  const m = vaultMap();
+  if (!m.root) return 0;
+  const known = new Set(Object.values(m.files).map((f) => f.id));
+  const ignore = new Set(m.ignore);
+  let made = 0;
+  const visit = async (folderId, path, depth = 0) => {
+    if (depth > 12) return;
+    for (const f of await listVaultFolder(folderId)) {
+      if (f.mimeType === FOLDER_MIME) {
+        if (/^\./.test(f.title)) continue;
+        const sub = joinPath(path, cleanName(f.title) || 'Carpeta');
+        if (!m.folders[sub]) m.folders[sub] = f.id;
+        await visit(f.id, sub, depth + 1);
+      } else if (/\.md$/i.test(f.title) && !known.has(f.id) && !ignore.has(f.id)) {
+        const title = cleanName(f.title.replace(/\.md$/i, '')) || 'Sin título';
+        const same = state.notes.find((n) => n.path.toLowerCase() === joinPath(path, title).toLowerCase());
+        if (same) {
+          if (!m.files[same.id] && !same.enc) m.files[same.id] = { id: f.id, path: same.path, at: same.updatedAt || 0, mt: f.modifiedTime || '' };
+          continue;
+        }
+        const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
+        if (typeof got.content !== 'string') continue;
+        const n = createNote({ folder: path, title, body: b64ToText(got.content).replace(/\r\n?/g, '\n'), open: false, log: false });
+        if (path && !state.folders.includes(path)) state.folders.push(path);
+        m.files[n.id] = { id: f.id, path: n.path, at: n.updatedAt, mt: f.modifiedTime || '' };
+        known.add(f.id);
+        if (++made % 10 === 0) vaultStatus(`Trayendo notas de Drive… ${made}`);
+      }
+    }
+    saveVaultMap();
+  };
+  await visit(m.root, '');
+  // Carpetas puestas directamente en «Enfoque» (fuera de «Notas»): también son notas.
+  const mapped = new Set(Object.values(m.folders));
+  for (const f of await listVaultFolder(await driveFolder())) {
+    if (f.mimeType !== FOLDER_MIME || f.id === m.root || mapped.has(f.id) || /^\./.test(f.title)) continue;
+    const path = cleanName(f.title) || 'Carpeta';
+    if (!m.folders[path]) m.folders[path] = f.id;
+    await visit(f.id, path);
+  }
+  m.lastScan = Date.now();
+  saveVaultMap();
+  if (made) {
+    dataRev++;
+    save();
+    renderAll();
+  }
+  return made;
+}
+
 async function syncVault({ manual = false, adopt = false } = {}) {
   if (!vaultOn() || vault.busy) return;
   vault.busy = true;
   if (manual) vaultStatus('Sincronizando con Drive…');
   if (typeof renderDriveBtn === 'function') renderDriveBtn();
   try {
-    const pulled = Date.now() - (vaultMap().lastPull || 0) > VAULT_PULL_MS || manual ? await pullVault() : 0;
+    let pulled = Date.now() - (vaultMap().lastPull || 0) > VAULT_PULL_MS || manual ? await pullVault() : 0;
+    // Al sincronizar a mano (y cada media hora) se buscan también carpetas y .md nuevos aunque sean antiguos.
+    if (manual || adopt || Date.now() - (vaultMap().lastScan || 0) > 30 * 60000) pulled += await scanVaultNew();
     const pushed = await pushVault({ adopt });
     const m = vaultMap();
     m.lastSync = Date.now();
