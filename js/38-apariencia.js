@@ -78,7 +78,10 @@ const SKINS = {
   brutal: { label: 'Neobrutalista', hint: 'Bordes gruesos, sombras duras y negritas', radius: 'soft' },
 };
 
-const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true, obsHeadings: 'off', obsGuides: 'off', obsTags: 'off', obsCallouts: 'off', obsMark: 'off' };
+const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true, obsHeadings: 'off', obsGuides: 'off', obsTags: 'off', obsCallouts: 'off', obsMark: 'off', sideSize: 'small', treeWrap: 'off' };
+
+// Tamaño del lado izquierdo (menú y panel de notas): todo se reduce o agranda a la vez.
+const SIDE_SIZES = { xsmall: ['Muy pequeño', 0.8], small: ['Pequeño', 0.88], normal: ['Normal', 1], large: ['Grande', 1.12] };
 
 // Detalles típicos de Obsidian que se pueden activar uno a uno (con cualquier tema).
 const OBS_DETAILS = {
@@ -143,6 +146,9 @@ function applyLook() {
   set('--font-note', (FONTS[L.noteFont] || FONTS.system).stack);
   set('--ui-scale', `${Math.min(130, Math.max(80, Number(L.scale) || 100))}%`);
   set('--note-fs', `${Math.min(24, Math.max(13, Number(L.noteSize) || 16)) / 16}rem`);
+  // Lado izquierdo (menú y panel de notas): tamaño propio; nombres largos en una o varias líneas.
+  set('--sidek', String((SIDE_SIZES[L.sideSize] || SIDE_SIZES.small)[1]));
+  root.dataset.treeWrap = L.treeWrap === 'on' ? 'on' : 'off';
   set('--note-lh', (LINE_HEIGHTS[L.lineHeight] || LINE_HEIGHTS.normal)[1]);
   set('--note-w', (NOTE_WIDTHS[L.noteWidth] || NOTE_WIDTHS.normal)[1]);
   renderWidthButton(L);
@@ -317,6 +323,8 @@ function renderAppearance() {
     row('Interlineado de las notas', seg('lineHeight', LINE_HEIGHTS, 'Interlineado')),
     el('h3', { className: 'ap-sub' }, 'Diseño'),
     row('Barra de la izquierda', seg('ribbonLabels', { on: ['Iconos y nombres'], off: ['Solo iconos'] }, 'Barra de la izquierda'), 'Muestra el nombre de cada sección junto a su icono'),
+    row('Tamaño del lado izquierdo', seg('sideSize', SIDE_SIZES, 'Tamaño del lado izquierdo'), 'El menú (Notas, Nota diaria…) y el listado de notas'),
+    row('Nombres largos en el panel', seg('treeWrap', { off: ['Una línea (cortados)'], on: ['Completos (varias líneas)'] }, 'Nombres largos en el panel')),
     row('Ancho de las notas', seg('noteWidth', NOTE_WIDTHS, 'Ancho de las notas')),
     row('Esquinas', seg('radius', RADII, 'Esquinas')),
     row('Densidad', seg('density', { comfortable: ['Cómoda'], compact: ['Compacta'] }, 'Densidad'), 'Compacta muestra más cosas a la vez'),
