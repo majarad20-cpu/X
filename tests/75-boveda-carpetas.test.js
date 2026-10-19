@@ -37,7 +37,7 @@ const mock = () => {
       }
       if (tool === 'download_file_content') {
         const f = files.find((x) => x.id === input.fileId);
-        return { payload: { id: f.id, content: btoa(String.fromCharCode(...new TextEncoder().encode(f.text))) } };
+        return { payload: { id: f.id, content: f.b64 || btoa(String.fromCharCode(...new TextEncoder().encode(f.text))) } };
       }
       throw { code: 'tool_error', message: 'no' };
     },
@@ -94,6 +94,20 @@ const mock = () => {
   await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Estocismo/Dicotomía del control'); n.body += '\nMás'; n.updatedAt = Date.now(); save(); });
   await p.clock.runFor(40000);
   check('guardada en su carpeta', await p.evaluate(() => window.__files.filter((f) => !f.trashed && f.title === 'Dicotomía del control.md').map((f) => [f.parentId, f.text.endsWith('Más')])), [['est', true]]);
+  // Imágenes y PDF junto a las notas: se traen y se ven al leer, sin cambiar el texto de la nota
+  await p.evaluate(() => {
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    window.__files.push({ id: 'img1', title: 'foto.png', mimeType: 'image/png', parentId: 'sen', modifiedTime: '2024-01-01T00:00:00Z', fileSize: '70', b64: png });
+    window.__files.push({ id: 'pdf1', title: 'Cartas.pdf', mimeType: 'application/pdf', parentId: 'est', modifiedTime: '2024-01-01T00:00:00Z', fileSize: '20', b64: btoa('%PDF-1.4 prueba') });
+    window.__files.push({ id: 'e9', title: 'Con adjuntos.md', mimeType: 'text/markdown', parentId: 'est', modifiedTime: '2024-01-01T00:00:00Z', text: 'Mira ![[foto.png|200]]\n\n![retrato](Autores/foto.png)\n\nLee [[Cartas.pdf]]\n' });
+  });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true }));
+  await p.clock.runFor(2000);
+  check('adjuntos guardados', await p.evaluate(() => Object.entries(state.settings.vaultAssets || {}).map(([k, v]) => `${k}:${v.k}`).sort()), ['cartas.pdf:file', 'estocismo/autores/foto.png:img', 'estocismo/cartas.pdf:file', 'foto.png:img']);
+  check('nota sin cambios', await p.evaluate(() => state.notes.find((n) => n.path === 'Estocismo/Con adjuntos').body), 'Mira ![[foto.png|200]]\n\n![retrato](Autores/foto.png)\n\nLee [[Cartas.pdf]]\n');
+  check('se ven al leer', await p.evaluate(() => { const h = renderMd(state.notes.find((n) => n.path === 'Estocismo/Con adjuntos').body); return [(h.match(/data-img=/g) || []).length, (h.match(/data-file=/g) || []).length, /width:\s*200px/.test(h)]; }), [2, 1, true]);
+  check('no se vuelven a bajar', await p.evaluate(async () => { const n = window.__calls.filter((x) => x[1] === 'download_file_content').length; await syncVault({ manual: true }); return window.__calls.filter((x) => x[1] === 'download_file_content').slice(n).map((x) => x[2].fileId); }), []);
   // Carpeta renombrada («4.- ENFOQUE»): si hay que volver a buscarla, se encuentra igual
   check('carpeta renombrada', await p.evaluate(async () => {
     const f = window.__files.find((x) => x.title === 'Enfoque');

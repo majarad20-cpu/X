@@ -237,6 +237,68 @@ async function pullVault() {
   return changed;
 }
 
+// ---------- Imágenes y PDF de la bóveda ----------
+// Las imágenes y los PDF que hay junto a las notas (p. ej. los adjuntos de Obsidian) se guardan en la
+// app y se recuerdan por nombre y por ruta: ![[foto.png]], ![](adjuntos/foto.png) o [[libro.pdf]] se
+// ven al leer la nota, sin cambiar su texto (en Drive y en Obsidian sigue igual).
+const VAULT_ASSET_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|pdf)$/i;
+const VAULT_ASSET_MB = 15;
+const vaultAssets = () => (state.settings.vaultAssets ||= {});
+
+async function fetchVaultAsset(f, path) {
+  const m = vaultMap();
+  m.assets ||= {};
+  if (m.assets[f.id] || Number(f.fileSize || 0) > VAULT_ASSET_MB * 1024 * 1024) return false;
+  const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
+  if (typeof got.content !== 'string' || !got.content) return false;
+  const ext = f.title.split('.').pop().toLowerCase();
+  const pdf = ext === 'pdf';
+  const type = pdf ? 'application/pdf' : /^image\//.test(f.mimeType || '') ? f.mimeType : `image/${ext.replace('jpg', 'jpeg').replace('svg', 'svg+xml')}`;
+  let rec;
+  if (pdf) rec = { id: uid(), name: f.title, type, size: Number(f.fileSize) || Math.round(got.content.length * 0.75), data: `data:${type};base64,${got.content}`, createdAt: Date.now() };
+  else {
+    const bytes = Uint8Array.from(atob(got.content), (c) => c.charCodeAt(0));
+    const img = await compressImage(new File([bytes], f.title, { type })).catch(() => null);
+    // Una imagen que no se puede leer no se vuelve a bajar en cada sincronización.
+    if (!img) return !!(m.assets[f.id] = 'no válida');
+    rec = { id: uid(), name: f.title.replace(/\.[^.]+$/, ''), type: img.type, data: img.data, width: img.width, height: img.height, createdAt: Date.now() };
+  }
+  if (!(await putFile(rec))) return false;
+  const a = vaultAssets();
+  const val = { id: rec.id, k: pdf ? 'file' : 'img' };
+  a[joinPath(path, f.title).toLowerCase()] = val;
+  a[f.title.toLowerCase()] = val;
+  m.assets[f.id] = rec.id;
+  return true;
+}
+
+// Al leer: las referencias a imágenes y PDF de la bóveda se muestran con el archivo guardado.
+function vaultAssetMd(src) {
+  const a = state.settings.vaultAssets;
+  if (!a || !src.includes('.')) return src;
+  const find = (ref) => {
+    let r = String(ref).trim().replace(/^<|>$/g, '');
+    try {
+      r = decodeURIComponent(r);
+    } catch {}
+    r = r.replace(/^\.?\//, '').toLowerCase();
+    return a[r] || a[r.split('/').pop()];
+  };
+  const md = (hit, name, size) => (hit.k === 'img' ? `![${name}${size ? `|${size}` : ''}](img:${hit.id})` : `![${name}](file:${hit.id})`);
+  return src
+    .replace(/(!?)\[\[([^\]|#\n]+?\.(?:png|jpe?g|gif|webp|bmp|svg|avif|pdf))(?:\|([^\]\n]*))?\]\]/gi, (m, bang, ref, size) => {
+      const hit = find(ref);
+      if (!hit || (!bang && hit.k === 'img')) return m;
+      const name = ref.split('/').pop();
+      return md(hit, hit.k === 'img' ? name.replace(/\.[^.]+$/, '') : name, size);
+    })
+    .replace(/!\[([^\]\n]*)\]\((<[^>\n]+>|[^)\s]+)\)/g, (m, alt, ref) => {
+      if (/^(https?|img|file|audio|data):/i.test(ref) || !VAULT_ASSET_RE.test(ref.replace(/>$/, ''))) return m;
+      const hit = find(ref);
+      return hit ? md(hit, alt || ref.replace(/^<|>$/g, '').split('/').pop(), '') : m;
+    });
+}
+
 // Busca en toda la bóveda (y en las carpetas que pusiste directamente en «Enfoque», como una
 // carpeta de Obsidian copiada) los .md que la app aún no conoce, aunque su fecha sea antigua: al copiar
 // una carpeta, Drive conserva la fecha original y el repaso normal (por cambios recientes) no los ve.
@@ -248,6 +310,7 @@ async function scanVaultNew() {
   const known = new Set(Object.values(m.files).map((f) => f.id));
   const ignore = new Set(m.ignore);
   let made = 0;
+  let assetsIn = 0;
   const visit = async (folderId, path, depth = 0) => {
     if (depth > 12) return;
     for (const f of await listVaultFolder(folderId)) {
@@ -270,27 +333,35 @@ async function scanVaultNew() {
         m.files[n.id] = { id: f.id, path: n.path, at: n.updatedAt, mt: f.modifiedTime || '' };
         known.add(f.id);
         if (++made % 10 === 0) vaultStatus(`Trayendo notas de Drive… ${made}`);
+      } else if (VAULT_ASSET_RE.test(f.title) && !vaultMap().assets?.[f.id]) {
+        try {
+          if (await fetchVaultAsset(f, path) && ++assetsIn % 5 === 0) vaultStatus(`Trayendo imágenes y PDF de Drive… ${assetsIn}`);
+        } catch (e) {
+          if (['needs_reauth', 'server_not_connected', 'not_granted'].includes(e?.code)) throw e;
+        }
       }
     }
     saveVaultMap();
   };
   await visit(m.root, '');
   // Carpetas puestas directamente en «Enfoque» (fuera de «Notas»): también son notas.
-  const mapped = new Set(Object.values(m.folders));
+  // Las que ya se conocen se vuelven a recorrer con su ruta, por si tienen archivos nuevos.
+  const pathOf = new Map(Object.entries(m.folders).map(([path, id]) => [id, path]));
   for (const f of await listVaultFolder(await driveFolder())) {
-    if (f.mimeType !== FOLDER_MIME || f.id === m.root || mapped.has(f.id) || /^\./.test(f.title)) continue;
-    const path = cleanName(f.title) || 'Carpeta';
+    if (f.mimeType !== FOLDER_MIME || f.id === m.root || /^\./.test(f.title)) continue;
+    const path = pathOf.get(f.id) ?? (cleanName(f.title) || 'Carpeta');
     if (!m.folders[path]) m.folders[path] = f.id;
     await visit(f.id, path);
   }
   m.lastScan = Date.now();
   saveVaultMap();
-  if (made) {
+  if (assetsIn) scheduleFilesSync();
+  if (made || assetsIn) {
     dataRev++;
     save();
     renderAll();
   }
-  return made;
+  return made + assetsIn;
 }
 
 async function syncVault({ manual = false, adopt = false } = {}) {

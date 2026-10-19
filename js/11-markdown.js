@@ -318,6 +318,7 @@ function propValueHtml(key, value) {
 // `ctx.noExternalImages` no carga imágenes de internet.
 function renderMd(src, ctx = {}) {
   src = String(src ?? '').replace(/[\u0001\u0002]/g, ''); // ver inlineMd
+  if (typeof vaultAssetMd === 'function') src = vaultAssetMd(src); // imágenes y PDF de la bóveda de Drive
   const outer = !mdNotes;
   if (outer) mdNotes = { defs: new Map(), refs: new Map(), order: [], pre: `fn${++mdNotesSeq}-` };
   const noImg = mdNoExtImg;
