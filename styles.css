@@ -673,12 +673,12 @@ html, body { overflow: hidden; }
 .app {
   --left-w: 224px; --right-w: 260px; /* se pueden cambiar arrastrando el borde de cada panel */
   display: grid; height: 100%;
-  grid-template-columns: var(--ribbon-w, 52px) var(--left-w) minmax(0, 1fr) var(--right-w);
+  grid-template-columns: var(--ribbon-w, calc(52px * var(--sidek, 1))) var(--left-w) minmax(0, 1fr) var(--right-w);
   grid-template-areas: "ribbon left work right";
 }
-.app.left-collapsed { grid-template-columns: var(--ribbon-w, 52px) 0 minmax(0, 1fr) var(--right-w); }
-.app.right-collapsed { grid-template-columns: var(--ribbon-w, 52px) var(--left-w) minmax(0, 1fr) 0; }
-.app.left-collapsed.right-collapsed { grid-template-columns: var(--ribbon-w, 52px) 0 minmax(0, 1fr) 0; }
+.app.left-collapsed { grid-template-columns: var(--ribbon-w, calc(52px * var(--sidek, 1))) 0 minmax(0, 1fr) var(--right-w); }
+.app.right-collapsed { grid-template-columns: var(--ribbon-w, calc(52px * var(--sidek, 1))) var(--left-w) minmax(0, 1fr) 0; }
+.app.left-collapsed.right-collapsed { grid-template-columns: var(--ribbon-w, calc(52px * var(--sidek, 1))) 0 minmax(0, 1fr) 0; }
 .app.left-collapsed .side.left, .app.right-collapsed .side.right { visibility: hidden; }
 
 /* Barra de iconos */
@@ -745,7 +745,10 @@ html, body { overflow: hidden; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-count { font-size: .68rem; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .chev { color: var(--muted); transition: transform .15s; display: inline-grid; }
-.chev svg { width: 14px; height: 14px; }
+.chev svg { width: 1.1em; height: 1.1em; }
+:root[data-tree-wrap="on"] .tree-name { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+:root[data-tree-wrap="on"] .tree-row { align-items: flex-start; }
+:root[data-tree-wrap="on"] .tree-row > :not(.tree-name) { margin-top: .1em; }
 .chev.open { transform: rotate(90deg); }
 .tree-more { border: 0; background: none; color: var(--muted); padding: 2px; border-radius: 4px; line-height: 0; opacity: 0; }
 .tree-row:hover .tree-more, .tree-row:focus-within .tree-more, .tree-more:focus-visible { opacity: 1; }
@@ -1507,7 +1510,10 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 #appearance .swatches { margin: 0; }
 
 /* ---------- Barra de iconos con nombres (Ajustes › Apariencia) ---------- */
-:root[data-riblabels="on"] { --ribbon-w: 186px; --ribbon-m: 186px; }
+:root[data-riblabels="on"] { --ribbon-w: calc(186px * var(--sidek, 1)); --ribbon-m: 186px; }
+/* Tamaño del lado izquierdo (Ajustes › Apariencia): el menú y el panel de notas se reducen juntos.
+   En el móvil la barra flota (sin rejilla): su ancho y la posición del panel ya salen escalados. */
+.ribbon, .side.left { zoom: var(--sidek, 1); }
 :root[data-riblabels="on"] .ribbon { align-items: stretch; padding-left: 6px; padding-right: 6px; }
 :root[data-riblabels="on"] .rib { width: auto; display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 0 10px; }
 :root[data-riblabels="on"] .rib-label { display: inline; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -2155,7 +2161,7 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
 .note-inner.nc-cards .note-reading:has(> .embed) { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; align-items: start; }
 .note-inner.nc-cards .note-reading:has(> .embed) > :not(.embed) { grid-column: 1 / -1; }
 .note-inner.nc-cards .note-reading > .embed { margin: 0; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; max-height: 320px; overflow: auto; }
-.tree-row.file .np-ico { flex: none; width: 1.3em; margin-left: -2px; text-align: center; font-size: .9rem; line-height: 1; }
+.tree-row.file .np-ico { flex: none; width: 1.3em; margin-left: -2px; text-align: center; font-size: 1.05em; line-height: 1; }
 .tree-row.file .np-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--np-color); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 15%, transparent); }
 .tree-row.file .np-pin { flex: none; font-size: .7rem; opacity: .7; }
 .ws-tab .np-ico { display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: .9rem; line-height: 1; }

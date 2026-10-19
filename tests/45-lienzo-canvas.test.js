@@ -20,7 +20,7 @@ for (const p of ['/opt/node-tools/node_modules/jszip/dist/jszip.min.js', () => p
   const b = await chromium.launch(launchOptions);
   const c = await b.newContext({ viewport: { width: 1300, height: 900 }, acceptDownloads: true });
   await c.addInitScript((s) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify(s)); }, {
-    tasks: [], habits: [], settings: { notesWelcome: true }, folders: ['Proyectos'], updatedAt: 1, notes: [
+    tasks: [], habits: [], settings: { look: { sideSize: 'normal' }, notesWelcome: true }, folders: ['Proyectos'], updatedAt: 1, notes: [
       n('w', 'Proyectos/Web', '# Web\nVer [[Diseño]] y [[Textos]].'),
       n('d', 'Proyectos/Diseño', 'Vuelve a [[Web]].'),
       n('t', 'Proyectos/Textos', 'Sin enlaces.'),
