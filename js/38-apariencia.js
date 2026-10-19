@@ -32,8 +32,21 @@ const THEMES = {
   plum: { label: 'Ciruela', group: 'dark', skin: 'glass', fonts: ['nunito', 'nunito'], tone: 'dark', accent: 'fuchsia', colors: ['#1e1724', '#281f30', '#ece4f3'] },
   forest: { label: 'Bosque', group: 'dark', skin: 'float', fonts: ['atkinson', 'lora'], tone: 'dark', accent: 'teal', colors: ['#121b16', '#18241d', '#e2eee6'] },
   dracula: { label: 'Drácula', group: 'dark', skin: 'float', fonts: ['inter', 'inter'], tone: 'dark', accent: 'fuchsia', colors: ['#282a36', '#303341', '#f8f8f2'] },
+  // Al estilo de Obsidian y de sus temas más usados.
+  obsdark: { label: 'Obsidian oscuro', group: 'obsidian', skin: 'classic', fonts: ['inter', 'inter'], tone: 'dark', accent: 'indigo', colors: ['#1e1e1e', '#262626', '#dcddde'] },
+  obslight: { label: 'Obsidian claro', group: 'obsidian', skin: 'classic', fonts: ['inter', 'inter'], tone: 'light', accent: 'indigo', colors: ['#f6f6f6', '#ffffff', '#2e3338'] },
+  minimal: { label: 'Minimal', group: 'obsidian', skin: 'flat', fonts: ['inter', 'inter'], tone: 'light', accent: 'slate', colors: ['#ffffff', '#ffffff', '#222222'] },
+  minimaldark: { label: 'Minimal oscuro', group: 'obsidian', skin: 'flat', fonts: ['inter', 'inter'], tone: 'dark', accent: 'slate', colors: ['#202020', '#262626', '#dadada'] },
+  things: { label: 'Things', group: 'obsidian', skin: 'flat', fonts: ['inter', 'inter'], tone: 'light', accent: 'blue', colors: ['#ffffff', '#ffffff', '#262626'] },
+  latte: { label: 'Catppuccin Latte', group: 'obsidian', skin: 'soft', fonts: ['nunito', 'nunito'], tone: 'light', accent: 'fuchsia', colors: ['#eff1f5', '#f7f8fb', '#4c4f69'] },
+  mocha: { label: 'Catppuccin Mocha', group: 'obsidian', skin: 'soft', fonts: ['nunito', 'nunito'], tone: 'dark', accent: 'fuchsia', colors: ['#1e1e2e', '#262637', '#cdd6f4'] },
+  tokyo: { label: 'Tokyo Night', group: 'obsidian', skin: 'flat', fonts: ['inter', 'inter'], tone: 'dark', accent: 'blue', colors: ['#1a1b26', '#24283b', '#c0caf5'] },
+  rosepine: { label: 'Rosé Pine', group: 'obsidian', skin: 'float', fonts: ['inter', 'lora'], tone: 'dark', accent: 'fuchsia', colors: ['#191724', '#1f1d2e', '#e0def4'] },
+  rosedawn: { label: 'Rosé Pine Dawn', group: 'obsidian', skin: 'float', fonts: ['inter', 'lora'], tone: 'light', accent: 'fuchsia', colors: ['#faf4ed', '#fffaf3', '#575279'] },
+  everforest: { label: 'Everforest', group: 'obsidian', skin: 'flat', fonts: ['atkinson', 'atkinson'], tone: 'dark', accent: 'teal', colors: ['#2d353b', '#343f44', '#d3c6aa'] },
+  topaz: { label: 'Blue Topaz', group: 'obsidian', skin: 'glass', fonts: ['inter', 'inter'], tone: 'light', accent: 'blue', colors: ['#e8f0f8', '#f6f9fd', '#1f2d3d'] },
 };
-const THEME_GROUPS = { basic: 'Básicos', soft: 'Suaves', warm: 'Cálidos', blue: 'Azules y fríos', dark: 'Oscuros' };
+const THEME_GROUPS = { basic: 'Básicos', obsidian: 'Estilo Obsidian', soft: 'Suaves', warm: 'Cálidos', blue: 'Azules y fríos', dark: 'Oscuros' };
 
 // Fuentes del sistema (no se descargan nada) y algunas de Google Fonts, que se cargan solo al elegirlas.
 const FONTS = {
@@ -65,10 +78,23 @@ const SKINS = {
   brutal: { label: 'Neobrutalista', hint: 'Bordes gruesos, sombras duras y negritas', radius: 'soft' },
 };
 
-const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true };
+const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true, obsHeadings: 'off', obsGuides: 'off', obsTags: 'off', obsCallouts: 'off', obsMark: 'off' };
 
+// Detalles típicos de Obsidian que se pueden activar uno a uno (con cualquier tema).
+const OBS_DETAILS = {
+  obsHeadings: ['Títulos de colores', 'Cada nivel (H1, H2, H3…) con su color'],
+  obsGuides: ['Líneas guía en las listas', 'Una línea vertical une los elementos anidados'],
+  obsTags: ['Etiquetas en pastilla', 'Las #etiquetas como pastillas de color'],
+  obsCallouts: ['Recuadros como en Obsidian', 'Fondo de color, borde redondeado y título con icono'],
+  obsMark: ['Resaltado amarillo', '==texto== en amarillo, como el rotulador de Obsidian'],
+};
+
+const OBS_ALL = { obsHeadings: 'on', obsGuides: 'on', obsTags: 'on', obsCallouts: 'on', obsMark: 'on' };
 const LOOK_PRESETS = {
   original: { label: 'Original', look: {}, accent: 'indigo' },
+  obsidianlike: { label: 'Obsidian', look: { skin: 'classic', theme: 'obsdark', uiFont: 'inter', noteFont: 'inter', radius: 'soft', density: 'compact', noteWidth: 'normal', ...OBS_ALL }, accent: 'indigo' },
+  minimalobs: { label: 'Minimal', look: { skin: 'flat', theme: 'minimal', uiFont: 'inter', noteFont: 'inter', radius: 'soft', noteWidth: 'normal', obsGuides: 'on', obsTags: 'on', obsCallouts: 'on' }, accent: 'slate' },
+  catppuccin: { label: 'Catppuccin', look: { skin: 'soft', theme: 'mocha', uiFont: 'nunito', noteFont: 'nunito', radius: 'round', ...OBS_ALL }, accent: 'fuchsia' },
   obsidian: { label: 'Bóveda oscura', look: { skin: 'flat', theme: 'dark', uiFont: 'inter', noteFont: 'inter', radius: 'soft', density: 'compact', noteWidth: 'normal' }, accent: 'fuchsia' },
   paper: { label: 'Papel', look: { skin: 'paper', radius: 'square', theme: 'sepia', uiFont: 'system', noteFont: 'lora', noteSize: 18, lineHeight: 'relaxed', noteWidth: 'narrow' }, accent: 'orange' },
   minimal: { label: 'Minimalista', look: { skin: 'flat', theme: 'light', uiFont: 'inter', noteFont: 'inter', radius: 'square', density: 'compact', motion: 'reduce' }, accent: 'slate' },
@@ -128,10 +154,13 @@ function applyLook() {
   else delete root.dataset.skin;
   if (L.skin === 'term') ensureFont('mono');
   // Color propio: un tono para temas claros y otro más luminoso para los oscuros.
+  Object.keys(OBS_DETAILS).forEach((k) => (L[k] === 'on' ? (root.dataset[k] = 'on') : delete root.dataset[k]));
   if (/^#[0-9a-f]{6}$/i.test(L.customAccent || '')) {
+    set('--accent-own', L.customAccent);
     set('--accent-l', L.customAccent);
     set('--accent-d', `color-mix(in srgb, ${L.customAccent} 62%, white)`);
   } else {
+    root.style.removeProperty('--accent-own');
     root.style.removeProperty('--accent-l');
     root.style.removeProperty('--accent-d');
   }
@@ -278,6 +307,8 @@ function renderAppearance() {
     el('h3', { className: 'ap-sub' }, 'Color de acento'),
     $('#accent-picker'),
     el('div', { className: 'ap-custom' }, [el('label', { className: 'row' }, ['Color propio', custom]), clearCustom]),
+    el('h3', { className: 'ap-sub' }, 'Detalles de Obsidian'),
+    ...Object.entries(OBS_DETAILS).map(([k, [label, hint]]) => row(label, seg(k, { off: ['No'], on: ['Sí'] }, label), hint)),
     el('h3', { className: 'ap-sub' }, 'Texto'),
     row('Fuente de la interfaz', fontSelect('uiFont', 'Fuente de la interfaz')),
     row('Fuente de las notas', fontSelect('noteFont', 'Fuente de las notas')),
