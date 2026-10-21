@@ -2424,6 +2424,8 @@ body.qb-modal-open #note-menu { z-index: 96; }
 .nav-arrows { display: flex; gap: 0; margin-bottom: 4px; flex: none; }
 .nav-arrows .side-btn:disabled { opacity: .35; cursor: default; }
 .drive-sync { position: relative; margin-bottom: 4px; }
+.drive-backup { margin-bottom: 4px; }
+.drive-backup.busy .ico { animation: ds-pulse 1s ease-in-out infinite; }
 .drive-sync .ds-dot { position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .6; }
 .drive-sync.on .ds-dot { background: #2f9e44; opacity: 1; }
 .drive-sync.error .ds-dot { background: #e03131; opacity: 1; }
@@ -2903,7 +2905,7 @@ body.gs-open #note-menu { z-index: 96; }
 .tb-menu .rib-label { display: inline; flex: 1; font-size: .9rem; }
 .tb-menu .rib-badge { position: static; margin-left: auto; }
 .prodbar #open-settings.warn::after { content: ""; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--mid); }
-.prodbar #open-settings, .prodbar .drive-sync { position: relative; margin-bottom: 0; }
+.prodbar #open-settings, .prodbar .drive-sync, .prodbar .drive-backup { position: relative; margin-bottom: 0; }
 @media (max-width: 899px) {
   .prodbar { overflow-x: auto; scrollbar-width: none; padding: 3px 6px; }
   .prodbar::-webkit-scrollbar { display: none; }
