@@ -92,6 +92,41 @@ async function listVaultFolder(folderId) {
 
 const vaultNotes = () => state.notes.filter((n) => !n.enc);
 
+// Notas que se quedan solo en Drive (p. ej. libros convertidos, muy pesados): se quitan de la app
+// sin borrar su archivo y no se vuelven a traer. La lista va en los ajustes (se sincroniza), así
+// ningún dispositivo manda esos archivos a la papelera de Drive. Además, al traer de Drive se saltan
+// los .md de más de «vaultMaxKB» (200 KB por defecto; 0 = sin límite).
+const VAULT_MAX_KB = 200;
+const vaultExcluded = () => (state.settings.vaultExcluded ||= []);
+const vaultMaxKB = () => (state.settings.vaultMaxKB ?? VAULT_MAX_KB);
+const vaultExcludedPath = (path) => vaultExcluded().some((x) => x.path.toLowerCase() === path.toLowerCase());
+const vaultTooBig = (f) => vaultMaxKB() > 0 && Number(f.fileSize || 0) > vaultMaxKB() * 1024;
+
+// Saca notas de Enfoque: las que están en Drive se quedan allí (sin papelera); las demás van a la
+// papelera de la app. No se puede deshacer con «Deshacer» (el archivo de Drive ya no está enlazado),
+// pero se pueden volver a traer quitándolas de la lista de excluidas.
+function excludeFromEnfoque(notes) {
+  const m = vaultMap();
+  const inDrive = [];
+  const local = [];
+  // En Drive: enlazada en este dispositivo o, si la bóveda la lleva otro dispositivo, cualquier nota sin contraseña.
+  const vaultSomewhere = !!(typeof gSettings === 'function' && gSettings().vaultDevice);
+  notes.forEach((n) => (m.files[n.id] || (vaultSomewhere && !n.enc) ? inDrive : local).push(n));
+  const ex = vaultExcluded();
+  notes.forEach((n) => ex.some((x) => x.id === n.id) || ex.push({ id: n.id, path: n.path, kb: Math.round((n.body || '').length / 1024), at: Date.now() }));
+  if (ex.length > 5000) ex.splice(0, ex.length - 5000);
+  const ids = new Set(notes.map((n) => n.id));
+  inDrive.forEach((n) => delete m.files[n.id]);
+  saveVaultMap();
+  const onlyLocal = local;
+  if (onlyLocal.length) trashNotes(onlyLocal);
+  state.notes = state.notes.filter((n) => !ids.has(n.id));
+  dataRev++;
+  save();
+  renderAll();
+  return { inDrive: inDrive.length, trashed: onlyLocal.length };
+}
+
 async function trashVaultFile(id) {
   const m = vaultMap();
   m.ignore.push(id);
@@ -156,7 +191,14 @@ async function pushVault({ adopt = false } = {}) {
     }
     if (++done % 10 === 0) vaultStatus(`Subiendo notas a Drive… ${done} de ${pending.length}`);
   }
+  const keep = new Set(vaultExcluded().map((x) => x.id));
   for (const id of gone) {
+    // Sacada de Enfoque a propósito: el archivo se queda en Drive.
+    if (keep.has(id)) {
+      delete m.files[id];
+      saveVaultMap();
+      continue;
+    }
     try {
       await trashVaultFile(m.files[id].id);
       delete m.files[id];
@@ -201,6 +243,7 @@ async function pullVault() {
     const noteId = byFile.get(f.id);
     const entry = noteId && m.files[noteId];
     if (entry ? f.modifiedTime && f.modifiedTime <= entry.mt : ignore.has(f.id)) continue;
+    if (!entry && (vaultTooBig(f) || vaultExcludedPath(joinPath(folderPath.get(f.parentId), f.title.replace(/\.md$/i, ''))))) continue;
     const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
     if (typeof got.content !== 'string') continue;
     // Los .md editados en Windows llegan con \r\n: se normalizan (las propiedades esperan \n).
@@ -321,6 +364,7 @@ async function scanVaultNew() {
         await visit(f.id, sub, depth + 1);
       } else if (/\.md$/i.test(f.title) && !known.has(f.id) && !ignore.has(f.id)) {
         const title = cleanName(f.title.replace(/\.md$/i, '')) || 'Sin título';
+        if (vaultTooBig(f) || vaultExcludedPath(joinPath(path, title))) continue; // libros pesados o sacados de Enfoque: se quedan en Drive
         const same = state.notes.find((n) => n.path.toLowerCase() === joinPath(path, title).toLowerCase());
         if (same) {
           if (!m.files[same.id] && !same.enc) m.files[same.id] = { id: f.id, path: same.path, at: same.updatedAt || 0, mt: f.modifiedTime || '' };

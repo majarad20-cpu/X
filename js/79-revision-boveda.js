@@ -14,7 +14,8 @@ $('#views-pane main').append(el('section', { id: 'view-revision', className: 'vi
 
 const RV_APP_FOLDERS = /^(Diario|Semanal|Mensual|Plantillas|Bases|Tareas|Proyectos|Pensar|Obras|Recetas|Contactos|Cursos|Biblioteca|Películas y series|Papelera)(\/|$)/i;
 const RV_ASSET = /^\^|\.(png|jpe?g|gif|webp|bmp|svg|avif|pdf|mp3|mp4|webm|m4a|wav|excalidraw|canvas)$/i;
-const RV_HUGE = 200 * 1024; // caracteres: cerca del bloque de 256 KB de la nube
+// Notas «enormes»: más del límite de la bóveda (200 KB por defecto; cerca del bloque de 256 KB de la nube).
+const rvHuge = () => (typeof vaultMaxKB === 'function' && vaultMaxKB() > 0 ? vaultMaxKB() : 200) * 1024;
 const RV_LIST = 80; // elementos por lista antes de «y N más»
 const rv = { folder: '', report: null, rev: -1 };
 
@@ -41,7 +42,7 @@ function computeVaultReview(folder = '') {
     const body = rvBody(text);
     r.words += (body.match(/[\p{L}\p{N}]+/gu) || []).length;
     if (!body.replace(/^#.*$/gm, '').trim()) r.empty.push(n);
-    if (text.length > RV_HUGE) r.huge.push(n);
+    if (text.length > rvHuge()) r.huge.push(n);
     if (/\((desde Drive|Obsidian)\)$/i.test(baseName(n.path))) r.conflicts.push(n);
     const props = parseProps(text).props;
     const prop = (k) => props.find((p) => p.key.toLowerCase() === k)?.value;
@@ -115,6 +116,14 @@ function rvSetDraft(list) {
   renderVaultReview();
 }
 
+function rvExclude(list) {
+  if (typeof excludeFromEnfoque !== 'function') return;
+  const { inDrive, trashed } = excludeFromEnfoque(list);
+  rv.rev = -1;
+  renderVaultReview();
+  showToastMessage(`${plural(inDrive + trashed, 'nota sacada', 'notas sacadas')} de Enfoque${inDrive ? ` · ${inDrive} siguen en Drive` : ''}${trashed ? ` · ${trashed} a la papelera` : ''}`);
+}
+
 // ---------- Informe como nota ----------
 function rvMarkdown(r) {
   const link = (n) => `[[${n.path}|${baseName(n.path)}]]`;
@@ -136,7 +145,7 @@ function rvMarkdown(r) {
   }
   const sec = (title, arr, fmt = link) => arr.length && L.push(`## ${title} (${arr.length})`, '', ...arr.slice(0, RV_LIST).map((x) => `- ${fmt(x)}`), ...more(arr), '');
   sec('Notas vacías', r.empty);
-  sec('Notas enormes (más de 200 KB)', r.huge, (n) => `${link(n)} · ${Math.round((n.body || '').length / 1024)} KB`);
+  sec(`Notas enormes (más de ${Math.round(rvHuge() / 1024)} KB)`, r.huge, (n) => `${link(n)} · ${Math.round((n.body || '').length / 1024)} KB`);
   sec('Nombres repetidos', r.dupes, (l) => l.map(link).join(' · '));
   sec('Copias de conflicto', r.conflicts);
   sec('Enlaces a notas que no existen', r.ghostList, (g) => `[[${g.name}]] · desde ${g.from.size}`);
@@ -162,7 +171,7 @@ function renderVaultReview() {
     return a;
   };
   const list = (items, render) => el('ul', { className: 'rv-list' }, [...items.slice(0, RV_LIST).map((x) => el('li', {}, render(x))), ...(items.length > RV_LIST ? [el('li', { className: 'muted' }, `… y ${items.length - RV_LIST} más (están todas en el informe guardado como nota)`)] : [])]);
-  const card = (title, count, hint, body, tone = '') => el('details', { className: `card rv-card ${tone}`, open: tone === 'warn' && count > 0 && count < 30 }, [el('summary', {}, [el('strong', {}, title), el('span', { className: `rv-count ${count ? tone : 'ok'}` }, String(count)), el('span', { className: 'muted rv-hint' }, hint)]), ...(count ? [body()] : [el('p', { className: 'muted' }, 'Nada que revisar aquí. 👍')])]);
+  const card = (title, count, hint, body, tone = '', always = false) => el('details', { className: `card rv-card ${tone}`, open: tone === 'warn' && count > 0 && count < 30 }, [el('summary', {}, [el('strong', {}, title), el('span', { className: `rv-count ${count ? tone : 'ok'}` }, String(count)), el('span', { className: 'muted rv-hint' }, hint)]), ...(count || always ? [body()] : [el('p', { className: 'muted' }, 'Nada que revisar aquí. 👍')])]);
 
   const folders = el('select', { ariaLabel: 'Carpeta a revisar' }, [el('option', { value: '' }, 'Toda la bóveda'), ...allFolders().filter((f) => f.split('/').length <= 3).map((f) => el('option', { value: f }, f))]);
   folders.value = rv.folder;
@@ -223,7 +232,41 @@ function renderVaultReview() {
       });
       return [a, el('span', { className: 'muted' }, ` · desde ${[...g.from].slice(0, 3).map((n) => baseName(n.path)).join(', ')}${g.from.size > 3 ? ` y ${g.from.size - 3} más` : ''}`)];
     }), 'warn'),
-    card('Notas enormes', r.huge.length, 'Más de 200 KB (suelen ser libros convertidos): van lentas y no caben en la sincronización entre dispositivos. Mejor como fuentes fuera de la bóveda, o divididas.', () => list(r.huge, (n) => [openN(n), el('span', { className: 'muted' }, ` · ${Math.round((n.body || '').length / 1024)} KB`)]), 'warn'),
+    card('Notas enormes', r.huge.length, `Más de ${Math.round(rvHuge() / 1024)} KB (suelen ser libros convertidos): hacen la app lenta y no caben en la sincronización entre dispositivos. Sácalas de Enfoque: su archivo se queda en Drive.`, () => el('div', {}, [
+      el('div', { className: 'row rv-actions' }, [(() => {
+        const b = el('button', { className: 'primary' }, `Sacar de Enfoque estas ${r.huge.length} notas`);
+        b.addEventListener('click', () => askConfirm(`¿Sacar de Enfoque ${plural(r.huge.length, 'nota pesada', 'notas pesadas')}? Las que están en Drive se quedan allí (no se borran) y no se volverán a traer; las que solo estaban en la app van a la papelera.`, 'Sí, sacarlas', () => rvExclude(r.huge)));
+        return b;
+      })()]),
+      list(r.huge, (n) => [openN(n), el('span', { className: 'muted' }, ` · ${Math.round((n.body || '').length / 1024)} KB `), (() => {
+        const x = el('button', { className: 'link', title: 'Sacar solo esta de Enfoque (se queda en Drive)' }, 'sacar');
+        x.addEventListener('click', () => askConfirm(`¿Sacar «${baseName(n.path)}» de Enfoque? Si está en Drive, se queda allí.`, 'Sí, sacarla', () => rvExclude([n])));
+        return x;
+      })()]),
+    ]), 'warn'),
+    card('Solo en Drive (sacadas de Enfoque)', (state.settings.vaultExcluded || []).length, 'Notas que sacaste de Enfoque: siguen en Drive y no se vuelven a traer. Quita una de la lista para traerla en la próxima sincronización.', () => el('div', {}, [
+      el('label', { className: 'row rv-actions' }, ['Al traer de Drive, saltar las notas de más de ', (() => {
+        const sel = el('select', { ariaLabel: 'Tamaño máximo al traer de Drive' }, [[100, '100 KB'], [200, '200 KB'], [500, '500 KB'], [0, 'sin límite']].map(([v, l]) => el('option', { value: String(v) }, l)));
+        sel.value = String(typeof vaultMaxKB === 'function' ? vaultMaxKB() : 200);
+        sel.addEventListener('change', () => {
+          state.settings.vaultMaxKB = Number(sel.value);
+          save();
+          rv.rev = -1;
+          renderVaultReview();
+        });
+        return sel;
+      })()]),
+      list([...(state.settings.vaultExcluded || [])].reverse(), (x) => {
+        const b = el('button', { className: 'link', title: 'Volver a traerla de Drive en la próxima sincronización' }, 'volver a traer');
+        b.addEventListener('click', () => {
+          state.settings.vaultExcluded = (state.settings.vaultExcluded || []).filter((y) => y !== x);
+          save();
+          renderVaultReview();
+          showToastMessage('Se traerá en la próxima sincronización con Drive (si no supera el tamaño máximo).');
+        });
+        return [el('span', {}, x.path), el('span', { className: 'muted' }, x.kb ? ` · ${x.kb} KB ` : ' '), b];
+      }),
+    ]), '', true),
     card('Notas vacías', r.empty.length, 'Solo título o nada: complétalas o bórralas.', () => list(r.empty, openN), 'warn'),
     card('Nombres repetidos', r.dupes.length, 'Varias notas con el mismo nombre: los [[enlaces]] pueden ir a la que no es.', () => list(r.dupes, (l) => l.flatMap((n, i) => [i ? ' · ' : '', openN(n), el('span', { className: 'muted' }, ` (${folderOf(n.path) || 'raíz'})`)])), 'warn'),
     card('Copias de conflicto', r.conflicts.length, '«(desde Drive)» u «(Obsidian)»: se crearon para no perder cambios hechos en dos sitios. Compáralas con la original y borra la que sobre.', () => list(r.conflicts, openN), 'warn'),
