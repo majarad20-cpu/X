@@ -3066,3 +3066,33 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .imp-sample { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imp-paste { min-height: 180px; font-family: var(--mono, monospace); font-size: .85rem; }
 @media (max-width: 540px) { .imp-col { grid-template-columns: auto 1fr 1fr; } .imp-sample { grid-column: 2 / -1; } }
+
+/* Revisar la bóveda (79-revision-boveda.js) */
+#views-pane main:has(#view-revision.active) { max-width: 1100px; }
+.rv-head { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: flex-end; justify-content: space-between; margin-bottom: 12px; }
+.rv-head h2 { margin: 0 0 4px; }
+.rv-head p { margin: 0; }
+.rv-actions { flex-wrap: wrap; gap: 8px; }
+.rv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.rv-stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+.rv-stat strong { font-size: 1.3rem; }
+.rv-card { margin-bottom: 10px; padding: 10px 14px; }
+.rv-card > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; cursor: pointer; list-style: none; }
+.rv-card > summary::-webkit-details-marker { display: none; }
+.rv-card > summary::before { content: '▸'; color: var(--muted); transition: transform .15s; }
+.rv-card[open] > summary::before { transform: rotate(90deg); }
+.rv-count { font-weight: 700; padding: 0 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.rv-count.warn { background: color-mix(in srgb, var(--mid) 22%, var(--surface)); color: color-mix(in srgb, var(--mid) 70%, var(--text)); }
+.rv-count.ok { background: color-mix(in srgb, var(--low) 18%, var(--surface)); color: var(--low); }
+.rv-hint { flex-basis: 100%; font-size: .85rem; }
+.rv-list { margin: 8px 0 0; padding-left: 18px; columns: 2 320px; column-gap: 24px; font-size: .9rem; }
+.rv-list li { break-inside: avoid; margin: 0; padding: 1px 0; line-height: 1.45; }
+.rv-card p { margin: 6px 0; }
+.rv-moc { margin: 6px 0; }
+.rv-moc > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; cursor: pointer; }
+.rv-bar { display: inline-block; width: 120px; height: 7px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.rv-bar i { display: block; height: 100%; background: var(--low); }
+.rv-ghost { color: var(--muted); }
+.rv-ghost:hover { color: var(--accent); }
+.rv-chip { margin: 0 6px 6px 0; display: inline-block; }
+.rv-foot { font-size: .8rem; }
