@@ -123,8 +123,9 @@ function resolveNoteName(name, idx) {
   const n = name.trim().replace(/\.md$/i, '').toLowerCase();
   if (!n) return null;
   const hit = idx.byPath.get(n) || idx.byName.get(n);
-  // Sin acierto, el índice (que se rehace al cambiar rutas) es fiable: no hay tal nota.
-  if (!hit) return null;
+  // Sin acierto, el índice (que se rehace al cambiar rutas) es fiable: no hay tal nota. Salvo una
+  // ruta parcial, como en Obsidian: [[00.- ATLAS/MOCS/Nota]] vale para «Bóveda/00.- ATLAS/MOCS/Nota».
+  if (!hit) return n.includes('/') ? state.notes.find((x) => x.path.toLowerCase().endsWith(`/${n}`)) || null : null;
   if (hit.path.toLowerCase() === n || baseName(hit.path).toLowerCase() === n) return hit;
   return state.notes.find((x) => x.path.toLowerCase() === n) || state.notes.find((x) => baseName(x.path).toLowerCase() === n) || null;
 }
