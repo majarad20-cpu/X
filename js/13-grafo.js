@@ -130,6 +130,8 @@ function buildGraphData({ center = null, depth = 1, tags = false, ghosts = true,
     linksIn(n.body).forEach((l) => {
       // Los enlaces a tareas, proyectos, ideas o hábitos ([[tarea:ID|…]]) no son notas «sin crear».
       if (!l.target || /^(tarea|proyecto|idea|h[aá]bito):/i.test(l.target)) return;
+      // Ni las imágenes o PDF adjuntos (![[foto.png]], [[libro.pdf]]) ni los bloques ([[^id]]).
+      if (/^\^|\.(png|jpe?g|gif|webp|bmp|svg|avif|pdf|mp3|mp4|webm|m4a|wav|excalidraw|canvas)$/i.test(l.target.trim())) return;
       const t = findNoteByName(l.target);
       if (t) link(`n:${n.id}`, `n:${t.id}`);
       else if (ghosts) {
