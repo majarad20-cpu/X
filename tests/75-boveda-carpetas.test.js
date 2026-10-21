@@ -126,6 +126,14 @@ const mock = () => {
   for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
   await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
   check('vuelve a traerse', await p.evaluate(() => state.notes.filter((n) => n.path === 'Estocismo/Autores/Séneca').length), 1);
+  // Un .md que ya existe como nota (p. ej. subido por otro dispositivo) no crea «… 2»
+  await p.evaluate(() => {
+    const est = 'est';
+    window.__files.push({ id: 'dup1', title: 'Dicotomía del control.md', mimeType: 'text/markdown', parentId: est, modifiedTime: new Date(Date.now() + 60000).toISOString(), text: '# Dicotomía\nversión de otro dispositivo' });
+  });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
+  check('sin duplicado «2»', await p.evaluate(() => [state.notes.filter((n) => /Dicotomía del control/.test(n.path)).map((n) => n.path), state.notes.find((n) => n.path === 'Estocismo/Dicotomía del control').body]), [['Estocismo/Dicotomía del control'], '# Dicotomía\nversión de otro dispositivo']);
   // Carpeta renombrada («4.- ENFOQUE»): si hay que volver a buscarla, se encuentra igual
   check('carpeta renombrada', await p.evaluate(async () => {
     const f = window.__files.find((x) => x.title === 'Enfoque');

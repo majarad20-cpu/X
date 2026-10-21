@@ -24,6 +24,8 @@ const url = process.argv[2];
   await p.evaluate(() => { state.notes.push({ id: 'y', path: 'Nueva', createdAt: 1, updatedAt: 1 }); renderAll(); });
   await p.evaluate(() => { showView('today'); openTab({ type: 'graph' }); }); await p.waitForTimeout(500);
   check('sigue funcionando', await p.evaluate(() => typeof noteById('y').body), 'string');
+  // Ruta parcial, como en Obsidian
+  check('ruta parcial', await p.evaluate(() => { state.notes.push({ id: 'pp', path: 'Cerebro/00.- ATLAS/MOCS/MOC X', body: '', createdAt: 1, updatedAt: 1 }); dataRev++; return [findNoteByName('00.- ATLAS/MOCS/MOC X')?.id, findNoteByName('MOCS/MOC X')?.id, findNoteByName('OTRA/MOC X') || null]; }), ['pp', 'pp', null]);
   // Bóveda grande con un índice (MOC) de 600 enlaces: el dibujo no se desborda y se ve entero
   await p.evaluate(() => { for (let i = 0; i < 2400; i++) state.notes.push({ id: 'x' + i, path: `Cerebro/N${i}`, body: i === 0 ? Array.from({ length: 600 }, (_, k) => `[[N${k + 1}]]`).join(' ') : `[[N${(i * 13) % 2400}]] [[Fantasma ${i % 300}]]`, createdAt: 1, updatedAt: 1 }); save(); renderAll(); openTab({ type: 'graph' }); });
   for (let i = 0; i < 16 && (await p.evaluate(() => globalGraph.alpha > 0.02)); i++) await p.waitForTimeout(500);

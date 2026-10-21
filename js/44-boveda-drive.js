@@ -263,8 +263,19 @@ async function pullVault() {
       }
       entry.mt = f.modifiedTime || entry.mt;
     } else if (!note) {
-      // Un .md nuevo que pusiste en la carpeta de la bóveda: pasa a ser una nota.
+      // Un .md nuevo que pusiste en la carpeta de la bóveda: pasa a ser una nota. Si ya hay una nota con
+      // esa ruta (p. ej. la subió otro dispositivo), se enlaza con ella en vez de crear «… 2».
       const folder = folderPath.get(f.parentId);
+      const same = state.notes.find((x) => x.path.toLowerCase() === joinPath(folder, f.title.replace(/\.md$/i, '')).toLowerCase());
+      if (same) {
+        if (!same.enc && text !== same.body && (same.updatedAt || 0) < Date.parse(f.modifiedTime || 0)) {
+          same.body = text;
+          same.updatedAt = Date.now();
+          changed++;
+        }
+        m.files[same.id] = { id: f.id, path: same.path, at: same.updatedAt || 0, mt: f.modifiedTime || '' };
+        continue;
+      }
       const n = createNote({ folder, title: f.title.replace(/\.md$/i, ''), body: text, open: false, log: false });
       m.files[n.id] = { id: f.id, path: n.path, at: n.updatedAt, mt: f.modifiedTime || '' };
       changed++;
