@@ -108,6 +108,24 @@ const mock = () => {
   check('nota sin cambios', await p.evaluate(() => state.notes.find((n) => n.path === 'Estocismo/Con adjuntos').body), 'Mira ![[foto.png|200]]\n\n![retrato](Autores/foto.png)\n\nLee [[Cartas.pdf]]\n');
   check('se ven al leer', await p.evaluate(() => { const h = renderMd(state.notes.find((n) => n.path === 'Estocismo/Con adjuntos').body); return [(h.match(/data-img=/g) || []).length, (h.match(/data-file=/g) || []).length, /width:\s*200px/.test(h)]; }), [2, 1, true]);
   check('no se vuelven a bajar', await p.evaluate(async () => { const n = window.__calls.filter((x) => x[1] === 'download_file_content').length; await syncVault({ manual: true }); return window.__calls.filter((x) => x[1] === 'download_file_content').slice(n).map((x) => x[2].fileId); }), []);
+  // Libros pesados: no se traen de Drive (más de 200 KB) y los sacados de Enfoque se quedan en Drive
+  await p.evaluate(() => {
+    window.__files.push({ id: 'big1', title: 'Libro gordo.md', mimeType: 'text/markdown', parentId: 'est', modifiedTime: '2024-01-01T00:00:00Z', fileSize: String(600 * 1024), text: 'x'.repeat(1000) });
+  });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
+  check('libro pesado no traído', await p.evaluate(() => state.notes.some((n) => /Libro gordo/.test(n.path))), false);
+  const sen = await p.evaluate(() => { const n = state.notes.find((x) => x.path === 'Estocismo/Autores/Séneca'); return [n.id, vaultMap().files[n.id].id]; });
+  await p.evaluate(() => excludeFromEnfoque([state.notes.find((x) => x.path === 'Estocismo/Autores/Séneca')]));
+  await p.clock.runFor(40000);
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
+  check('sacada: sigue en Drive y no vuelve', await p.evaluate((fid) => [window.__files.find((f) => f.id === fid).trashed || false, state.notes.some((n) => n.path === 'Estocismo/Autores/Séneca'), state.settings.vaultExcluded.map((x) => x.path)], sen[1]), [false, false, ['Estocismo/Autores/Séneca']]);
+  // Quitarla de la lista la vuelve a traer
+  await p.evaluate(() => { state.settings.vaultExcluded = []; save(); });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
+  check('vuelve a traerse', await p.evaluate(() => state.notes.filter((n) => n.path === 'Estocismo/Autores/Séneca').length), 1);
   // Carpeta renombrada («4.- ENFOQUE»): si hay que volver a buscarla, se encuentra igual
   check('carpeta renombrada', await p.evaluate(async () => {
     const f = window.__files.find((x) => x.title === 'Enfoque');

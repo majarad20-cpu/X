@@ -53,6 +53,12 @@ const out = process.argv[3];
   await p.evaluate(() => showView('revision')); await p.waitForTimeout(200);
   await p.click('#view-revision button:has-text("Guardar el informe")'); await p.waitForTimeout(200);
   check('informe guardado', await p.evaluate(() => { const n = state.notes.find((x) => x.path.startsWith('🩺 Revisión de la bóveda')); return n && [/\| \[\[.*CONTABILIDAD.*\]\] \| 4 \| 2 \| 2 \| 50 % \|/.test(n.body), n.body.includes('- [ ] [[Régimen 14 D3]]'), n.body.includes('Libro enorme')]; }), [true, true, true]);
+  // Sacar las enormes de Enfoque (sin bóveda en Drive: van a la papelera)
+  await p.evaluate(() => { showView('revision'); [...document.querySelectorAll('#view-revision details')].forEach((d) => (d.open = true)); }); await p.waitForTimeout(200);
+  await p.click('#view-revision button:has-text("Sacar de Enfoque estas 1 notas")'); await p.waitForTimeout(100);
+  await p.click('#pomo-alert button:has-text("Sí, sacarlas")'); await p.waitForTimeout(200);
+  check('libro sacado', await p.evaluate(() => [!!noteById('h'), trashList().some((t) => t.id === 'h'), state.settings.vaultExcluded.map((x) => x.path)]), [false, true, ['KNOWLEDGE/Libro enorme']]);
+  check('lista de excluidas', await p.evaluate(() => { [...document.querySelectorAll('#view-revision details')].forEach((d) => (d.open = true)); return [...document.querySelectorAll('#view-revision details.rv-card')].find((d) => /Solo en Drive/.test(d.textContent)).querySelector('select').value; }), '200');
   // Ámbito: una carpeta
   check('por carpeta', await p.evaluate(() => computeVaultReview('ESTOICISMO').total), 1);
   console.log('errors:', JSON.stringify(errs));
