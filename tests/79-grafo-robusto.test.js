@@ -24,6 +24,11 @@ const url = process.argv[2];
   await p.evaluate(() => { state.notes.push({ id: 'y', path: 'Nueva', createdAt: 1, updatedAt: 1 }); renderAll(); });
   await p.evaluate(() => { showView('today'); openTab({ type: 'graph' }); }); await p.waitForTimeout(500);
   check('sigue funcionando', await p.evaluate(() => typeof noteById('y').body), 'string');
+  // Bóveda grande con un índice (MOC) de 600 enlaces: el dibujo no se desborda y se ve entero
+  await p.evaluate(() => { for (let i = 0; i < 2400; i++) state.notes.push({ id: 'x' + i, path: `Cerebro/N${i}`, body: i === 0 ? Array.from({ length: 600 }, (_, k) => `[[N${k + 1}]]`).join(' ') : `[[N${(i * 13) % 2400}]] [[Fantasma ${i % 300}]]`, createdAt: 1, updatedAt: 1 }); save(); renderAll(); openTab({ type: 'graph' }); });
+  for (let i = 0; i < 16 && (await p.evaluate(() => globalGraph.alpha > 0.02)); i++) await p.waitForTimeout(500);
+  await p.waitForTimeout(300);
+  check('grafo grande estable y visible', await p.evaluate(() => { const g = globalGraph; const far = g.nodes.filter((n) => !Number.isFinite(n.x) || Math.abs(n.x) > 1e5 || Math.abs(n.y) > 1e5).length; const on = g.nodes.filter((n) => { const s = g.toScreen(n); return s.x >= 0 && s.x <= g.w && s.y >= 0 && s.y <= g.h; }).length; return [g.nodes.length > 2600, far, on / g.nodes.length > 0.95]; }), [true, 0, true]);
   console.log('errors:', JSON.stringify(errs));
   await b.close();
   process.exit(errs.length ? 1 : 0);

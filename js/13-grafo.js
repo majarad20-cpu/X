@@ -222,6 +222,13 @@ class GraphView {
       return node;
     });
     this.links = links.map((l) => ({ a: this.byId.get(l.a), b: this.byId.get(l.b) })).filter((l) => l.a && l.b);
+    // Enlaces por nodo: una nota con cientos de enlaces (un índice o MOC) se mueve menos y sus
+    // enlaces tiran menos, para que el dibujo no se desborde.
+    this.nodes.forEach((n) => (n.links = 0));
+    this.links.forEach((l) => {
+      l.a.links++;
+      l.b.links++;
+    });
     this.neighbors = new Map(this.nodes.map((n) => [n.id, new Set()]));
     this.links.forEach((l) => {
       this.neighbors.get(l.a.id).add(l.b.id);
@@ -275,11 +282,12 @@ class GraphView {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      const f = ((d - LEN) / d) * 0.06 * k;
-      a.vx += dx * f;
-      a.vy += dy * f;
-      b.vx -= dx * f;
-      b.vy -= dy * f;
+      const f = ((d - LEN) / d) * 0.12 * k / Math.max(1, Math.min(a.links, b.links));
+      const bias = a.links / (a.links + b.links || 1); // el que tiene más enlaces se mueve menos
+      a.vx += dx * f * (1 - bias);
+      a.vy += dy * f * (1 - bias);
+      b.vx -= dx * f * bias;
+      b.vy -= dy * f * bias;
     });
     nodes.forEach((n) => {
       n.vx -= n.x * 0.004 * k;
@@ -291,6 +299,17 @@ class GraphView {
       }
       n.vx *= 0.6;
       n.vy *= 0.6;
+      // Límite de velocidad y posiciones válidas: nada puede salir disparado.
+      const sp = Math.hypot(n.vx, n.vy);
+      if (sp > 60) {
+        n.vx *= 60 / sp;
+        n.vy *= 60 / sp;
+      }
+      if (!Number.isFinite(n.vx) || !Number.isFinite(n.vy)) n.vx = n.vy = 0;
+      if (!Number.isFinite(n.x) || !Number.isFinite(n.y)) {
+        n.x = Math.random() * 100 - 50;
+        n.y = Math.random() * 100 - 50;
+      }
       n.x += n.vx;
       n.y += n.vy;
     });
@@ -329,8 +348,10 @@ class GraphView {
   fit() {
     this.pendingFit = false;
     if (!this.nodes.length || !this.w) return;
-    const xs = this.nodes.map((n) => n.x);
-    const ys = this.nodes.map((n) => n.y);
+    const ok = this.nodes.filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y));
+    if (!ok.length) return;
+    const xs = ok.map((n) => n.x);
+    const ys = ok.map((n) => n.y);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
