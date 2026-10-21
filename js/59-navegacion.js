@@ -140,5 +140,65 @@ $('#drive-sync-btn').addEventListener('contextmenu', (e) => {
   driveBtnMenu({ x: e.clientX, y: e.clientY });
 });
 COMMANDS_EXTRA.push(() => (typeof gAvailable === 'function' && gAvailable() ? [{ label: 'Sincronizar las notas con Google Drive', action: () => (vaultOn() ? syncVault({ manual: true }) : enableVaultHere()) }] : []));
+
+// ---------- Botón de copia de seguridad ----------
+// Junto al de sincronizar: un toque guarda una copia de todo (tareas, hábitos, diario, ideas,
+// finanzas, ajustes y notas) en la carpeta de Enfoque en Drive (41-google.js).
+let backupBusy = false;
+function renderBackupBtn() {
+  const btn = $('#drive-backup-btn');
+  if (!btn || typeof gAvailable !== 'function') return;
+  btn.hidden = !gAvailable();
+  if (btn.hidden) return;
+  const at = gSettings().driveLastAt;
+  btn.classList.toggle('busy', backupBusy);
+  btn.title = backupBusy ? 'Guardando la copia en Google Drive…' : `Guardar una copia de seguridad en Google Drive${at ? ` · última ${new Date(at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}` : ''}`;
+}
+async function quickBackup() {
+  if (backupBusy || typeof backupToDrive !== 'function') return;
+  backupBusy = true;
+  renderBackupBtn();
+  showToastMessage('Guardando la copia de seguridad en Drive…');
+  const before = gSettings().driveLastAt || 0;
+  try {
+    await backupToDrive();
+  } finally {
+    backupBusy = false;
+    renderBackupBtn();
+  }
+  const ok = (gSettings().driveLastAt || 0) > before;
+  showToastMessage(ok ? '✓ Copia de seguridad guardada en Google Drive' : `No se pudo guardar la copia. ${$('#gdrive-status')?.textContent || ''}`.trim());
+}
+function backupBtnMenu(anchor) {
+  const g = gSettings();
+  showMenu(anchor, [
+    { label: '💾 Guardar copia ahora', action: quickBackup },
+    { label: g.driveAuto ? '✓ Copia automática diaria (activada)' : 'Activar la copia automática diaria', action: () => {
+      g.driveAuto = !g.driveAuto;
+      save();
+      if (typeof renderGoogleSettings === 'function') renderGoogleSettings();
+      showToastMessage(g.driveAuto ? 'Se hará una copia cada día al abrir la app' : 'Copia automática desactivada');
+    } },
+    { label: 'Ver y restaurar copias…', action: () => {
+      showView('settings');
+      setTimeout(() => {
+        $('#gdrive-list')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        $('#gdrive-list')?.click();
+      }, 60);
+    } },
+  ]);
+}
+$('#drive-backup-btn').addEventListener('click', quickBackup);
+$('#drive-backup-btn').addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  backupBtnMenu({ x: e.clientX, y: e.clientY });
+});
+COMMANDS_EXTRA.push(() => (typeof gAvailable === 'function' && gAvailable() ? [{ label: 'Guardar copia de seguridad en Google Drive', action: quickBackup }] : []));
+const nvPrevDriveBtn = renderDriveBtn;
+renderDriveBtn = function renderDriveBtns() {
+  nvPrevDriveBtn();
+  renderBackupBtn();
+};
 renderDriveBtn();
 renderNavButtons();
