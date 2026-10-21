@@ -25,7 +25,7 @@ const seed = {
   check('escribir y pensar', await views('[data-group=write] .tb-menu .rib'), ['journal', 'ideas', 'ask', 'rib-think']);
   check('planificar', await views('[data-group=plan] .tb-menu .rib'), ['rib-compass', 'tasks', 'projects', 'inbox', 'review', 'plan']);
   check('seguimiento', await views('[data-group=focus] .tb-menu .rib'), ['timer', 'habits', 'progress', 'finanzas']);
-  check('más', await views('[data-group=more] .tb-menu .rib'), ['shared', 'rib-palette', 'trash']);
+  check('más', await views('[data-group=more] .tb-menu .rib'), ['rib-revision', 'shared', 'rib-palette', 'trash']);
   // Contadores
   check('Hoy: 2 con vencidas', await p.evaluate(() => { const x = document.querySelector('.tb-today .tb-badge'); return [x.hidden, x.textContent, x.classList.contains('alert')]; }), [false, '2', true]);
   check('hábitos 1/2', await p.textContent('.rib[data-view=habits] .tb-count'), '1/2');
