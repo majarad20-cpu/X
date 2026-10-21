@@ -95,8 +95,8 @@ const vaultNotes = () => state.notes.filter((n) => !n.enc);
 // Notas que se quedan solo en Drive (p. ej. libros convertidos, muy pesados): se quitan de la app
 // sin borrar su archivo y no se vuelven a traer. La lista va en los ajustes (se sincroniza), así
 // ningún dispositivo manda esos archivos a la papelera de Drive. Además, al traer de Drive se saltan
-// los .md de más de «vaultMaxKB» (200 KB por defecto; 0 = sin límite).
-const VAULT_MAX_KB = 200;
+// los .md de más de «vaultMaxKB» (100 KB por defecto; 0 = sin límite).
+const VAULT_MAX_KB = 100;
 const vaultExcluded = () => (state.settings.vaultExcluded ||= []);
 const vaultMaxKB = () => (state.settings.vaultMaxKB ?? VAULT_MAX_KB);
 const vaultExcludedPath = (path) => vaultExcluded().some((x) => x.path.toLowerCase() === path.toLowerCase());

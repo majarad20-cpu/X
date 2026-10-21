@@ -14,8 +14,8 @@ $('#views-pane main').append(el('section', { id: 'view-revision', className: 'vi
 
 const RV_APP_FOLDERS = /^(Diario|Semanal|Mensual|Plantillas|Bases|Tareas|Proyectos|Pensar|Obras|Recetas|Contactos|Cursos|Biblioteca|Películas y series|Papelera)(\/|$)/i;
 const RV_ASSET = /^\^|\.(png|jpe?g|gif|webp|bmp|svg|avif|pdf|mp3|mp4|webm|m4a|wav|excalidraw|canvas)$/i;
-// Notas «enormes»: más del límite de la bóveda (200 KB por defecto; cerca del bloque de 256 KB de la nube).
-const rvHuge = () => (typeof vaultMaxKB === 'function' && vaultMaxKB() > 0 ? vaultMaxKB() : 200) * 1024;
+// Notas «enormes»: más del límite de la bóveda (100 KB por defecto; cerca del bloque de 256 KB de la nube).
+const rvHuge = () => (typeof vaultMaxKB === 'function' && vaultMaxKB() > 0 ? vaultMaxKB() : 100) * 1024;
 const RV_LIST = 80; // elementos por lista antes de «y N más»
 const rv = { folder: '', report: null, rev: -1 };
 
@@ -247,7 +247,7 @@ function renderVaultReview() {
     card('Solo en Drive (sacadas de Enfoque)', (state.settings.vaultExcluded || []).length, 'Notas que sacaste de Enfoque: siguen en Drive y no se vuelven a traer. Quita una de la lista para traerla en la próxima sincronización.', () => el('div', {}, [
       el('label', { className: 'row rv-actions' }, ['Al traer de Drive, saltar las notas de más de ', (() => {
         const sel = el('select', { ariaLabel: 'Tamaño máximo al traer de Drive' }, [[100, '100 KB'], [200, '200 KB'], [500, '500 KB'], [0, 'sin límite']].map(([v, l]) => el('option', { value: String(v) }, l)));
-        sel.value = String(typeof vaultMaxKB === 'function' ? vaultMaxKB() : 200);
+        sel.value = String(typeof vaultMaxKB === 'function' ? vaultMaxKB() : 100);
         sel.addEventListener('change', () => {
           state.settings.vaultMaxKB = Number(sel.value);
           save();
