@@ -32,6 +32,18 @@ const CORE_KEYS = ['tasks', 'habits', 'settings', 'pomodoros', 'focusMinutes', '
 const DATA_KEYS = [...CORE_KEYS, 'journal', 'ideas', 'maps', 'archive', 'log', 'notes', 'canvases', 'finance', 'focusLog'];
 
 // Datos guardados → estado completo, con los valores por defecto de lo que falte.
+// Notas incompletas (p. ej. llegadas a medias de la nube o de una importación): sin texto se
+// quedan con texto vacío, y las que no tienen nombre se descartan; si no, el grafo, los enlaces y
+// las tareas fallarían al leerlas.
+function fixNotes(list) {
+  if (!Array.isArray(list)) return [];
+  const out = list.filter((n) => n && typeof n === 'object' && n.id && typeof n.path === 'string' && n.path.trim());
+  out.forEach((n) => {
+    if (typeof n.body !== 'string') n.body = n.body == null ? '' : String(n.body);
+  });
+  return out;
+}
+
 function normalize(data) {
   // Datos de versiones anteriores: reconstruye el historial de completadas con lo que haya.
   if (!data.completions) {
@@ -43,6 +55,7 @@ function normalize(data) {
       }
     }
   }
+  if (data.notes) data.notes = fixNotes(data.notes);
   const fresh = defaults();
   return { ...fresh, ...data, settings: { ...fresh.settings, ...data.settings }, syncMeta: { ...fresh.syncMeta, ...data.syncMeta } };
 }
@@ -291,6 +304,7 @@ function bump(counter, key, n) {
 // Otras partes que se vuelven a dibujar con todo lo demás (p. ej. la agenda del día abierta).
 const RENDER_HOOKS = [];
 function renderAll() {
+  if (state.notes?.some((n) => typeof n?.body !== 'string' || typeof n?.path !== 'string')) state.notes = fixNotes(state.notes);
   renderNotesUI();
   const tab = activeTab();
   if (tab?.type === 'view') VIEW_RENDER[tab.view]?.();
