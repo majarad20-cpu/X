@@ -159,15 +159,14 @@ async function quickBackup() {
   backupBusy = true;
   renderBackupBtn();
   showToastMessage('Guardando la copia de seguridad en Drive…');
-  const before = gSettings().driveLastAt || 0;
+  let ok = false;
   try {
-    await backupToDrive();
+    ok = await backupToDrive();
   } finally {
     backupBusy = false;
     renderBackupBtn();
   }
-  const ok = (gSettings().driveLastAt || 0) > before;
-  showToastMessage(ok ? '✓ Copia de seguridad guardada en Google Drive' : `No se pudo guardar la copia. ${$('#gdrive-status')?.textContent || ''}`.trim());
+  showToastMessage(ok ? '✓ Copia de seguridad guardada en Google Drive' : $('#gdrive-status')?.textContent || 'No se pudo guardar la copia.');
 }
 function backupBtnMenu(anchor) {
   const g = gSettings();
