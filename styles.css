@@ -3096,3 +3096,12 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .rv-ghost:hover { color: var(--accent); }
 .rv-chip { margin: 0 6px 6px 0; display: inline-block; }
 .rv-foot { font-size: .8rem; }
+
+/* Limpieza guiada (80-limpieza-boveda.js) */
+.lz-card { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.lz-step { margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--border); }
+.lz-step > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; cursor: pointer; }
+.lz-step h4 { margin: 10px 0 2px; font-size: .9rem; }
+.lz-list label { display: inline; cursor: pointer; }
+.lz-states { columns: 1; }
+.lz-states select { margin: 0 4px; }
