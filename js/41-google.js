@@ -67,47 +67,97 @@ const driveStatus = (text, isError = false) => {
   n.classList.toggle('error', isError);
 };
 
-async function backupJson() {
+async function backupJson({ files = true } = {}) {
   const data = Object.fromEntries(DATA_KEYS.map((k) => [k, state[k]]));
-  let images = await backupFiles();
-  const base = { app: 'enfoque', version: 1, exportedAt: new Date().toISOString(), data };
-  // Las imágenes y notas de voz van en la copia si no la hacen demasiado grande para subirla.
-  const size = images.reduce((n, f) => n + (f.data?.length || 0), 0);
-  const withFiles = size < 4 * 1024 * 1024;
-  if (!withFiles) images = [];
-  return { json: JSON.stringify({ ...base, files: images }), withFiles };
+  const images = files ? await backupFiles() : [];
+  return JSON.stringify({ app: 'enfoque', version: 1, exportedAt: new Date().toISOString(), data, files: images });
 }
+
+// La copia va comprimida (.json.gz): el texto de las notas ocupa unas 4 veces menos y cabe en una
+// sola subida. Sin CompressionStream (navegadores antiguos) se sube el JSON tal cual.
+const bytesToB64 = (buf) => {
+  let s = '';
+  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+async function gzipText(text) {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function backupFromB64(b64) {
+  const bytes = b64ToBytes(b64);
+  if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return new TextDecoder().decode(bytes);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).text();
+}
+// Por encima de esto la subida por el conector suele fallar: se prueba sin imágenes.
+const DRIVE_UPLOAD_MAX = 3 * 1024 * 1024;
 
 let driveBusy = false;
 async function backupToDrive({ auto = false } = {}) {
-  if (!gAvailable()) return driveStatus('Google Drive solo está disponible al abrir la app desde Claude.', true);
-  if (driveBusy) return;
+  if (!gAvailable()) {
+    driveStatus('Google Drive solo está disponible al abrir la app desde Claude.', true);
+    return false;
+  }
+  // Si ya hay una copia en marcha (p. ej. la diaria), se espera a que termine y vale esa.
+  if (driveBusy) {
+    const before = gSettings().driveLastAt || 0;
+    while (driveBusy) await new Promise((r) => setTimeout(r, 200));
+    return (gSettings().driveLastAt || 0) > before;
+  }
   driveBusy = true;
   const btn = $('#gdrive-now');
   btn.disabled = true;
   driveStatus('Guardando la copia en Google Drive…');
+  const stamp = `${dateKey()}-${String(new Date().getHours()).padStart(2, '0')}${String(new Date().getMinutes()).padStart(2, '0')}`;
+  const gz = typeof CompressionStream === 'function';
+  let lastError;
   try {
-    const { json, withFiles } = await backupJson();
-    const title = `enfoque-copia-${dateKey()}-${String(new Date().getHours()).padStart(2, '0')}${String(new Date().getMinutes()).padStart(2, '0')}.json`;
-    const input = { title, textContent: json, contentMimeType: 'application/json', disableConversionToGoogleType: true };
-    let file;
-    try {
-      file = await gCall(DRIVE, 'create_file', { ...input, parentId: await driveFolder() });
-    } catch (e) {
-      // La carpeta pudo borrarse: se busca o se crea otra y se reintenta una vez.
-      if (e?.code !== 'tool_error' || !gSettings().driveFolder) throw e;
-      delete gSettings().driveFolder;
-      file = await gCall(DRIVE, 'create_file', { ...input, parentId: await driveFolder() });
+    let parent = await driveFolder();
+    // Primero con imágenes y notas de voz; si no caben o la subida falla, sin ellas.
+    for (const files of [true, false]) {
+      const json = await backupJson({ files });
+      const input = gz
+        ? { title: `enfoque-copia-${stamp}.json.gz`, base64Content: bytesToB64(await gzipText(json)), contentMimeType: 'application/gzip' }
+        : { title: `enfoque-copia-${stamp}.json`, textContent: json, contentMimeType: 'application/json' };
+      const size = (input.base64Content || input.textContent).length;
+      if (files && size > DRIVE_UPLOAD_MAX) continue;
+      if (size > DRIVE_UPLOAD_MAX * 2) throw new Error(`la copia ocupa ${(size / 1048576).toFixed(1)} MB, demasiado para subirla de una vez`);
+      Object.assign(input, { disableConversionToGoogleType: true });
+      let file;
+      try {
+        file = await gCall(DRIVE, 'create_file', { ...input, parentId: parent });
+      } catch (e) {
+        lastError = e;
+        if (['needs_reauth', 'server_not_connected', 'not_in_manifest', 'not_granted', 'blocked_by_policy'].includes(e?.code)) throw e;
+        // La carpeta pudo borrarse: se busca o se crea otra y se reintenta una vez.
+        delete gSettings().driveFolder;
+        const again = await driveFolder();
+        if (again === parent) continue;
+        parent = again;
+        try {
+          file = await gCall(DRIVE, 'create_file', { ...input, parentId: parent });
+        } catch (e2) {
+          lastError = e2;
+          continue;
+        }
+      }
+      if (!file?.id) continue;
+      const g = gSettings();
+      g.driveLast = dateKey();
+      g.driveLastAt = Date.now();
+      g.driveLastUrl = file.viewUrl || '';
+      save();
+      const hadFiles = !files && (await backupFiles()).length;
+      renderGoogleSettings(hadFiles ? ' Las imágenes no se incluyeron porque ocupan demasiado (siguen en la copia descargada).' : '');
+      if (auto) showToastMessage('Copia diaria guardada en Google Drive');
+      return true;
     }
-    const g = gSettings();
-    g.driveLast = dateKey();
-    g.driveLastAt = Date.now();
-    g.driveLastUrl = file?.viewUrl || '';
-    save();
-    renderGoogleSettings(withFiles ? '' : ' Las imágenes no se incluyeron porque ocupan demasiado (siguen en la copia descargada).');
-    if (auto) showToastMessage('Copia diaria guardada en Google Drive');
+    throw lastError || new Error('Drive no devolvió el archivo');
   } catch (e) {
     driveStatus(`No se pudo guardar la copia. ${gErrorText(e, DRIVE)}`, true);
+    return false;
   } finally {
     driveBusy = false;
     btn.disabled = false;
@@ -145,7 +195,7 @@ async function restoreFromDrive(f, btn) {
   btn.textContent = 'Descargando…';
   try {
     const res = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
-    restoreBackup(b64ToText(res.content || ''));
+    restoreBackup(await backupFromB64(res.content || ''));
     driveStatus('Copia restaurada desde Google Drive.');
     $('#gdrive-backups').hidden = true;
   } catch (e) {

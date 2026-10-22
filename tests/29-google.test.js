@@ -12,13 +12,13 @@ const mock = () => {
         return { payload: { files: files.filter(f => f.title.startsWith('enfoque-copia')) } };
       }
       if (server === 'Google Drive' && tool === 'create_file') {
-        const f = { id: 'f' + files.length, title: input.title, mimeType: input.contentMimeType, parentId: input.parentId, modifiedTime: new Date().toISOString(), viewUrl: 'https://drive.google.com/x/' + files.length, text: input.textContent };
+        const f = { id: 'f' + files.length, title: input.title, mimeType: input.contentMimeType, parentId: input.parentId, modifiedTime: new Date().toISOString(), viewUrl: 'https://drive.google.com/x/' + files.length, text: input.textContent, b64: input.base64Content };
         files.push(f);
         return { payload: f };
       }
       if (server === 'Google Drive' && tool === 'download_file_content') {
         const f = files.find(x => x.id === input.fileId);
-        return { payload: { id: f.id, content: btoa(String.fromCharCode(...new TextEncoder().encode(f.text))) } };
+        return { payload: { id: f.id, content: f.b64 || btoa(String.fromCharCode(...new TextEncoder().encode(f.text))) } };
       }
       if (tool === 'list_events') return { payload: { events: [
         { id: 'e1', summary: 'Reunión', start: { dateTime: '2026-10-12T11:00:00' }, end: { dateTime: '2026-10-12T12:30:00' }, status: 'confirmed' },
@@ -57,7 +57,7 @@ const mock = () => {
   await p.click('#gdrive-now'); await p.clock.runFor(500);
   const created = await calls('create_file');
   console.log('drive:', created.map(x => `${x.title.replace(/\d{4}$/, 'HHMM')}|${x.contentMimeType}|${x.parentId || '-'}`).join(' ; '));
-  console.log('backup json ok:', JSON.parse(created[1].textContent).data.tasks.length, '| status:', await p.textContent('#gdrive-status'));
+  console.log('backup json ok:', JSON.parse(await p.evaluate((b) => backupFromB64(b), created[1].base64Content)).data.tasks.length, '| status:', await p.textContent('#gdrive-status'));
   await p.check('#gdrive-auto');
   await p.evaluate(() => { state.tasks = []; save(); renderAll(); });
   await p.click('#gdrive-list'); await p.clock.runFor(300);

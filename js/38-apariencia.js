@@ -192,8 +192,11 @@ function applyRibbonMode(L = look()) {
 (() => {
   const rib = $('.ribbon');
   if (!rib) return;
+  // Tras elegir un botón se recoge (si no, taparía el panel que acaba de abrirse) hasta que el
+  // ratón salga y vuelva a entrar.
+  let held = false;
   const open = () => {
-    if (document.documentElement.dataset.riblabels !== 'peek') return;
+    if (held || document.documentElement.dataset.riblabels !== 'peek') return;
     document.documentElement.classList.add('rib-peek');
     document.documentElement.dataset.riblabels = 'on';
   };
@@ -203,8 +206,18 @@ function applyRibbonMode(L = look()) {
     applyRibbonMode();
   };
   rib.addEventListener('pointerenter', (e) => e.pointerType !== 'touch' && open());
-  rib.addEventListener('pointerleave', close);
-  rib.addEventListener('focusin', open);
+  rib.addEventListener('pointerleave', () => {
+    held = false;
+    close();
+  });
+  rib.addEventListener('click', (e) => {
+    if (!e.target.closest('button') || !document.documentElement.classList.contains('rib-peek')) return;
+    held = true;
+    document.activeElement?.blur?.();
+    document.documentElement.classList.remove('rib-peek');
+    applyRibbonMode();
+  });
+  rib.addEventListener('focusin', () => !held && open());
   rib.addEventListener('focusout', () => setTimeout(close));
 })();
 
