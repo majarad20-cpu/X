@@ -78,7 +78,7 @@ const SKINS = {
   brutal: { label: 'Neobrutalista', hint: 'Bordes gruesos, sombras duras y negritas', radius: 'soft' },
 };
 
-const LOOK_DEFAULTS = { ribbonLabels: 'on', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true, obsHeadings: 'off', obsGuides: 'off', obsTags: 'off', obsCallouts: 'off', obsMark: 'off', sideSize: 'small', treeWrap: 'off' };
+const LOOK_DEFAULTS = { ribbonLabels: 'auto', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true, obsHeadings: 'off', obsGuides: 'off', obsTags: 'off', obsCallouts: 'off', obsMark: 'off', sideSize: 'small', treeWrap: 'off' };
 
 // Tamaño del lado izquierdo (menú y panel de notas): todo se reduce o agranda a la vez.
 const SIDE_SIZES = { xsmall: ['Muy pequeño', 0.8], small: ['Pequeño', 0.88], normal: ['Normal', 1], large: ['Grande', 1.12] };
@@ -127,6 +127,10 @@ function ensureFont(key) {
 function applyLook() {
   // Una vez: las notas pasan a usar todo el ancho (antes iban centradas a 720 px).
   const saved = state.settings.look;
+  if (saved && !saved.ribAutoV1) {
+    if (saved.ribbonLabels === 'on') saved.ribbonLabels = 'auto';
+    saved.ribAutoV1 = true;
+  }
   if (saved && !saved.wideV1) {
     if (!saved.noteWidth || saved.noteWidth === 'normal') saved.noteWidth = 'full';
     saved.wideV1 = true;
@@ -155,7 +159,7 @@ function applyLook() {
   set('--radius', (RADII[L.radius] || RADII.round)[1]);
   root.dataset.density = L.density === 'compact' ? 'compact' : 'comfortable';
   root.dataset.motion = L.motion === 'reduce' ? 'reduce' : 'normal';
-  root.dataset.riblabels = L.ribbonLabels === 'off' ? 'off' : 'on';
+  applyRibbonMode(L);
   if (SKINS[L.skin] && L.skin !== 'classic') root.dataset.skin = L.skin;
   else delete root.dataset.skin;
   if (L.skin === 'term') ensureFont('mono');
@@ -173,6 +177,36 @@ function applyLook() {
   // El grafo y los lienzos leen los colores al dibujar.
   if (typeof globalGraph !== 'undefined' && globalGraph) globalGraph.draw?.();
 }
+
+// Barra de la izquierda: con nombres, solo iconos o «automático» (como Obsidian): solo iconos mientras
+// el panel de notas está abierto (al pasar el ratón se despliega encima, sin mover nada) y con nombres
+// cuando está cerrado.
+function applyRibbonMode(L = look()) {
+  const root = document.documentElement;
+  const leftOpen = !$('#app')?.classList.contains('left-collapsed');
+  const mode = L.ribbonLabels === 'off' ? 'off' : L.ribbonLabels === 'auto' && leftOpen ? 'peek' : 'on';
+  if (root.classList.contains('rib-peek') && mode === 'peek') return; // desplegada ahora mismo: se queda
+  root.classList.remove('rib-peek');
+  root.dataset.riblabels = mode;
+}
+(() => {
+  const rib = $('.ribbon');
+  if (!rib) return;
+  const open = () => {
+    if (document.documentElement.dataset.riblabels !== 'peek') return;
+    document.documentElement.classList.add('rib-peek');
+    document.documentElement.dataset.riblabels = 'on';
+  };
+  const close = () => {
+    if (!document.documentElement.classList.contains('rib-peek') || rib.matches(':hover, :focus-within')) return;
+    document.documentElement.classList.remove('rib-peek');
+    applyRibbonMode();
+  };
+  rib.addEventListener('pointerenter', (e) => e.pointerType !== 'touch' && open());
+  rib.addEventListener('pointerleave', close);
+  rib.addEventListener('focusin', open);
+  rib.addEventListener('focusout', () => setTimeout(close));
+})();
 
 // Al cambiar de tema, el acento acompaña (naranja en los cálidos, azul en los azules…), salvo que
 // se haya elegido otro a mano o un color propio.
@@ -322,7 +356,7 @@ function renderAppearance() {
     row('Tamaño del texto de las notas', range('noteSize', 13, 24, 1, (v) => `${v} px`, 'Tamaño del texto de las notas')),
     row('Interlineado de las notas', seg('lineHeight', LINE_HEIGHTS, 'Interlineado')),
     el('h3', { className: 'ap-sub' }, 'Diseño'),
-    row('Barra de la izquierda', seg('ribbonLabels', { on: ['Iconos y nombres'], off: ['Solo iconos'] }, 'Barra de la izquierda'), 'Muestra el nombre de cada sección junto a su icono'),
+    row('Barra de la izquierda', seg('ribbonLabels', { auto: ['Automático'], on: ['Iconos y nombres'], off: ['Solo iconos'] }, 'Barra de la izquierda'), 'Automático: solo iconos con el panel de notas abierto (pasa el ratón para ver los nombres)'),
     row('Tamaño del lado izquierdo', seg('sideSize', SIDE_SIZES, 'Tamaño del lado izquierdo'), 'El menú (Notas, Nota diaria…) y el listado de notas'),
     row('Nombres largos en el panel', seg('treeWrap', { off: ['Una línea (cortados)'], on: ['Completos (varias líneas)'] }, 'Nombres largos en el panel')),
     row('Ancho de las notas', seg('noteWidth', NOTE_WIDTHS, 'Ancho de las notas')),

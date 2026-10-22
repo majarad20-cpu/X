@@ -6,7 +6,7 @@ const out = process.argv[3];
   const errs = [];
   const check = (label, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); console.log(`${label}: ${JSON.stringify(got)}${ok ? ' ok' : ` ESPERADO ${JSON.stringify(want)}`}`); if (!ok) errs.push(label); };
   const c = await b.newContext({ viewport: { width: 1300, height: 900 } });
-  await c.addInitScript(() => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify({ tasks: [], habits: [], settings: { notesWelcome: true }, notes: [{ id: 'n', path: 'ESTOICISMO/📋 CONSOLIDACIÓN ESTOICISMO - 2026-06-09 con un nombre muy largo', body: 'x', createdAt: 1, updatedAt: 1 }, { id: 'm', path: 'Corta', body: 'y', createdAt: 1, updatedAt: 1 }], updatedAt: 1 })); });
+  await c.addInitScript(() => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify({ tasks: [], habits: [], settings: { notesWelcome: true, look: { ribbonLabels: 'on', ribAutoV1: true } }, notes: [{ id: 'n', path: 'ESTOICISMO/📋 CONSOLIDACIÓN ESTOICISMO - 2026-06-09 con un nombre muy largo', body: 'x', createdAt: 1, updatedAt: 1 }, { id: 'm', path: 'Corta', body: 'y', createdAt: 1, updatedAt: 1 }], updatedAt: 1 })); });
   await c.route(/fonts\.g/, (r) => r.abort());
   const p = await c.newPage();
   p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));

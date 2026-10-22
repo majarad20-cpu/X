@@ -3105,3 +3105,8 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .lz-list label { display: inline; cursor: pointer; }
 .lz-states { columns: 1; }
 .lz-states select { margin: 0 4px; }
+
+/* Barra de la izquierda en modo automático: desplegada encima del panel al pasar el ratón */
+:root.rib-peek { --ribbon-w: calc(52px * var(--sidek, 1)) !important; }
+:root.rib-peek .ribbon { width: 186px; position: relative; z-index: 40; box-shadow: 6px 0 24px rgb(0 0 0 / .18); }
+@media (max-width: 899px) { :root.rib-peek { --ribbon-m: 56px !important; } :root.rib-peek .ribbon { width: 186px; } }

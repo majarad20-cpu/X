@@ -441,6 +441,7 @@ function applyPanels() {
     $(`.side-resize[data-side="${side}"]`)?.setAttribute('aria-valuenow', String(w));
   });
   app.classList.toggle('left-collapsed', !panels.left);
+  if (typeof applyRibbonMode === 'function') applyRibbonMode();
   app.classList.toggle('right-collapsed', !panels.right);
   $$('[data-lpane]').forEach((b) => b.classList.toggle('active', b.dataset.lpane === panels.lpane));
   $$('[data-rpane]').forEach((b) => b.classList.toggle('active', b.dataset.rpane === panels.rpane));
@@ -671,7 +672,7 @@ function renderTree() {
           el('span', { className: 'tree-name' }, baseName(f)),
           el('span', { className: 'tree-count' }, count ? String(count) : ''),
         ]);
-        row.style.paddingLeft = `${8 + depth * 14}px`;
+        row.style.paddingLeft = `${8 + depth * 11}px`;
         const more = el('button', { className: 'tree-more', title: 'Opciones de la carpeta', ariaLabel: `Opciones de ${baseName(f)}` }, ico('more'));
         more.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -708,7 +709,7 @@ function renderTree() {
         ]);
         row.dataset.id = n.id;
         NOTE_DECOR.row(row, n);
-        row.style.paddingLeft = `${22 + depth * 14}px`;
+        row.style.paddingLeft = `${20 + depth * 11}px`;
         row.addEventListener('click', (e) => openNote(n, { newTab: e.ctrlKey || e.metaKey }));
         row.addEventListener('auxclick', (e) => {
           if (e.button === 1) openNote(n, { newTab: true });
