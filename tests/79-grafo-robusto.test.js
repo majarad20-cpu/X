@@ -25,7 +25,15 @@ const url = process.argv[2];
   await p.evaluate(() => { showView('today'); openTab({ type: 'graph' }); }); await p.waitForTimeout(500);
   check('sigue funcionando', await p.evaluate(() => typeof noteById('y').body), 'string');
   // Ruta parcial, como en Obsidian
-  check('ruta parcial', await p.evaluate(() => { state.notes.push({ id: 'pp', path: 'Cerebro/00.- ATLAS/MOCS/MOC X', body: '', createdAt: 1, updatedAt: 1 }); dataRev++; return [findNoteByName('00.- ATLAS/MOCS/MOC X')?.id, findNoteByName('MOCS/MOC X')?.id, findNoteByName('OTRA/MOC X') || null]; }), ['pp', 'pp', null]);
+  check('ruta parcial', await p.evaluate(() => { state.notes.push({ id: 'pp', path: 'Cerebro/00.- ATLAS/MOCS/MOC X', body: '', createdAt: 1, updatedAt: 1 }); dataRev++; return [findNoteByName('00.- ATLAS/MOCS/MOC X')?.id, findNoteByName('MOCS/MOC X')?.id, findNoteByName('OTRA/MOC X')?.id, findNoteByName('OTRA/Nada') || null]; }), ['pp', 'pp', 'pp', null]);
+  // Rutas de Obsidian que ya no existen (carpetas movidas tras migrar) y tildes descompuestas
+  check('ruta antigua', await p.evaluate(() => {
+    state.notes.push({ id: 'e1', path: 'ESTOICISMO/100 - Fundamentos/101 - Que\u0301 es el Estoicismo', body: '', createdAt: 1, updatedAt: 1 });
+    state.notes.push({ id: 'e2', path: 'Otra/ESTOICISMO/200 - Autores/203 - Séneca', body: '', createdAt: 1, updatedAt: 1 });
+    state.notes.push({ id: 'e3', path: 'Copia/203 - Séneca', body: '', createdAt: 1, updatedAt: 1 });
+    dataRev++;
+    return [findNoteByName('00.- ATLAS/ESTOICISMO/100 - Fundamentos/101 - Qué es el Estoicismo')?.id, findNoteByName('101 - Qué es el Estoicismo')?.id, findNoteByName('00.- ATLAS/ESTOICISMO/200 - Autores/203 - Séneca')?.id];
+  }), ['e1', 'e1', 'e2']);
   // Bóveda grande con un índice (MOC) de 600 enlaces: el dibujo no se desborda y se ve entero
   await p.evaluate(() => { for (let i = 0; i < 2400; i++) state.notes.push({ id: 'x' + i, path: `Cerebro/N${i}`, body: i === 0 ? Array.from({ length: 600 }, (_, k) => `[[N${k + 1}]]`).join(' ') : `[[N${(i * 13) % 2400}]] [[Fantasma ${i % 300}]]`, createdAt: 1, updatedAt: 1 }); save(); renderAll(); openTab({ type: 'graph' }); });
   for (let i = 0; i < 16 && (await p.evaluate(() => globalGraph.alpha > 0.02)); i++) await p.waitForTimeout(500);

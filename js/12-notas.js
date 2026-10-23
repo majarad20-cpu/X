@@ -85,7 +85,7 @@ function notesIndexed() {
   noteIndex.resolved = new Map();
   noteIndex.aliases = null; // se rehace al primer enlace que no sea a una ruta ni a un nombre
   for (const x of state.notes) {
-    const lower = x.path.toLowerCase();
+    const lower = x.path.normalize('NFC').toLowerCase();
     if (!noteIndex.byPath.has(lower)) noteIndex.byPath.set(lower, x);
     const name = baseName(lower);
     if (!noteIndex.byName.has(name)) noteIndex.byName.set(name, x);
@@ -119,15 +119,29 @@ function noteByAlias(name) {
   return idx.aliases.get(n) || null;
 }
 
+// Las tildes pueden venir compuestas o descompuestas (según el sistema que creó el archivo): se comparan igual.
+const pathKey = (p) => p.normalize('NFC').toLowerCase();
+
 function resolveNoteName(name, idx) {
-  const n = name.trim().replace(/\.md$/i, '').toLowerCase();
+  const n = pathKey(name.trim().replace(/\.md$/i, ''));
   if (!n) return null;
   const hit = idx.byPath.get(n) || idx.byName.get(n);
   // Sin acierto, el índice (que se rehace al cambiar rutas) es fiable: no hay tal nota. Salvo una
   // ruta parcial, como en Obsidian: [[00.- ATLAS/MOCS/Nota]] vale para «Bóveda/00.- ATLAS/MOCS/Nota».
-  if (!hit) return n.includes('/') ? state.notes.find((x) => x.path.toLowerCase().endsWith(`/${n}`)) || null : null;
-  if (hit.path.toLowerCase() === n || baseName(hit.path).toLowerCase() === n) return hit;
-  return state.notes.find((x) => x.path.toLowerCase() === n) || state.notes.find((x) => baseName(x.path).toLowerCase() === n) || null;
+  // Y si la ruta ya no existe (carpetas movidas o renombradas tras migrar de Obsidian), vale la nota
+  // que conserve el final más largo de esa ruta, hasta llegar solo al nombre.
+  if (!hit) {
+    if (!n.includes('/')) return null;
+    const parts = n.split('/');
+    for (let k = 0; k < parts.length - 1; k++) {
+      const tail = parts.slice(k).join('/');
+      const found = idx.byPath.get(tail) || state.notes.find((x) => pathKey(x.path).endsWith(`/${tail}`));
+      if (found) return found;
+    }
+    return idx.byName.get(parts.at(-1)) || null;
+  }
+  if (pathKey(hit.path) === n || pathKey(baseName(hit.path)) === n) return hit;
+  return state.notes.find((x) => pathKey(x.path) === n) || state.notes.find((x) => pathKey(baseName(x.path)) === n) || null;
 }
 
 function noteById(id) {
