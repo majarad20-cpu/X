@@ -1343,6 +1343,11 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .na-head .na-note { max-width: 55%; }
 .na-head .muted { flex: 1; font-size: .82rem; }
 .na-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.na-write { flex-wrap: wrap; gap: 6px; align-items: center; flex: none; }
+.na-write select { padding: 3px 6px; font-size: .85rem; }
+.na-write .primary-chip { font-weight: 600; }
+.note-ai.na-empty .na-write .primary-chip { background: var(--accent); border-color: var(--accent); color: #fff; }
+.na-vault { display: inline-flex; gap: 4px; align-items: center; font-size: .85rem; color: var(--muted); cursor: pointer; }
 .na-actions .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .na-translate { display: inline-flex; gap: 4px; align-items: center; }
 .na-translate select { padding: 3px 6px; font-size: .85rem; }
