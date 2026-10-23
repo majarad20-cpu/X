@@ -138,6 +138,98 @@ async function trashVaultFile(id) {
   }
 }
 
+// Archivos de Drive enlazados con alguna nota de la app (menos la indicada).
+function vaultMappedIds(m, exceptId) {
+  const live = new Set(vaultNotes().map((n) => n.id));
+  return new Set(Object.entries(m.files).filter(([id]) => id !== exceptId && live.has(id)).map(([, f]) => f.id));
+}
+async function vaultFolderFiles(cache, folderId) {
+  if (!cache.has(folderId)) cache.set(folderId, await listVaultFolder(folderId));
+  return cache.get(folderId);
+}
+
+// Dos notas con la misma ruta (p. ej. una que volvió desde un dispositivo con datos viejos) se
+// pisarían en Drive. Si el texto es igual sobra una (va a la papelera de Enfoque); si es distinto,
+// la que no está en Drive pasa a llamarse «… (copia)» para que no se pierda nada.
+function vaultSamePath(m) {
+  const groups = new Map();
+  for (const n of vaultNotes()) {
+    const k = pathKey(n.path);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(n);
+  }
+  const extra = [];
+  let renamed = 0;
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    // Se queda la que ya está en Drive; si no, la cambiada más recientemente.
+    list.sort((a, b) => !!m.files[b.id] - !!m.files[a.id] || (b.updatedAt || 0) - (a.updatedAt || 0));
+    const [keep, ...rest] = list;
+    for (const n of rest) {
+      if ((n.body || '').trim() === (keep.body || '').trim()) extra.push(n);
+      else {
+        n.path = uniquePath(folderOf(n.path), `${baseName(n.path)} (copia)`);
+        n.updatedAt = Date.now();
+        renamed++;
+      }
+    }
+  }
+  if (!extra.length && !renamed) return;
+  if (extra.length) {
+    trashNotes(extra);
+    const gone = new Set(extra.map((n) => n.id));
+    state.notes = state.notes.filter((n) => !gone.has(n.id));
+  }
+  noteIndex.key = '';
+  dataRev++;
+  save();
+  renderAll();
+}
+
+// Busca en las carpetas de la bóveda archivos .md repetidos (mismo nombre en la misma carpeta).
+// De cada grupo se queda el enlazado con una nota de la app (o, si no hay, el más reciente).
+async function scanVaultDuplicates() {
+  const m = vaultMap();
+  const mapped = vaultMappedIds(m);
+  const groups = [];
+  const folders = [['', m.root], ...Object.entries(m.folders)].filter(([, id]) => id);
+  const seen = new Set();
+  for (const [path, id] of folders) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const byName = new Map();
+    for (const f of await listVaultFolder(id)) {
+      if (f.mimeType === FOLDER_MIME || !/\.md$/i.test(f.title)) continue;
+      const k = pathKey(f.title);
+      if (!byName.has(k)) byName.set(k, []);
+      byName.get(k).push(f);
+    }
+    for (const list of byName.values()) {
+      if (list.length < 2) continue;
+      list.sort((a, b) => mapped.has(b.id) - mapped.has(a.id) || String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')));
+      const [keep, ...rest] = list;
+      // Las notas que dejaste solo en Drive (libros, archivos grandes) no se tocan.
+      if (vaultExcludedPath(joinPath(path, keep.title.replace(/\.md$/i, ''))) || list.some(vaultTooBig)) continue;
+      // Dos archivos enlazados con notas distintas no son copias sobrantes: no se tocan.
+      const extra = rest.filter((f) => !mapped.has(f.id));
+      if (extra.length) groups.push({ path: joinPath(path, keep.title.replace(/\.md$/i, '')), keep, extra });
+    }
+  }
+  return groups.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+async function trashVaultDuplicates(groups) {
+  let n = 0;
+  for (const g of groups) {
+    for (const f of g.extra) {
+      await trashVaultFile(f.id);
+      n++;
+    }
+  }
+  saveVaultMap();
+  return n;
+}
+
 // Sube las notas cambiadas, las renombradas o movidas, y quita de Drive las borradas.
 async function pushVault({ adopt = false } = {}) {
   const m = vaultMap();
@@ -152,7 +244,7 @@ async function pushVault({ adopt = false } = {}) {
           await walk(f.id, path);
         } else if (/\.md$/i.test(f.title)) {
           const path = joinPath(prefix, f.title.replace(/\.md$/i, ''));
-          const note = state.notes.find((n) => n.path.toLowerCase() === path.toLowerCase());
+          const note = state.notes.find((n) => pathKey(n.path) === pathKey(path));
           if (note && !m.files[note.id]) m.files[note.id] = { id: f.id, path: note.path, at: 0, mt: f.modifiedTime || '' };
         }
       }
@@ -160,6 +252,7 @@ async function pushVault({ adopt = false } = {}) {
     await walk(root, '');
     saveVaultMap();
   }
+  vaultSamePath(m);
   const notes = vaultNotes();
   const pending = notes.filter((n) => {
     const f = m.files[n.id];
@@ -169,6 +262,7 @@ async function pushVault({ adopt = false } = {}) {
   const gone = Object.keys(m.files).filter((id) => !alive.has(id));
   let done = 0;
   const failed = [];
+  const folderCache = new Map();
   for (const note of pending) {
     // Se espera a que la nota lleve unos segundos sin cambios, salvo en la primera subida.
     if (!adopt && Date.now() - (note.updatedAt || 0) < 8000) continue;
@@ -183,6 +277,13 @@ async function pushVault({ adopt = false } = {}) {
       m.ignore.push(made.id);
       saveVaultMap();
       if (old?.id && old.id !== made.id) await trashVaultFile(old.id);
+      // Otras copias con el mismo nombre en esa carpeta (subidas desde otro dispositivo o de antes)
+      // sobran: en Drive queda un solo archivo por nota.
+      const mapped = vaultMappedIds(m, note.id);
+      for (const f of await vaultFolderFiles(folderCache, folderId)) {
+        if (f.id === made.id || f.id === old?.id || mapped.has(f.id) || f.mimeType === FOLDER_MIME || pathKey(f.title) !== pathKey(`${baseName(note.path)}.md`)) continue;
+        await trashVaultFile(f.id);
+      }
       saveVaultMap();
     } catch (e) {
       // Una nota que falla no detiene las demás; se reintenta en la próxima vuelta.
@@ -266,7 +367,7 @@ async function pullVault() {
       // Un .md nuevo que pusiste en la carpeta de la bóveda: pasa a ser una nota. Si ya hay una nota con
       // esa ruta (p. ej. la subió otro dispositivo), se enlaza con ella en vez de crear «… 2».
       const folder = folderPath.get(f.parentId);
-      const same = state.notes.find((x) => x.path.toLowerCase() === joinPath(folder, f.title.replace(/\.md$/i, '')).toLowerCase());
+      const same = state.notes.find((x) => pathKey(x.path) === pathKey(joinPath(folder, f.title.replace(/\.md$/i, ''))));
       if (same) {
         if (!same.enc && text !== same.body && (same.updatedAt || 0) < Date.parse(f.modifiedTime || 0)) {
           same.body = text;
