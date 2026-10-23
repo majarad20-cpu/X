@@ -6,7 +6,7 @@
 // El resultado se ve antes de aplicarlo y lo anterior queda en el historial de versiones.
 // Las notas con contraseña quedan fuera: su texto no sale del dispositivo.
 const NOTE_AI_MAX = 30000;
-const noteAI = { noteId: null, sel: null, action: null, result: '', busy: false, ctl: null, lang: 'inglés', prompt: '', kind: 'auto', used: [] };
+const noteAI = { noteId: null, sel: null, action: null, result: '', busy: false, ctl: null, lang: 'inglés', prompt: '', kind: 'auto', used: [], suggestions: [], picked: new Set() };
 
 // Tipos de nota para «Escribir esta nota»: cómo se organiza el texto.
 const NOTE_AI_KINDS = {
@@ -212,15 +212,22 @@ function renderNoteAI() {
   $('#note-ai-stop').hidden = !noteAI.busy;
   const out = $('#note-ai-out');
   out.hidden = !noteAI.result && !noteAI.busy && !noteAI.error;
-  $('#note-ai-result').innerHTML = noteAI.result ? renderMd(noteAI.result, { noTasks: true }) : noteAI.busy ? '<p class="muted">Claude está escribiendo…</p>' : '';
+  const current = NOTE_AI_ACTIONS[noteAI.action];
+  $('#note-ai-result').classList.remove('sg-list');
+  $('#note-ai-insert').disabled = false;
+  $('#note-ai-result').innerHTML = noteAI.result && !current?.render ? renderMd(noteAI.result, { noTasks: true }) : noteAI.busy ? `<p class="muted">${current?.quiet || 'Claude está escribiendo…'}</p>` : '';
   $('#note-ai-error').textContent = noteAI.error || '';
   const done = !!noteAI.result && !noteAI.busy;
   const action = NOTE_AI_ACTIONS[noteAI.action];
-  const canReplace = done && !!noteAI.sel && action?.place !== 'cursor';
+  const canReplace = done && !!noteAI.sel && action?.place !== 'cursor' && !action?.apply;
   $('#note-ai-replace').hidden = !canReplace;
   $('#note-ai-insert').hidden = !done;
   $('#note-ai-insert').textContent = action?.place === 'cursor' ? 'Insertar en el cursor' : noteAI.sel ? 'Insertar debajo de la selección' : action?.place === 'replace' ? 'Reemplazar la nota' : empty ? 'Escribir en la nota' : 'Añadir al final';
-  $('#note-ai-copy').hidden = !done;
+  $('#note-ai-copy').hidden = !done || !!action?.render;
+  if (done && action?.render) {
+    $('#note-ai-insert').hidden = !noteAI.suggestions?.length;
+    action.render();
+  }
   $('#note-ai-retry').hidden = !done && !noteAI.error;
 }
 
@@ -231,13 +238,14 @@ async function runNoteAI(key) {
   if (key === 'custom' && !noteAI.prompt.trim()) return $('#note-ai-input').focus();
   const source = (noteAI.sel ? noteAI.sel.text : note.body).slice(0, NOTE_AI_MAX);
   const content = noteAI.sel ? source : noteAIContent(note).slice(0, NOTE_AI_MAX);
-  if (!content.trim() && !['continue', 'custom', 'write'].includes(key)) {
+  if (!content.trim() && !['continue', 'custom', 'write', 'suggest'].includes(key)) {
     noteAI.error = 'La nota está vacía: usa «✍️ Escribir esta nota» o pídeselo abajo.';
     return renderNoteAI();
   }
   const useVault = action.vault && state.settings.noteAIVault !== false;
   const vault = useVault ? noteAIVaultContext(note) : { text: '', used: [] };
   noteAI.used = vault.used;
+  noteAI.suggestions = [];
   const ctx = { title: baseName(note.path), folder: folderOf(note.path), vault: vault.text, before: note.body.slice(Math.max(0, noteAI.caret - NOTE_AI_MAX), noteAI.caret), after: note.body.slice(noteAI.caret, noteAI.caret + 4000) };
   noteAI.action = key;
   noteAI.result = '';
@@ -246,15 +254,18 @@ async function runNoteAI(key) {
   noteAI.ctl = new AbortController();
   renderNoteAI();
   try {
-    const { text } = await ai.sample(action.ask(key === 'write' || key === 'custom' ? content : source, ctx), {
+    const input = key === 'suggest' ? note.body.slice(0, NOTE_AI_MAX) : key === 'write' || key === 'custom' ? content : source;
+    const { text } = await ai.sample(action.ask(input, ctx), {
       signal: noteAI.ctl.signal,
       onText: ({ text: t }) => {
+        if (action.quiet) return;
         noteAI.result = t;
         $('#note-ai-result').innerHTML = renderMd(t, { noTasks: true });
       },
     });
     noteAI.result = cleanAIText(text);
     if (key === 'write') noteAI.result = tidyNoteAILinks(noteAI.result, noteAI.kind === 'moc');
+    action.after?.(note);
   } catch (e) {
     noteAI.result = '';
     if (e?.code === 'cancelled') noteAI.error = 'Cancelado.';
@@ -281,6 +292,7 @@ async function applyNoteAI(mode) {
   const note = noteById(noteAI.noteId);
   const action = NOTE_AI_ACTIONS[noteAI.action];
   if (!note || !noteAI.result || note.enc) return;
+  if (action.apply) return action.apply(note);
   if (noteAI.action === 'tasks' && /^\(ninguna\)$/i.test(noteAI.result.trim())) {
     showToastMessage('Claude no encontró tareas en el texto.');
     return closeNoteAI();

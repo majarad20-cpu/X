@@ -150,6 +150,7 @@
             <select id="note-ai-kind" aria-label="Tipo de nota">
               <option value="auto">Tipo: automático</option><option value="concepto">Concepto</option><option value="procedimiento">Procedimiento</option><option value="moc">MOC (índice)</option><option value="resumen">Resumen</option><option value="comparacion">Comparación</option>
             </select>
+            <button class="chip primary-chip" data-ai-action="suggest" id="note-ai-suggest" title="Claude revisa la nota y propone mejoras para aplicar con un clic">💡 Sugerencias</button>
             <label class="na-vault" title="Claude lee las notas relacionadas (las que enlazan a esta, las que enlaza, las que la mencionan y las de su carpeta) y escribe a partir de ellas"><input type="checkbox" id="note-ai-vault"> Usar mi bóveda</label>
           </div>
           <div class="na-actions" role="group" aria-label="Acciones">
@@ -1266,6 +1267,7 @@
   <script src="js/78-bases-importar.js"></script>
   <script src="js/79-revision-boveda.js"></script>
   <script src="js/80-limpieza-boveda.js"></script>
+  <script src="js/81-claude-sugerencias.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

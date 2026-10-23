@@ -1347,6 +1347,10 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .na-write select { padding: 3px 6px; font-size: .85rem; }
 .na-write .primary-chip { font-weight: 600; }
 .note-ai.na-empty .na-write .primary-chip { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sg-list { display: flex; flex-direction: column; gap: 6px; }
+.na-result.sg-list .sg-item { display: flex; flex-direction: row; gap: 8px; align-items: flex-start; font-size: .9rem; line-height: 1.35; cursor: pointer; margin: 0; }
+.na-result.sg-list .sg-item input { width: auto; margin: 3px 0 0; flex: none; }
+.na-result.sg-list .sg-item > span { flex: 1; min-width: 0; }
 .na-vault { display: inline-flex; gap: 4px; align-items: center; font-size: .85rem; color: var(--muted); cursor: pointer; }
 .na-actions .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .na-translate { display: inline-flex; gap: 4px; align-items: center; }
