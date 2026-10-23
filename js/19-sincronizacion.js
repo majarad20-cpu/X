@@ -450,6 +450,16 @@ function dedupeNotes() {
   return true;
 }
 
+// Una nota que está en la papelera (borrada después de su último cambio) no vuelve aunque un
+// dispositivo con datos viejos la suba otra vez: la papelera hace de lápida durante sus 30 días.
+function dropTrashedNotes() {
+  const gone = new Map((state.trash || []).map((t) => [t.id, t.deletedAt || 0]));
+  if (!gone.size) return false;
+  const before = state.notes.length;
+  state.notes = state.notes.filter((n) => !(gone.has(n.id) && gone.get(n.id) >= (n.updatedAt || 0)));
+  return state.notes.length !== before;
+}
+
 function scheduleSync() {
   if (!sync.col) return;
   setSyncStatus('saving');
@@ -608,6 +618,7 @@ function receiveSnapshot(snap, first) {
   // Cada dispositivo pudo crear su propia nota de bienvenida (u otra igual): las copias idénticas
   // (misma ruta y mismo texto) se juntan en la más antigua.
   if (dedupeNotes()) changed = true;
+  if (dropTrashedNotes()) changed = true;
   if (changed) focusCounters();
   // Lo recibido no es un cambio de aquí.
   syncMark(null);
