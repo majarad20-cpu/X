@@ -145,6 +145,13 @@
             <span id="note-ai-scope" class="muted"></span>
             <button id="note-ai-close" class="side-btn" aria-label="Cerrar">✕</button>
           </div>
+          <div class="na-write row">
+            <button class="chip primary-chip" data-ai-action="write" id="note-ai-write">✍️ Escribir esta nota</button>
+            <select id="note-ai-kind" aria-label="Tipo de nota">
+              <option value="auto">Tipo: automático</option><option value="concepto">Concepto</option><option value="procedimiento">Procedimiento</option><option value="moc">MOC (índice)</option><option value="resumen">Resumen</option><option value="comparacion">Comparación</option>
+            </select>
+            <label class="na-vault" title="Claude lee las notas relacionadas (las que enlazan a esta, las que enlaza, las que la mencionan y las de su carpeta) y escribe a partir de ellas"><input type="checkbox" id="note-ai-vault"> Usar mi bóveda</label>
+          </div>
           <div class="na-actions" role="group" aria-label="Acciones">
             <button class="chip" data-ai-action="summary">Resumir</button>
             <button class="chip" data-ai-action="continue">Continuar escribiendo</button>
@@ -165,6 +172,7 @@
           </form>
           <div id="note-ai-out" class="na-out" hidden>
             <div id="note-ai-result" class="md na-result" aria-live="polite"></div>
+            <p id="note-ai-ctx" class="na-label" hidden></p>
             <p id="note-ai-error" class="ask-error"></p>
             <div class="row na-apply">
               <button id="note-ai-replace" class="primary" hidden>Reemplazar la selección</button>
