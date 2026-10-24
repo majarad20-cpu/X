@@ -143,14 +143,9 @@ function vaultMappedIds(m, exceptId) {
   const live = new Set(vaultNotes().map((n) => n.id));
   return new Set(Object.entries(m.files).filter(([id]) => id !== exceptId && live.has(id)).map(([, f]) => f.id));
 }
-async function vaultFolderFiles(cache, folderId) {
-  if (!cache.has(folderId)) cache.set(folderId, await listVaultFolder(folderId));
-  return cache.get(folderId);
-}
 
-// Dos notas con la misma ruta (p. ej. una que volvió desde un dispositivo con datos viejos) se
-// pisarían en Drive. Si el texto es igual sobra una (va a la papelera de Enfoque); si es distinto,
-// la que no está en Drive pasa a llamarse «… (copia)» para que no se pierda nada.
+// Dos notas con la misma ruta y el mismo texto (p. ej. una que volvió desde un dispositivo con datos
+// viejos): sobra una, que va a la papelera de Enfoque. Si el texto es distinto, las dos se quedan.
 function vaultSamePath(m) {
   const groups = new Map();
   for (const n of vaultNotes()) {
@@ -159,27 +154,17 @@ function vaultSamePath(m) {
     groups.get(k).push(n);
   }
   const extra = [];
-  let renamed = 0;
   for (const list of groups.values()) {
     if (list.length < 2) continue;
     // Se queda la que ya está en Drive; si no, la cambiada más recientemente.
     list.sort((a, b) => !!m.files[b.id] - !!m.files[a.id] || (b.updatedAt || 0) - (a.updatedAt || 0));
     const [keep, ...rest] = list;
-    for (const n of rest) {
-      if ((n.body || '').trim() === (keep.body || '').trim()) extra.push(n);
-      else {
-        n.path = uniquePath(folderOf(n.path), `${baseName(n.path)} (copia)`);
-        n.updatedAt = Date.now();
-        renamed++;
-      }
-    }
+    for (const n of rest) if ((n.body || '').trim() === (keep.body || '').trim()) extra.push(n);
   }
-  if (!extra.length && !renamed) return;
-  if (extra.length) {
-    trashNotes(extra);
-    const gone = new Set(extra.map((n) => n.id));
-    state.notes = state.notes.filter((n) => !gone.has(n.id));
-  }
+  if (!extra.length) return;
+  trashNotes(extra);
+  const gone = new Set(extra.map((n) => n.id));
+  state.notes = state.notes.filter((n) => !gone.has(n.id));
   noteIndex.key = '';
   dataRev++;
   save();
@@ -262,7 +247,6 @@ async function pushVault({ adopt = false } = {}) {
   const gone = Object.keys(m.files).filter((id) => !alive.has(id));
   let done = 0;
   const failed = [];
-  const folderCache = new Map();
   for (const note of pending) {
     // Se espera a que la nota lleve unos segundos sin cambios, salvo en la primera subida.
     if (!adopt && Date.now() - (note.updatedAt || 0) < 8000) continue;
@@ -277,13 +261,6 @@ async function pushVault({ adopt = false } = {}) {
       m.ignore.push(made.id);
       saveVaultMap();
       if (old?.id && old.id !== made.id) await trashVaultFile(old.id);
-      // Otras copias con el mismo nombre en esa carpeta (subidas desde otro dispositivo o de antes)
-      // sobran: en Drive queda un solo archivo por nota.
-      const mapped = vaultMappedIds(m, note.id);
-      for (const f of await vaultFolderFiles(folderCache, folderId)) {
-        if (f.id === made.id || f.id === old?.id || mapped.has(f.id) || f.mimeType === FOLDER_MIME || pathKey(f.title) !== pathKey(`${baseName(note.path)}.md`)) continue;
-        await trashVaultFile(f.id);
-      }
       saveVaultMap();
     } catch (e) {
       // Una nota que falla no detiene las demás; se reintenta en la próxima vuelta.

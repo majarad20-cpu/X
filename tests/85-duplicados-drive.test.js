@@ -76,21 +76,23 @@ const mock = () => {
     add({ id: 'dup3', title: '2026-10-08.md', parentId: m.folders.Diario });
     add({ id: 'otra', title: 'Otra.md', parentId: m.root });
   });
-  // Al subir de nuevo una nota, las otras copias con su nombre en esa carpeta van a la papelera
+  // Al subir de nuevo una nota, las otras copias con su nombre se quedan (pueden tener otro contenido)
   await p.evaluate(() => { const n = noteById('a'); n.body = '# Inicio\nmás'; n.updatedAt = Date.now(); save(); });
   await p.clock.runFor(9000);
   await p.evaluate(() => { vaultMap().lastPull = Date.now(); saveVaultMap(); });
   await sync();
-  check('copias de «Inicio» fuera', await p.evaluate(() => window.__files.filter((f) => f.title === 'Inicio.md' && !f.trashed).length), 1);
+  check('copias de «Inicio» se quedan', await p.evaluate(() => window.__files.filter((f) => f.title === 'Inicio.md' && !f.trashed).length), 2);
   // 2) Tarjeta de la revisión: busca y quita las que quedan (las de la nota diaria)
   await p.evaluate(() => showView('revision')); await p.clock.runFor(200);
   check('tarjeta', await p.evaluate(() => [...document.querySelectorAll('#view-revision .rv-card summary strong')].some((x) => x.textContent === '📄 Archivos repetidos en Drive')), true);
   await p.evaluate(() => dzScan()); await p.clock.runFor(500);
-  check('repetidos', await p.evaluate(() => dz.groups.map((g) => `${g.path}:${g.keep.id === vaultMap().files.b.id}:${g.extra.map((f) => f.id).join(',')}`)), ['Diario/2026-10-08:true:dup2,dup3']);
+  check('repetidos', await p.evaluate(() => dz.groups.map((g) => `${g.path}:${g.extra.map((f) => f.id).join(',')}`)), ['Diario/2026-10-08:dup2,dup3', 'Inicio:dup1']);
   check('lista', await p.$$eval('#view-revision .lz-list li', (n) => n.map((x) => x.textContent.trim()).filter((t) => t.includes('2026-10-08'))), ['Diario/2026-10-08 · se queda la del 9 oct 2026; sobran 2 copias (1 oct 2026, 1 oct 2026)']);
+  // Desmarcar «Inicio»: solo se quitan las de la nota diaria
+  await p.click('#view-revision .lz-list li:has-text("Inicio") input'); await p.clock.runFor(100);
   await p.click('#view-revision button:has-text("Mandar 2 a la papelera de Drive")'); await p.clock.runFor(100);
   await p.click('#pomo-alert button:has-text("Mandar a la papelera")'); await p.clock.runFor(500);
-  check('quitadas', await liveMd(), ['2026-10-08.md', 'Inicio.md', 'Otra.md']);
+  check('quitadas', await liveMd(), ['2026-10-08.md', 'Inicio.md', 'Inicio.md', 'Otra.md']);
   check('aviso', await p.textContent('#toast'), '2 archivos repetidos enviados a la papelera de Drive');
   // 3) Dos notas con la misma ruta en la app (una volvió desde el celular)
   await p.evaluate(() => {
@@ -100,10 +102,10 @@ const mock = () => {
   });
   await p.evaluate(() => { vaultMap().lastPull = Date.now(); saveVaultMap(); });
   await sync();
-  check('misma ruta', await p.evaluate(() => [state.notes.some((n) => n.id === 'c'), state.trash.some((t) => t.id === 'c'), noteById('d')?.path]), [false, true, 'Diario/2026-10-08 (copia)']);
+  check('misma ruta', await p.evaluate(() => [state.notes.some((n) => n.id === 'c'), state.trash.some((t) => t.id === 'c'), noteById('d')?.path]), [false, true, 'Diario/2026-10-08']);
   await p.clock.runFor(9000);
   await sync();
-  check('drive tras unirlas', await liveMd(), ['2026-10-08 (copia).md', '2026-10-08.md', 'Inicio.md', 'Otra.md']);
+  check('distinto texto: las dos se quedan', await p.evaluate(() => state.notes.filter((n) => n.path === 'Diario/2026-10-08').length), 2);
   // 4) Una nota en la papelera no vuelve aunque llegue de otro dispositivo
   check('papelera hace de lápida', await p.evaluate(() => {
     state.trash.push({ id: 'z', note: { id: 'z', path: 'Zombi', body: 'x' }, deletedAt: 100, from: 'Zombi' });
