@@ -667,16 +667,21 @@
           <button id="canvas-back" class="link back-link">← Lienzos</button>
           <input id="canvas-name" class="map-name" type="text" maxlength="80" aria-label="Nombre del lienzo">
           <span id="cv-selection" class="cv-selection" hidden>
-            <button id="cv-focus" class="chip" title="Acercar a lo elegido (Z)" aria-label="Acercar a lo elegido">🔍</button>
+            <span id="cv-multi-count" class="muted cv-multi-count" hidden></span>
+            <button id="cv-align" class="chip" title="Alinear y repartir" aria-label="Alinear y repartir" hidden>⇤ Alinear</button>
+            <button id="cv-focus" class="chip" title="Acercar a lo elegido (Z)" aria-label="Acercar a lo elegido">🎯</button>
             <button id="cv-color" class="chip" title="Color de la tarjeta">🎨</button>
             <button id="cv-open-note" class="chip" hidden>Abrir nota</button>
             <button id="cv-delete" class="chip" title="Borrar (Supr)" aria-label="Borrar">🗑️</button>
           </span>
+          <button id="cv-search-btn" class="chip" title="Buscar en el lienzo (Ctrl+F)" aria-label="Buscar en el lienzo">🔎</button>
           <button id="cv-more" class="chip cv-more-btn" title="Más opciones" aria-label="Más opciones del lienzo">⋯</button>
         </div>
         <div id="cv-viewport" class="cv-viewport" tabindex="0" aria-label="Lienzo: arrastra el fondo para moverte, Ctrl+rueda o pellizca para ampliar">
           <div id="cv-world" class="cv-world"><svg id="cv-edges" class="cv-edges" aria-hidden="true"></svg></div>
           <div class="cv-float cv-addbar" role="toolbar" aria-label="Añadir al lienzo">
+            <button id="cv-select-mode" class="cv-fbtn" title="Elegir varias (o Mayús+clic / Mayús+arrastrar)" aria-label="Elegir varias" aria-pressed="false">⬚</button>
+            <span class="cv-fsep" aria-hidden="true"></span>
             <button id="cv-add-text" class="cv-fbtn" title="Tarjeta de texto (doble clic en el fondo)" aria-label="Añadir texto"><b>T</b></button>
             <button id="cv-add-note" class="cv-fbtn" title="Nota de la bóveda" aria-label="Añadir nota">📝</button>
             <button id="cv-add-image" class="cv-fbtn" title="Imagen" aria-label="Añadir imagen">🖼️</button>
@@ -684,12 +689,22 @@
             <button id="cv-add-group" class="cv-fbtn" title="Grupo" aria-label="Añadir grupo">▭</button>
           </div>
           <div class="cv-float cv-zoombar" role="toolbar" aria-label="Vista">
+            <button id="cv-undo" class="cv-fbtn" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶</button>
+            <button id="cv-redo" class="cv-fbtn" title="Rehacer (Ctrl+Mayús+Z)" aria-label="Rehacer" disabled>↷</button>
+            <span class="cv-fsep" aria-hidden="true"></span>
             <button id="cv-zoom-out" class="cv-fbtn" aria-label="Alejar" title="Alejar">−</button>
             <button id="cv-zoom" class="cv-fbtn cv-zoom" title="Volver al 100 %">100 %</button>
             <button id="cv-zoom-in" class="cv-fbtn" aria-label="Acercar" title="Acercar">+</button>
             <button id="cv-fit" class="cv-fbtn" title="Ver todo (Mayús+1)" aria-label="Ver todo">⤢</button>
             <button id="cv-full" class="cv-fbtn" title="Pantalla completa (F)" aria-label="Pantalla completa">⛶</button>
           </div>
+          <form id="cv-search" class="cv-float cv-searchbox" hidden>
+            <input id="cv-search-input" type="search" placeholder="Buscar en el lienzo…" aria-label="Buscar en el lienzo" autocomplete="off">
+            <span id="cv-search-count" class="muted"></span>
+            <button type="button" id="cv-search-prev" class="cv-fbtn" aria-label="Anterior" title="Anterior (Mayús+Enter)">↑</button>
+            <button type="submit" class="cv-fbtn" aria-label="Siguiente" title="Siguiente (Enter)">↓</button>
+            <button type="button" id="cv-search-close" class="cv-fbtn" aria-label="Cerrar búsqueda" title="Cerrar (Esc)">✕</button>
+          </form>
           <canvas id="cv-minimap" class="cv-float cv-minimap" width="160" height="110" aria-label="Minimapa: toca para ir a esa zona"></canvas>
           <p id="cv-hint" class="cv-hint muted">Doble clic en el fondo: tarjeta nueva · clic derecho: más opciones · arrastra desde un punto de una tarjeta: flecha (o tarjeta nueva unida) · doble clic en una tarjeta: editar · Supr: borrar</p>
         </div>
@@ -1273,6 +1288,7 @@
   <script src="js/80-limpieza-boveda.js"></script>
   <script src="js/81-claude-sugerencias.js"></script>
   <script src="js/82-duplicados-drive.js"></script>
+  <script src="js/83-lienzo-extras.js"></script>
   <script src="js/99-inicio.js"></script>
 </body>
 </html>

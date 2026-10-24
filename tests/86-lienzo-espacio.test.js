@@ -52,7 +52,7 @@ const url = process.argv[2];
   check('salió', await p.evaluate(() => document.documentElement.classList.contains('cv-full')), false);
   // Menú «⋯»: exportar y borrar (con deshacer)
   await p.click('#cv-more'); await p.waitForTimeout(80);
-  check('menú', await p.$$eval('#note-menu .menu-item', (n) => n.map((x) => x.querySelector('span').textContent)), ['⤢ Ver todo', '⛶ Pantalla completa', '⤓ Exportar como .canvas (Obsidian)', 'Borrar lienzo']);
+  check('menú', await p.$$eval('#note-menu .menu-item', (n) => n.map((x) => x.querySelector('span').textContent)), ['⤢ Ver todo', '⛶ Pantalla completa', '⤓ Exportar como .canvas (Obsidian)', '🖼 Exportar como imagen (PNG)', 'Borrar lienzo']);
   await p.click('#note-menu .menu-item:has-text("Borrar lienzo")'); await p.waitForTimeout(150);
   check('borrado', await p.evaluate(() => [state.canvases.length, cv.id]), [0, null]);
   console.log('errors:', JSON.stringify(errs)); await b.close();

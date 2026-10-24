@@ -7,7 +7,7 @@
 // tarjetas se arrastran, se redimensionan y se unen desde sus puntos laterales. Todo tiene clic derecho.
 const CANVAS_SIDES = ['top', 'right', 'bottom', 'left'];
 const cvSvg = $('#cv-edges'); // capa de flechas (se conserva entre redibujados)
-const cv = { id: null, x: 0, y: 0, z: 1, selected: null, editing: null, pointers: new Map(), pinch: null, clipboard: null, last: null };
+const cv = { id: null, x: 0, y: 0, z: 1, selected: null, editing: null, pointers: new Map(), pinch: null, clipboard: null, last: null, multi: new Set(), multiMode: false };
 
 const currentCanvas = () => state.canvases.find((c) => c.id === cv.id);
 
@@ -301,7 +301,7 @@ function cardColor(node, color) {
 }
 
 function cardEl(c, k) {
-  const node = el('div', { className: `cv-card cv-${k.type || 'text'}${cv.selected === k.id ? ' selected' : ''}${k.type === 'note' ? ' is-note' : ''}`, tabIndex: 0, role: 'group' });
+  const node = el('div', { className: `cv-card cv-${k.type || 'text'}${cv.selected === k.id ? ' selected' : ''}${cv.multi.has(k.id) ? ' multi' : ''}${k.type === 'note' ? ' is-note' : ''}`, tabIndex: 0, role: 'group' });
   cardColor(node, k.color);
   node.dataset.id = k.id;
   Object.assign(node.style, { left: `${k.x}px`, top: `${k.y}px`, width: `${k.w}px`, height: `${k.h}px` });
@@ -404,11 +404,93 @@ function openCanvasNote(k) {
   if (note) openNote(note, { newTab: true, heading: (k.subpath || '').replace(/^#/, '') });
 }
 
-function selectCard(id) {
+// keep: conserva la selección múltiple (si no, elegir algo la deshace).
+function selectCard(id, { keep = false } = {}) {
   cv.selected = id;
-  $$('#cv-world .cv-card').forEach((n) => n.classList.toggle('selected', n.dataset.id === id));
+  if (!keep) cv.multi.clear();
+  $$('#cv-world .cv-card').forEach((n) => {
+    n.classList.toggle('selected', n.dataset.id === id);
+    n.classList.toggle('multi', cv.multi.has(n.dataset.id));
+  });
   $$('#cv-edges .cv-edge, #cv-world > .cv-edge-label').forEach((n) => n.classList.toggle('selected', n.dataset.id === id));
   renderCanvasTools();
+}
+
+// Mayús+clic (o el modo «elegir varias» en pantallas táctiles) suma o quita una tarjeta.
+function toggleMulti(id) {
+  const c = currentCanvas();
+  if (!c) return;
+  if (!cv.multi.size && cv.selected && c.cards.some((k) => k.id === cv.selected)) cv.multi.add(cv.selected);
+  if (cv.multi.has(id)) cv.multi.delete(id);
+  else cv.multi.add(id);
+  const last = [...cv.multi].at(-1) || null;
+  if (cv.multi.size < 2) {
+    const only = last;
+    cv.multi.clear();
+    return selectCard(only);
+  }
+  selectCard(cv.multi.has(id) ? id : last, { keep: true });
+}
+const multiCards = (c) => c.cards.filter((k) => cv.multi.has(k.id));
+// Rectángulo que abarca varias tarjetas.
+function cardsBox(list) {
+  const x = Math.min(...list.map((k) => k.x));
+  const y = Math.min(...list.map((k) => k.y));
+  return { x, y, w: Math.max(...list.map((k) => k.x + k.w)) - x, h: Math.max(...list.map((k) => k.y + k.h)) - y };
+}
+
+// Recuadro de selección: Mayús+arrastrar el fondo (o arrastrar con el modo «elegir varias»).
+function startMarquee(e) {
+  const c = currentCanvas();
+  if (!c) return;
+  e.preventDefault();
+  const r = viewportRect();
+  const box = el('div', { className: 'cv-marquee' });
+  $('#cv-viewport').append(box);
+  const start = { x: e.clientX, y: e.clientY };
+  const draw = (ev) => {
+    const x1 = Math.min(start.x, ev.clientX) - r.left;
+    const y1 = Math.min(start.y, ev.clientY) - r.top;
+    Object.assign(box.style, { left: `${x1}px`, top: `${y1}px`, width: `${Math.abs(ev.clientX - start.x)}px`, height: `${Math.abs(ev.clientY - start.y)}px` });
+  };
+  const onUp = (ev) => {
+    document.removeEventListener('pointermove', draw);
+    document.removeEventListener('pointerup', onUp);
+    box.remove();
+    const a = toWorldPoint(Math.min(start.x, ev.clientX), Math.min(start.y, ev.clientY));
+    const b = toWorldPoint(Math.max(start.x, ev.clientX), Math.max(start.y, ev.clientY));
+    if (b.x - a.x < 4 / cv.z && b.y - a.y < 4 / cv.z) return selectCard(null);
+    // Las tarjetas que toca el recuadro; los grupos, solo si quedan enteros dentro.
+    const hit = c.cards.filter((k) => (k.type === 'group' ? k.x >= a.x && k.y >= a.y && k.x + k.w <= b.x && k.y + k.h <= b.y : k.x < b.x && k.x + k.w > a.x && k.y < b.y && k.y + k.h > a.y));
+    cv.multi = new Set(hit.length > 1 ? hit.map((k) => k.id) : []);
+    selectCard(hit.at(-1)?.id || null, { keep: true });
+  };
+  document.addEventListener('pointermove', draw);
+  document.addEventListener('pointerup', onUp);
+}
+
+// Guías al mover: los bordes y el centro se pegan a los de otras tarjetas cercanas (Alt lo evita).
+const CV_SNAP = 6;
+function snapMove(c, moving, box, dx, dy) {
+  const others = c.cards.filter((o) => !moving.has(o));
+  const th = CV_SNAP / cv.z;
+  const pick = (vals, targets) => {
+    let best = null;
+    for (const v of vals) for (const t of targets) if (Math.abs(t - v) <= th && (!best || Math.abs(t - v) < Math.abs(best.d))) best = { d: t - v, at: t };
+    return best;
+  };
+  const bx = box.x + dx;
+  const by = box.y + dy;
+  const sx = pick([bx, bx + box.w / 2, bx + box.w], others.flatMap((o) => [o.x, o.x + o.w / 2, o.x + o.w]));
+  const sy = pick([by, by + box.h / 2, by + box.h], others.flatMap((o) => [o.y, o.y + o.h / 2, o.y + o.h]));
+  return { dx: dx + (sx?.d || 0), dy: dy + (sy?.d || 0), gx: sx?.at, gy: sy?.at };
+}
+function drawGuides(gx, gy) {
+  $$('#cv-world > .cv-guide').forEach((n) => n.remove());
+  const big = 100000;
+  const w = `${Math.max(1, 1 / cv.z)}px`;
+  if (gx !== undefined) $('#cv-world').append(el('div', { className: 'cv-guide', style: `left:${gx}px;top:${-big}px;width:${w};height:${2 * big}px` }));
+  if (gy !== undefined) $('#cv-world').append(el('div', { className: 'cv-guide', style: `top:${gy}px;left:${-big}px;height:${w};width:${2 * big}px` }));
 }
 
 // ---------- Flechas ----------
@@ -576,26 +658,51 @@ function renderCanvasTools() {
   const c = currentCanvas();
   const card = c?.cards.find((k) => k.id === cv.selected);
   const edge = c?.edges.find((e) => e.id === cv.selected);
-  $('#cv-selection').hidden = !card && !edge;
+  const many = cv.multi.size > 1;
+  $('#cv-selection').hidden = !card && !edge && !many;
   $('#cv-color').hidden = !card && !edge;
-  $('#cv-open-note').hidden = !(card && card.type === 'note');
+  $('#cv-open-note').hidden = many || !(card && card.type === 'note');
   $('#cv-focus').hidden = !card;
+  $('#cv-align').hidden = !many;
+  $('#cv-multi-count').hidden = !many;
+  $('#cv-multi-count').textContent = many ? `${cv.multi.size} elegidas` : '';
 }
 
 // ---------- Interacción ----------
 function startCardMove(e, c, k, node) {
   if (e.button > 0 || cv.editing === k.id || e.target.closest('a, input, .cv-dot, .cv-resize')) return;
   e.stopPropagation();
-  selectCard(k.id);
+  if (e.shiftKey || cv.multiMode) {
+    // Mayús+clic no debe seleccionar el texto de las tarjetas (luego se arrastraría el texto).
+    e.preventDefault();
+    getSelection()?.removeAllRanges();
+    return toggleMulti(k.id);
+  }
+  // Con varias elegidas, arrastrar una mueve todas.
+  const many = cv.multi.size > 1 && cv.multi.has(k.id);
+  if (many) selectCard(k.id, { keep: true });
+  else selectCard(k.id);
+  const base = many ? multiCards(c) : [k];
   // Un grupo arrastra lo que tiene dentro.
-  const group = k.type === 'group' ? groupChildren(c, k) : [];
-  const start = { x: e.clientX, y: e.clientY, list: [k, ...group].map((o) => ({ o, x: o.x, y: o.y })) };
+  const moving = new Set();
+  for (const o of base) {
+    moving.add(o);
+    if (o.type === 'group') groupChildren(c, o).forEach((x) => moving.add(x));
+  }
+  const box = cardsBox(base);
+  const start = { x: e.clientX, y: e.clientY, list: [...moving].map((o) => ({ o, x: o.x, y: o.y })) };
   let moved = false;
   const onMove = (ev) => {
-    const dx = (ev.clientX - start.x) / cv.z;
-    const dy = (ev.clientY - start.y) / cv.z;
+    let dx = (ev.clientX - start.x) / cv.z;
+    let dy = (ev.clientY - start.y) / cv.z;
     if (!moved && Math.hypot(dx, dy) < 3) return;
     moved = true;
+    if (!ev.altKey) {
+      const sn = snapMove(c, moving, box, dx, dy);
+      dx = sn.dx;
+      dy = sn.dy;
+      drawGuides(sn.gx, sn.gy);
+    } else drawGuides();
     for (const s of start.list) {
       s.o.x = Math.round(s.x + dx);
       s.o.y = Math.round(s.y + dy);
@@ -612,6 +719,7 @@ function startCardMove(e, c, k, node) {
   const onUp = () => {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    drawGuides();
     if (moved) touchCanvas(c);
   };
   document.addEventListener('pointermove', onMove);
@@ -688,6 +796,10 @@ function startConnect(e, c, k, side) {
 
 // Fondo: arrastrar mueve la vista; con dos dedos, se amplía.
 const viewport = $('#cv-viewport');
+// El navegador no arrastra texto ni imágenes de las tarjetas: aquí arrastrar es mover.
+viewport.addEventListener('dragstart', (e) => {
+  if (!e.target.closest?.('textarea')) e.preventDefault();
+});
 // Las barras flotantes y el minimapa no mueven el lienzo ni crean tarjetas.
 $$('#cv-viewport .cv-float').forEach((f) => ['pointerdown', 'dblclick', 'contextmenu'].forEach((t) => f.addEventListener(t, (e) => e.stopPropagation())));
 viewport.addEventListener('pointerdown', (e) => {
@@ -698,7 +810,8 @@ viewport.addEventListener('pointerdown', (e) => {
     return;
   }
   if (e.target.closest('.cv-card, .cv-edge') || e.button > 0) return;
-  if (cv.selected) selectCard(null);
+  if (e.shiftKey || cv.multiMode) return startMarquee(e);
+  if (cv.selected || cv.multi.size) selectCard(null);
   const start = { x: e.clientX, y: e.clientY, vx: cv.x, vy: cv.y };
   const onMove = (ev) => {
     if (cv.pinch) return;
@@ -892,8 +1005,11 @@ function editCanvasCard(c, k) {
 }
 
 function setCanvasColor(c, obj, color) {
-  if (color) obj.color = color;
-  else delete obj.color;
+  const list = cv.multi.size > 1 && cv.multi.has(obj.id) ? multiCards(c) : [obj];
+  for (const o of list) {
+    if (color) o.color = color;
+    else delete o.color;
+  }
   touchCanvas(c);
   renderCanvasBoard();
 }
@@ -1016,7 +1132,7 @@ function canvasBackgroundItems(c, p) {
 function canvasCardItems(c, k, at) {
   const url = k.type === 'link' && cvSafeUrl(k.url);
   return [
-    { label: '🔍 Acercar', kbd: 'Z', action: () => zoomToCard(k) },
+    { label: '🎯 Acercar', kbd: 'Z', action: () => zoomToCard(k) },
     { label: 'Color ▸', action: () => showMenu(at, canvasColorItems(c, k)) },
     { label: k.type === 'group' ? '✏️ Cambiar el nombre' : '✏️ Editar', kbd: 'Enter', action: () => editCanvasCard(c, k) },
     ...(k.type === 'note' && noteById(k.noteId) ? [{ label: '📝 Abrir nota', action: () => openCanvasNote(k) }] : []),
@@ -1082,6 +1198,7 @@ $('#cv-more').addEventListener('click', () => {
     { label: document.documentElement.classList.contains('cv-full') ? 'Salir de pantalla completa' : '⛶ Pantalla completa', kbd: 'F', action: () => toggleCanvasFull() },
     { sep: true },
     { label: '⤓ Exportar como .canvas (Obsidian)', action: () => exportCanvasFile(c) },
+    { label: '🖼 Exportar como imagen (PNG)', action: () => exportCanvasPng(c) },
     { sep: true },
     { label: 'Borrar lienzo', danger: true, action: () => deleteCanvasBoard(c) },
   ]);
@@ -1091,7 +1208,11 @@ $('#cv-zoom').addEventListener('click', () => {
   const r = viewportRect();
   zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / cv.z);
 });
-$('#cv-focus').addEventListener('click', () => zoomToCard(currentCanvas()?.cards.find((x) => x.id === cv.selected)));
+$('#cv-focus').addEventListener('click', () => {
+  const c = currentCanvas();
+  if (c && cv.multi.size > 1) return zoomToCard(cardsBox(multiCards(c)));
+  zoomToCard(c?.cards.find((x) => x.id === cv.selected));
+});
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !document.documentElement.classList.contains('cv-full') || cv.editing || e.target.closest?.('input, textarea, #pomo-alert, #note-menu')) return;
   if (cv.selected) return selectCard(null);
@@ -1109,6 +1230,16 @@ $('#cv-zoom-out').addEventListener('click', () => {
 
 function deleteSelected() {
   const c = currentCanvas();
+  if (c && cv.multi.size > 1) {
+    const ids = new Set(cv.multi);
+    return withUndo(`${ids.size} tarjetas borradas`, () => {
+      c.cards = c.cards.filter((k) => !ids.has(k.id));
+      c.edges = c.edges.filter((ed) => !ids.has(ed.from) && !ids.has(ed.to));
+      c.updatedAt = Date.now();
+      cv.selected = null;
+      cv.multi.clear();
+    });
+  }
   if (!c || !cv.selected) return;
   const id = cv.selected;
   withUndo(c.cards.some((k) => k.id === id) ? 'Tarjeta borrada' : 'Flecha borrada', () => {
@@ -1156,12 +1287,22 @@ viewport.addEventListener('keydown', (e) => {
   } else if (mod && k && e.key.toLowerCase() === 'd') {
     e.preventDefault();
     duplicateCanvasCard(c, k);
+  } else if (mod && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    cv.multi = new Set(c.cards.length > 1 ? c.cards.map((x) => x.id) : []);
+    selectCard(c.cards.at(-1)?.id || null, { keep: true });
+  } else if (e.key === 'Escape' && (cv.selected || cv.multi.size)) {
+    e.preventDefault();
+    e.stopPropagation();
+    selectCard(null);
   } else if (k && !e.altKey && e.key.startsWith('Arrow')) { // Alt+flecha es atrás/adelante
     e.preventDefault();
     const step = e.shiftKey ? 50 : 10;
     const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
     const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
-    for (const o of [k, ...(k.type === 'group' ? groupChildren(c, k) : [])]) {
+    const base = cv.multi.size > 1 && cv.multi.has(k.id) ? multiCards(c) : [k];
+    const all = new Set(base.flatMap((o) => [o, ...(o.type === 'group' ? groupChildren(c, o) : [])]));
+    for (const o of all) {
       o.x += dx;
       o.y += dy;
     }

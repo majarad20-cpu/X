@@ -1291,7 +1291,9 @@ img.note-img.is-drawing:hover { outline: 2px solid color-mix(in srgb, var(--acce
 /* ---------- Lienzos ---------- */
 .canvas-tile { display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer; font: inherit; color: inherit; padding: 14px; }
 .cv-toolbar { flex-wrap: nowrap; gap: 6px; align-items: center; margin-bottom: 8px; }
-.cv-toolbar .map-name { flex: 1 1 auto; min-width: 0; }
+.cv-toolbar .map-name { flex: 1 1 120px; min-width: 0; }
+.cv-toolbar .back-link { white-space: nowrap; flex: none; }
+.cv-toolbar > .chip { flex: none; }
 .cv-selection { display: inline-flex; gap: 4px; align-items: center; flex: none; }
 .cv-more-btn { flex: none; font-weight: 700; letter-spacing: 1px; }
 .cv-viewport { position: relative; height: calc(100vh - 200px); min-height: 300px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background-color: var(--bg); background-image: radial-gradient(circle, var(--border) 1px, transparent 1.2px); touch-action: none; cursor: grab; outline: none; }
@@ -1338,6 +1340,22 @@ img.note-img.is-drawing:hover { outline: 2px solid color-mix(in srgb, var(--acce
 .cv-fbtn.cv-zoom { min-width: 52px; font-size: .78rem; color: var(--muted); }
 .cv-minimap { left: 10px; bottom: 10px; width: 160px; height: 110px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--border); box-shadow: 0 4px 16px rgb(0 0 0 / .1); cursor: pointer; touch-action: none; }
 .cv-minimap[hidden] { display: none; }
+.cv-fsep { width: 70%; height: 1px; margin: 2px auto; background: var(--border); align-self: center; }
+.cv-zoombar .cv-fsep { width: 1px; height: 22px; margin: 0 2px; }
+.cv-fbtn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.cv-fbtn:disabled { opacity: .35; cursor: default; background: transparent; color: var(--text); }
+.cv-multi-count { font-size: .82rem; white-space: nowrap; }
+.cv-card.multi, .cv-viewport .cv-card.cv-group.multi { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.cv-marquee { position: absolute; z-index: 7; border: 1.5px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
+.cv-guide { position: absolute; z-index: 4; background: #e5484d; pointer-events: none; }
+.cv-searchbox { top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 95%, transparent); border: 1px solid var(--border); box-shadow: 0 4px 16px rgb(0 0 0 / .12); max-width: calc(100% - 140px); }
+.cv-searchbox[hidden] { display: none; }
+.cv-searchbox input { width: 220px; min-width: 0; flex: 1; border: 0; background: transparent; padding: 6px 8px; font: inherit; color: inherit; outline: none; }
+.cv-searchbox .muted { font-size: .78rem; white-space: nowrap; }
+.cv-card.found { box-shadow: 0 0 0 3px color-mix(in srgb, #f5d90a 70%, transparent); }
+.cv-card.found.current { box-shadow: 0 0 0 3px #f08c00, 0 6px 18px rgb(0 0 0 / .15); }
+.cv-viewport.note-drop { box-shadow: inset 0 0 0 3px var(--accent); }
+@media (max-width: 599px) { .cv-searchbox { left: 70px; right: 10px; transform: none; max-width: none; } .cv-searchbox input { width: auto; } }
 .cv-hint { bottom: 60px; }
 /* Texto que no cabe: se desvanece y aparece «más ↓» */
 .cv-card.cv-overflow .cv-body { -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent); mask-image: linear-gradient(to bottom, #000 72%, transparent); }
@@ -1348,6 +1366,8 @@ img.note-img.is-drawing:hover { outline: 2px solid color-mix(in srgb, var(--acce
 :root.cv-full #view-canvas.active .cv-toolbar { margin-bottom: 6px; }
 body:has(#view-canvas.active #canvas-editor:not([hidden])) .capture-fab { display: none; }
 @media (max-width: 599px) {
+  .cv-toolbar { overflow-x: auto; scrollbar-width: none; }
+  .cv-toolbar .map-name { flex: 1 0 120px; }
   .cv-toolbar .back-link { font-size: 0; }
   .cv-toolbar .back-link::before { content: '←'; font-size: 1.2rem; }
   .cv-minimap { width: 104px; height: 72px; left: auto; right: 10px; bottom: 58px; }
