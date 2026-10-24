@@ -57,7 +57,10 @@ function openCanvas(id) {
   cv.editing = null;
   showView('canvas');
   renderCanvasView();
-  requestAnimationFrame(() => fitCanvas());
+  requestAnimationFrame(() => {
+    layoutCanvas();
+    fitCanvas();
+  });
 }
 
 function renderCanvasView() {
@@ -70,6 +73,7 @@ function renderCanvasView() {
     return;
   }
   if (document.activeElement !== $('#canvas-name')) $('#canvas-name').value = c.title;
+  layoutCanvas();
   renderCanvasBoard();
 }
 
@@ -100,6 +104,7 @@ $('#canvas-form').addEventListener('submit', (e) => {
   openCanvas(c.id);
 });
 $('#canvas-back').addEventListener('click', () => {
+  toggleCanvasFull(false);
   cv.id = null;
   renderCanvasView();
 });
@@ -123,6 +128,123 @@ function applyView() {
   $('#cv-zoom').textContent = `${Math.round(cv.z * 100)} %`;
   $('#cv-viewport').style.backgroundSize = `${24 * cv.z}px ${24 * cv.z}px`;
   $('#cv-viewport').style.backgroundPosition = `calc(50% + ${cv.x}px) calc(50% + ${cv.y}px)`;
+  drawMinimap();
+}
+
+// ---------- Espacio de trabajo ----------
+// El lienzo ocupa todo el alto que queda (o la pantalla entera en «pantalla completa»).
+function layoutCanvas() {
+  const vp = $('#cv-viewport');
+  if (!vp || !vp.offsetParent) return;
+  if (document.documentElement.classList.contains('cv-full')) {
+    vp.style.height = '';
+    return;
+  }
+  const top = vp.getBoundingClientRect().top;
+  const host = vp.closest('main');
+  const bar = $('.statusbar');
+  const barTop = bar?.offsetParent ? bar.getBoundingClientRect().top : innerHeight;
+  const bottom = Math.min(innerHeight, barTop, host ? host.getBoundingClientRect().bottom : innerHeight);
+  vp.style.height = `${Math.max(300, Math.round(bottom - top - 10))}px`;
+}
+function toggleCanvasFull(on = !document.documentElement.classList.contains('cv-full')) {
+  document.documentElement.classList.toggle('cv-full', on);
+  $('#cv-full').textContent = on ? '✕' : '⛶';
+  $('#cv-full').title = on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (F)';
+  layoutCanvas();
+  requestAnimationFrame(() => {
+    applyView();
+    $('#cv-viewport').focus({ preventScroll: true });
+  });
+}
+addEventListener('resize', () => {
+  if (cv.id && $('#view-canvas').classList.contains('active')) {
+    layoutCanvas();
+    applyView();
+  }
+});
+
+// Acercar a una tarjeta o a un grupo (con lo que tiene dentro).
+function zoomToCard(k) {
+  const r = viewportRect();
+  if (!k || !r.width) return;
+  const top = k.y - (k.type === 'group' ? 30 : 0);
+  // A la izquierda queda la barra de añadir: la tarjeta se centra en el espacio libre.
+  const padL = 64;
+  cv.z = Math.min(1.6, Math.max(0.3, Math.min((r.width - padL - 24) / k.w, (r.height - 80) / (k.y + k.h - top))));
+  cv.x = padL / 2 - (k.x + k.w / 2) * cv.z;
+  cv.y = -((top + k.y + k.h) / 2) * cv.z;
+  applyView();
+}
+
+// Minimapa: todo el lienzo en pequeño y un recuadro con lo que se ve; tocarlo lleva a esa zona.
+function drawMinimap() {
+  const mm = $('#cv-minimap');
+  const c = currentCanvas();
+  const r = viewportRect();
+  if (!mm) return;
+  mm.hidden = !c || c.cards.length < 2 || !r.width;
+  if (mm.hidden) return;
+  const W = mm.clientWidth || 160;
+  const H = mm.clientHeight || 110;
+  const dpr = devicePixelRatio || 1;
+  if (mm.width !== Math.round(W * dpr)) mm.width = Math.round(W * dpr);
+  if (mm.height !== Math.round(H * dpr)) mm.height = Math.round(H * dpr);
+  // Lo que se ve, en coordenadas del lienzo.
+  const view = { x: (-r.width / 2 - cv.x) / cv.z, y: (-r.height / 2 - cv.y) / cv.z, w: r.width / cv.z, h: r.height / cv.z };
+  let minX = Math.min(view.x, ...c.cards.map((k) => k.x));
+  let minY = Math.min(view.y, ...c.cards.map((k) => k.y - (k.type === 'group' ? 30 : 0)));
+  const maxX = Math.max(view.x + view.w, ...c.cards.map((k) => k.x + k.w));
+  const maxY = Math.max(view.y + view.h, ...c.cards.map((k) => k.y + k.h));
+  // Si todo se ve, el minimapa sobra.
+  const all = c.cards.every((k) => k.x >= view.x && k.y >= view.y && k.x + k.w <= view.x + view.w && k.y + k.h <= view.y + view.h);
+  mm.hidden = all;
+  if (all) return;
+  const pad = 6;
+  const sc = Math.min((W - 2 * pad) / (maxX - minX), (H - 2 * pad) / (maxY - minY));
+  const ox = pad + ((W - 2 * pad) - (maxX - minX) * sc) / 2 - minX * sc;
+  const oy = pad + ((H - 2 * pad) - (maxY - minY) * sc) / 2 - minY * sc;
+  cv.mm = { sc, ox, oy };
+  const g = mm.getContext('2d');
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue('--accent').trim() || '#5b5bd6';
+  const muted = css.getPropertyValue('--muted').trim() || '#888';
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  for (const k of cvOrdered(c)) {
+    const hex = cvHex(k.color);
+    g.globalAlpha = k.type === 'group' ? 0.18 : 0.75;
+    g.fillStyle = hex || (k.type === 'group' ? accent : muted);
+    g.fillRect(ox + k.x * sc, oy + k.y * sc, Math.max(2, k.w * sc), Math.max(2, k.h * sc));
+  }
+  g.globalAlpha = 1;
+  g.strokeStyle = accent;
+  g.lineWidth = 1.5;
+  g.strokeRect(ox + view.x * sc, oy + view.y * sc, view.w * sc, view.h * sc);
+}
+{
+  const mm = $('#cv-minimap');
+  const go = (e) => {
+    if (!cv.mm) return;
+    const b = mm.getBoundingClientRect();
+    const wx = (e.clientX - b.left - cv.mm.ox) / cv.mm.sc;
+    const wy = (e.clientY - b.top - cv.mm.oy) / cv.mm.sc;
+    cv.x = -wx * cv.z;
+    cv.y = -wy * cv.z;
+    applyView();
+  };
+  mm.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    go(e);
+    const move = (ev) => go(ev);
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
 }
 function zoomAt(clientX, clientY, factor) {
   const before = toWorldPoint(clientX, clientY);
@@ -146,9 +268,21 @@ function fitCanvas() {
   const minY = Math.min(...c.cards.map((k) => k.y - (k.type === 'group' ? 30 : 0)));
   const maxX = Math.max(...c.cards.map((k) => k.x + k.w));
   const maxY = Math.max(...c.cards.map((k) => k.y + k.h));
-  cv.z = Math.min(1.2, Math.max(0.15, Math.min((r.width - 60) / (maxX - minX), (r.height - 60) / (maxY - minY))));
-  cv.x = -((minX + maxX) / 2) * cv.z;
-  cv.y = -((minY + maxY) / 2) * cv.z;
+  // Margen para las barras flotantes (añadir a la izquierda; zoom y minimapa abajo).
+  const padX = 70;
+  const padY = 64;
+  const fit = Math.min((r.width - 2 * padX) / (maxX - minX), (r.height - 2 * padY) / (maxY - minY));
+  // En el celular no se baja de un tamaño legible: se empieza por arriba a la izquierda y el
+  // minimapa ayuda a moverse por el resto.
+  const minZ = r.width < 600 ? 0.5 : 0.15;
+  cv.z = Math.min(1.2, Math.max(minZ, fit));
+  if (fit < minZ) {
+    cv.x = -r.width / 2 + padX - minX * cv.z;
+    cv.y = -r.height / 2 + 20 - minY * cv.z;
+  } else {
+    cv.x = -((minX + maxX) / 2) * cv.z;
+    cv.y = -((minY + maxY) / 2) * cv.z;
+  }
   applyView();
 }
 
@@ -273,7 +407,7 @@ function openCanvasNote(k) {
 function selectCard(id) {
   cv.selected = id;
   $$('#cv-world .cv-card').forEach((n) => n.classList.toggle('selected', n.dataset.id === id));
-  $$('#cv-edges .cv-edge').forEach((n) => n.classList.toggle('selected', n.dataset.id === id));
+  $$('#cv-edges .cv-edge, #cv-world > .cv-edge-label').forEach((n) => n.classList.toggle('selected', n.dataset.id === id));
   renderCanvasTools();
 }
 
@@ -315,6 +449,8 @@ function renderEdges(c) {
   const byId = new Map(c.cards.map((k) => [k.id, k]));
   const ns = 'http://www.w3.org/2000/svg';
   svg.replaceChildren();
+  $$('#cv-world > .cv-edge-label').forEach((n) => n.remove());
+  const labels = [];
   // Una punta por color (las de SVG no heredan el color de la línea).
   const hexes = [...new Set(c.edges.map((ed) => cvHex(ed.color)).filter(Boolean))];
   const defs = document.createElementNS(ns, 'defs');
@@ -346,14 +482,22 @@ function renderEdges(c) {
     if (fe === 'arrow') line.setAttribute('marker-start', mark);
     g.append(hit, line);
     if (ed.label) {
-      // En la mitad de la curva.
+      // En la mitad de la curva, por encima de las tarjetas para que nunca quede tapada.
       const [k1, k2] = edgeControls(p, fs, q, ts);
-      const t = document.createElementNS(ns, 'text');
-      t.setAttribute('x', String((p.x + 3 * k1.x + 3 * k2.x + q.x) / 8));
-      t.setAttribute('y', String((p.y + 3 * k1.y + 3 * k2.y + q.y) / 8 - 6));
-      t.setAttribute('class', 'cv-edge-label');
-      t.textContent = ed.label;
-      g.append(t);
+      const t = el('div', { className: `cv-edge-label${cv.selected === ed.id ? ' selected' : ''}`, title: 'Doble clic: cambiar la etiqueta' }, ed.label);
+      Object.assign(t.style, { left: `${(p.x + 3 * k1.x + 3 * k2.x + q.x) / 8}px`, top: `${(p.y + 3 * k1.y + 3 * k2.y + q.y) / 8}px` });
+      if (hex) t.style.setProperty('--cv-c', hex);
+      t.dataset.id = ed.id;
+      t.addEventListener('pointerdown', (e) => {
+        if (e.button > 0) return;
+        e.stopPropagation();
+        selectCard(ed.id);
+      });
+      t.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        editEdgeLabel(c, ed);
+      });
+      labels.push(t);
     }
     g.addEventListener('pointerdown', (e) => {
       if (e.button > 0) return;
@@ -366,6 +510,7 @@ function renderEdges(c) {
     });
     svg.append(g);
   });
+  $('#cv-world').append(...labels);
 }
 
 function editEdgeLabel(c, ed) {
@@ -400,6 +545,31 @@ function renderCanvasBoard() {
   applyView();
   renderCanvasTools();
   $('#cv-hint').hidden = c.cards.length > 1;
+  requestAnimationFrame(() => markCanvasOverflow(c));
+}
+
+// Una tarjeta cuyo texto no cabe lo avisa con «más ↓»; al tocarlo, crece hasta que quepa.
+function markCanvasOverflow(c) {
+  $$('#cv-world .cv-card').forEach((node) => {
+    const body = node.querySelector('.cv-body');
+    const over = !!body && body.scrollHeight > body.clientHeight + 4;
+    node.classList.toggle('cv-overflow', over);
+    let tag = node.querySelector('.cv-more-tag');
+    if (!over) return tag?.remove();
+    if (tag) return;
+    tag = el('button', { className: 'cv-more-tag', title: 'Agrandar la tarjeta para ver todo' }, 'más ↓');
+    tag.addEventListener('pointerdown', (e) => e.stopPropagation());
+    tag.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const k = c.cards.find((x) => x.id === node.dataset.id);
+      const b = node.querySelector('.cv-body');
+      if (!k || !b) return;
+      k.h = Math.min(1600, Math.round(k.h + b.scrollHeight - b.clientHeight + 12));
+      touchCanvas(c);
+      renderCanvasBoard();
+    });
+    node.append(tag);
+  });
 }
 
 function renderCanvasTools() {
@@ -409,6 +579,7 @@ function renderCanvasTools() {
   $('#cv-selection').hidden = !card && !edge;
   $('#cv-color').hidden = !card && !edge;
   $('#cv-open-note').hidden = !(card && card.type === 'note');
+  $('#cv-focus').hidden = !card;
 }
 
 // ---------- Interacción ----------
@@ -517,6 +688,8 @@ function startConnect(e, c, k, side) {
 
 // Fondo: arrastrar mueve la vista; con dos dedos, se amplía.
 const viewport = $('#cv-viewport');
+// Las barras flotantes y el minimapa no mueven el lienzo ni crean tarjetas.
+$$('#cv-viewport .cv-float').forEach((f) => ['pointerdown', 'dblclick', 'contextmenu'].forEach((t) => f.addEventListener(t, (e) => e.stopPropagation())));
 viewport.addEventListener('pointerdown', (e) => {
   cv.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (cv.pointers.size === 2) {
@@ -843,6 +1016,7 @@ function canvasBackgroundItems(c, p) {
 function canvasCardItems(c, k, at) {
   const url = k.type === 'link' && cvSafeUrl(k.url);
   return [
+    { label: '🔍 Acercar', kbd: 'Z', action: () => zoomToCard(k) },
     { label: 'Color ▸', action: () => showMenu(at, canvasColorItems(c, k)) },
     { label: k.type === 'group' ? '✏️ Cambiar el nombre' : '✏️ Editar', kbd: 'Enter', action: () => editCanvasCard(c, k) },
     ...(k.type === 'note' && noteById(k.noteId) ? [{ label: '📝 Abrir nota', action: () => openCanvasNote(k) }] : []),
@@ -873,7 +1047,7 @@ viewport.addEventListener('contextmenu', (e) => {
   if (!c || e.target.closest('textarea, input')) return;
   e.preventDefault();
   const cardNode = e.target.closest('.cv-card');
-  const edgeNode = e.target.closest('.cv-edge');
+  const edgeNode = e.target.closest('.cv-edge, .cv-edge-label');
   let { clientX: x, clientY: y } = e;
   const keyboard = !x && !y;
   // Con teclado (tecla de menú o Mayús+F10): lo elegido.
@@ -900,7 +1074,29 @@ $('#cv-add-note').addEventListener('click', () => pickCanvasNote(currentCanvas()
 $('#cv-add-image')?.addEventListener('click', () => pickCanvasImage(currentCanvas(), null));
 $('#cv-add-link')?.addEventListener('click', () => promptCanvasLink(currentCanvas(), null));
 $('#cv-add-group')?.addEventListener('click', () => addCanvasGroup(currentCanvas(), null));
-$('#cv-export')?.addEventListener('click', () => currentCanvas() && exportCanvasFile(currentCanvas()));
+$('#cv-more').addEventListener('click', () => {
+  const c = currentCanvas();
+  if (!c) return;
+  showMenu($('#cv-more'), [
+    { label: '⤢ Ver todo', kbd: 'Mayús+1', action: fitCanvas },
+    { label: document.documentElement.classList.contains('cv-full') ? 'Salir de pantalla completa' : '⛶ Pantalla completa', kbd: 'F', action: () => toggleCanvasFull() },
+    { sep: true },
+    { label: '⤓ Exportar como .canvas (Obsidian)', action: () => exportCanvasFile(c) },
+    { sep: true },
+    { label: 'Borrar lienzo', danger: true, action: () => deleteCanvasBoard(c) },
+  ]);
+});
+$('#cv-full').addEventListener('click', () => toggleCanvasFull());
+$('#cv-zoom').addEventListener('click', () => {
+  const r = viewportRect();
+  zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / cv.z);
+});
+$('#cv-focus').addEventListener('click', () => zoomToCard(currentCanvas()?.cards.find((x) => x.id === cv.selected)));
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !document.documentElement.classList.contains('cv-full') || cv.editing || e.target.closest?.('input, textarea, #pomo-alert, #note-menu')) return;
+  if (cv.selected) return selectCard(null);
+  toggleCanvasFull(false);
+});
 $('#cv-fit').addEventListener('click', fitCanvas);
 $('#cv-zoom-in').addEventListener('click', () => {
   const r = viewportRect();
@@ -946,6 +1142,15 @@ viewport.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (k.type === 'note') openCanvasNote(k);
     else editCanvasCard(c, k);
+  } else if (!mod && !e.altKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    toggleCanvasFull();
+  } else if (!mod && !e.altKey && k && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    zoomToCard(k);
+  } else if (e.shiftKey && (e.key === '!' || e.code === 'Digit1')) {
+    e.preventDefault();
+    fitCanvas();
   } else if (mod && k && e.key.toLowerCase() === 'c') {
     cv.clipboard = JSON.parse(JSON.stringify(k));
   } else if (mod && k && e.key.toLowerCase() === 'd') {
@@ -975,15 +1180,14 @@ $('#cv-world').addEventListener('click', (e) => {
   }
 });
 
-// Borrar el lienzo desde su barra.
-$('#cv-delete-canvas').addEventListener('click', () => {
-  const c = currentCanvas();
-  if (!c) return;
+// Borrar el lienzo (menú «⋯»); se puede deshacer.
+function deleteCanvasBoard(c) {
+  toggleCanvasFull(false);
   withUndo(`Lienzo «${c.title}» borrado`, () => {
     state.canvases = state.canvases.filter((x) => x.id !== c.id);
     cv.id = null;
   });
-});
+}
 
 // ---------- JSON Canvas (.canvas de Obsidian) ----------
 // attach(imgId) da la ruta del archivo de una imagen en la bóveda (o null si no está).
