@@ -110,7 +110,7 @@ for (const p of ['/opt/node-tools/node_modules/jszip/dist/jszip.min.js', () => p
   console.log('to front (last):', await p.evaluate((id) => currentCanvas().cards.at(-1).id === id, ids.outside));
   // Copiar y pegar desde el menú del fondo
   await p.mouse.click(box.x + 10, box.y + 10, { button: 'right' }); await pick('Copiar');
-  await p.mouse.click(vp.x + 60, vp.y + vp.height - 60, { button: 'right' }); await pick('Pegar');
+  await p.mouse.click(vp.x + 240, vp.y + vp.height - 60, { button: 'right' }); await pick('Pegar');
   console.log('pasted:', (await cards()).filter((k) => k.text === 'Fuera').length);
 
   // --- Flecha: etiqueta, color y dirección
@@ -162,7 +162,8 @@ for (const p of ['/opt/node-tools/node_modules/jszip/dist/jszip.min.js', () => p
   console.log('export types:', [...new Set(json.nodes.map((nd) => nd.type))].sort().join(','), '| node problems:', nodeProblems.length, '| edge problems:', edgeProblems.length);
   console.log('export group first:', json.nodes[0].type, json.nodes[0].label, '| image file:', json.nodes.find((nd) => nd.type === 'file')?.file.replace(/adjuntos\/[a-z0-9]+/, 'adjuntos/ID'));
   console.log('export edge:', JSON.stringify(json.edges.find((e) => e.id === 'e1')), '| green card:', json.nodes.find((nd) => nd.id === ids.inside).color);
-  const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#cv-export')]);
+  await p.click('#cv-more'); await p.waitForTimeout(50);
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#note-menu .menu-item:has-text("Exportar como .canvas")')]);
   const file = path.join(S, 'lienzo.canvas'); await dl.saveAs(file);
   const dlJson = JSON.parse(fs.readFileSync(file, 'utf8'));
   console.log('download:', dl.suggestedFilename(), dlJson.nodes.length === json.nodes.length, dlJson.edges.length);
