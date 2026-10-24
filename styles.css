@@ -3171,3 +3171,12 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 :root.rib-peek { --ribbon-w: calc(52px * var(--sidek, 1)) !important; }
 :root.rib-peek .ribbon { width: 186px; position: relative; z-index: 40; box-shadow: 6px 0 24px rgb(0 0 0 / .18); }
 @media (max-width: 899px) { :root.rib-peek { --ribbon-m: 56px !important; } :root.rib-peek .ribbon { width: 186px; } }
+
+/* Modo concentración: sin barra izquierda ni paneles; solo la nota */
+:root.zen .app, :root.zen .app.left-collapsed, :root.zen .app.right-collapsed, :root.zen .app.left-collapsed.right-collapsed { grid-template-columns: 0 0 minmax(0, 1fr) 0 !important; }
+:root.zen .app > .ribbon, :root.zen .app > .side, :root.zen .side-resize { visibility: hidden; overflow: hidden; pointer-events: none; }
+.zen-exit { display: none; position: fixed; left: 10px; bottom: 34px; z-index: 45; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: .8rem; box-shadow: 0 4px 14px rgb(0 0 0 / .12); cursor: pointer; opacity: .75; }
+.zen-exit:hover, .zen-exit:focus-visible { opacity: 1; color: var(--accent); border-color: var(--accent); }
+:root.zen .zen-exit { display: block; }
+.zen-btn { font-size: 1rem; line-height: 1; }
+.zen-btn[aria-pressed="true"] { color: var(--accent); }

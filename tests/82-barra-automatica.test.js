@@ -28,7 +28,27 @@ const out = process.argv[3];
   await p.evaluate(() => { panels.left = false; applyPanels ? applyPanels() : renderPanels(); }).catch(() => {});
   await p.waitForTimeout(100);
   const closed = await p.evaluate(() => document.getElementById('app').classList.contains('left-collapsed'));
-  if (closed) check('panel cerrado: con nombres', (await geo()).label, true);
+  if (closed) {
+    const g3 = await geo();
+    check('panel cerrado: también solo iconos', [g3.mode, g3.label, g3.rib < 60], ['peek', false, true]);
+    await p.mouse.move(20, 200); await p.waitForTimeout(100);
+    check('panel cerrado: nombres al pasar el ratón', (await geo()).label, true);
+    await p.mouse.move(900, 300); await p.waitForTimeout(100);
+  }
+  // Modo concentración: sin barra ni paneles; se sale con Esc, el botón o «Salir»
+  await p.evaluate(() => { panels.left = true; applyPanels(); openNoteByLink('CONTABILIDAD'); }); await p.waitForTimeout(200);
+  const noteW = () => p.evaluate(() => Math.round(document.getElementById('note-pane').getBoundingClientRect().width));
+  const before = await noteW();
+  await p.click('#note-zen'); await p.waitForTimeout(150);
+  check('concentración', await p.evaluate(() => [document.documentElement.classList.contains('zen'), document.querySelector('.ribbon').getBoundingClientRect().width <= 1, getComputedStyle(document.querySelector('.zen-exit')).display]), [true, true, 'block']);
+  check('nota más ancha', (await noteW()) > before + 300, true);
+  await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+  check('Esc sale', await p.evaluate(() => document.documentElement.classList.contains('zen')), false);
+  check('paneles como estaban', await p.evaluate(() => [panels.left, document.getElementById('app').classList.contains('left-collapsed')]), [true, false]);
+  await p.keyboard.press('Control+Shift+F'); await p.waitForTimeout(100);
+  check('atajo', await p.evaluate(() => document.documentElement.classList.contains('zen')), true);
+  await p.click('.zen-exit'); await p.waitForTimeout(100);
+  check('botón salir', await p.evaluate(() => document.documentElement.classList.contains('zen')), false);
   // Opción en Apariencia
   await p.evaluate(() => { showView('settings'); renderAppearance(); });
   check('opción en Apariencia', await p.evaluate(() => [...document.querySelectorAll('#appearance .segmented[aria-label="Barra de la izquierda"] .seg')].map((x) => x.textContent)), ['Automático', 'Iconos y nombres', 'Solo iconos']);

@@ -201,3 +201,28 @@ renderDriveBtn = function renderDriveBtns() {
 };
 renderDriveBtn();
 renderNavButtons();
+
+// ---------- Modo concentración ----------
+// Oculta la barra de la izquierda y los dos paneles (sin cambiar cómo los tenías) y deja la nota
+// sola en el centro. Se sale con el mismo botón, con Esc o con «Salir» arriba a la izquierda.
+const zenExit = el('button', { className: 'zen-exit', title: 'Salir del modo concentración (Esc)' }, '⤡ Salir');
+document.body.append(zenExit);
+function toggleZen(on = !document.documentElement.classList.contains('zen')) {
+  document.documentElement.classList.toggle('zen', on);
+  $('#note-zen')?.setAttribute('aria-pressed', String(on));
+  if ($('#note-zen')) $('#note-zen').textContent = on ? '⤡' : '⤢';
+  // El lienzo y el grafo recalculan su tamaño.
+  dispatchEvent(new Event('resize'));
+}
+zenExit.addEventListener('click', () => toggleZen(false));
+$('#note-zen')?.addEventListener('click', () => toggleZen());
+document.addEventListener('keydown', (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    toggleZen();
+  } else if (e.key === 'Escape' && document.documentElement.classList.contains('zen') && !e.defaultPrevented && !e.target.closest?.('input, textarea, [contenteditable="true"]') && $('#note-menu').hidden && $('#picker').hidden && !document.documentElement.classList.contains('cv-full')) {
+    toggleZen(false);
+  }
+});
+COMMANDS_EXTRA.push(() => [{ label: document.documentElement.classList.contains('zen') ? 'Salir del modo concentración' : '⤢ Modo concentración (ocultar barra y paneles)', action: () => toggleZen() }]);
