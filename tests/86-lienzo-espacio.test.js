@@ -48,6 +48,13 @@ const url = process.argv[2];
   await p.focus('#cv-viewport'); await p.evaluate(() => selectCard(null));
   await p.keyboard.press('f'); await p.waitForTimeout(150);
   check('pantalla completa', await p.evaluate(() => { const v = document.getElementById('cv-viewport').getBoundingClientRect(); return [document.documentElement.classList.contains('cv-full'), v.width > 1300, v.height > 650]; }), [true, true, true]);
+  // Color visible y menú por encima del lienzo en pantalla completa
+  await p.evaluate(() => selectCard('t1'));
+  await p.click('#cv-color'); await p.waitForTimeout(80);
+  check('menú encima', await p.evaluate(() => { const m = document.getElementById('note-menu').getBoundingClientRect(); return !!document.elementFromPoint(m.left + 20, m.top + 15)?.closest('#note-menu'); }), true);
+  await p.click('#note-menu .menu-item:has-text("Rojo")'); await p.waitForTimeout(80);
+  check('color visible', await p.evaluate(() => { const n = document.querySelector('.cv-card[data-id="t1"]'); const s = getComputedStyle(n); return [currentCanvas().cards.find((k) => k.id === 't1').color, s.backgroundColor !== 'rgb(255, 255, 255)', n.classList.contains('ic-red')]; }), ['red', true, true]);
+  await p.evaluate(() => selectCard(null)); await p.focus('#cv-viewport');
   await p.keyboard.press('Escape'); await p.waitForTimeout(150);
   check('salió', await p.evaluate(() => document.documentElement.classList.contains('cv-full')), false);
   // Menú «⋯»: exportar y borrar (con deshacer)

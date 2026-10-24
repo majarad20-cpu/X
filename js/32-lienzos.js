@@ -292,12 +292,13 @@ const cvOrdered = (c) => [...c.cards.filter((k) => k.type === 'group'), ...c.car
 // Lo que queda entero dentro de un grupo se mueve con él.
 const groupChildren = (c, g) => c.cards.filter((o) => o !== g && o.x >= g.x && o.y >= g.y && o.x + o.w <= g.x + g.w && o.y + o.h <= g.y + g.h);
 
+// Fondo suave y borde del color (preajuste o #hex); el fondo general de las tarjetas lo taparía.
 function cardColor(node, color) {
-  if (!color) return;
-  if (color.startsWith('#')) {
-    node.classList.add('cv-hex');
-    node.style.setProperty('--cv-c', cvHex(color) || 'transparent');
-  } else node.classList.add(`ic-${color}`);
+  const hex = cvHex(color);
+  if (!hex) return;
+  node.classList.add('cv-hex');
+  if (!color.startsWith('#')) node.classList.add(`ic-${color}`);
+  node.style.setProperty('--cv-c', hex);
 }
 
 function cardEl(c, k) {
