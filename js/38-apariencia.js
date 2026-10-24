@@ -78,7 +78,7 @@ const SKINS = {
   brutal: { label: 'Neobrutalista', hint: 'Bordes gruesos, sombras duras y negritas', radius: 'soft' },
 };
 
-const LOOK_DEFAULTS = { ribbonLabels: 'auto', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true, obsHeadings: 'off', obsGuides: 'off', obsTags: 'off', obsCallouts: 'off', obsMark: 'off', sideSize: 'small', treeWrap: 'off' };
+const LOOK_DEFAULTS = { ribbonLabels: 'auto', skin: 'classic', themeStyle: 'on', theme: 'system', customAccent: '', uiFont: 'system', noteFont: 'system', scale: 100, noteSize: 16, lineHeight: 'normal', noteWidth: 'full', radius: 'round', density: 'comfortable', motion: 'normal', wideV1: true, obsHeadings: 'off', obsGuides: 'off', obsTags: 'off', obsCallouts: 'off', obsMark: 'off', sideSize: 'small', treeWrap: 'off', dim: 0, softText: 'off' };
 
 // Tamaño del lado izquierdo (menú y panel de notas): todo se reduce o agranda a la vez.
 const SIDE_SIZES = { xsmall: ['Muy pequeño', 0.8], small: ['Pequeño', 0.88], normal: ['Normal', 1], large: ['Grande', 1.12] };
@@ -174,9 +174,63 @@ function applyLook() {
     root.style.removeProperty('--accent-l');
     root.style.removeProperty('--accent-d');
   }
+  applyTone(L);
   // El grafo y los lienzos leen los colores al dibujar.
   if (typeof globalGraph !== 'undefined' && globalGraph) globalGraph.draw?.();
 }
+
+// ---------- Brillo del fondo y color del texto ----------
+// En los temas claros, el fondo de notas, tarjetas y menús se tiñe con el tono de los paneles del tema
+// (en vez de blanco); lo más claro queda para resaltar (campos, pestaña activa, menús). Y el texto
+// puede pasar de negro a gris carbón. Se calcula sobre los colores reales del tema elegido.
+const TONE_VARS = ['--bg', '--surface', '--editor', '--side', '--side-hover', '--border', '--text'];
+let toneProbe = null;
+function toneColor(name) {
+  if (!toneProbe) {
+    toneProbe = el('span', { ariaHidden: 'true', style: 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none' });
+    document.body.append(toneProbe);
+  }
+  toneProbe.style.color = `var(${name})`;
+  const c = getComputedStyle(toneProbe).color;
+  const n = (c.match(/[\d.]+/g) || []).map(Number);
+  // «color(srgb r g b)» viene en 0–1; «rgb(r, g, b)» en 0–255.
+  return /^color\(/.test(c) ? n.slice(0, 3).map((x) => x * 255) : n.slice(0, 3);
+}
+const toneMix = (a, b, f) => a.map((x, i) => x + (b[i] - x) * f);
+const toneHex = (c) => `#${c.map((x) => Math.round(Math.min(255, Math.max(0, x))).toString(16).padStart(2, '0')).join('')}`;
+const toneLum = (c) => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+function applyTone(L = look()) {
+  const root = document.documentElement;
+  TONE_VARS.forEach((v) => root.style.removeProperty(v));
+  const t = Math.min(100, Math.max(0, Number(L.dim) || 0)) / 100;
+  const soft = L.softText === 'on';
+  delete root.dataset.dimmed;
+  if (!document.body || (!t && !soft)) return;
+  const c = Object.fromEntries(TONE_VARS.map((v) => [v, toneColor(v)]));
+  // Solo en temas claros: los oscuros ya descansan la vista.
+  if (toneLum(c['--editor']) < 0.55) return;
+  // El tinte es el tono de los paneles; si el tema los tiene casi blancos, un toque del color de acento.
+  let tint = c['--side'];
+  if (toneLum(tint) > 0.93) tint = toneMix(tint, toneColor('--accent'), 0.1);
+  const text = c['--text'];
+  const target = toneMix(tint, text, 0.04);
+  const set = (v, col) => root.style.setProperty(v, toneHex(col));
+  const editor = toneMix(c['--editor'], target, 0.85 * t);
+  if (t) {
+    set('--editor', editor);
+    set('--bg', toneMix(c['--bg'], target, 0.7 * t));
+    // Las superficies (tarjetas, menús, campos) quedan más claras que la nota: resaltan.
+    set('--surface', toneMix(c['--surface'], target, 0.4 * t));
+    // Los paneles, un poco más oscuros que la nota para que se distingan.
+    set('--side', toneMix(tint, text, 0.03 + 0.05 * t));
+    set('--side-hover', toneMix(c['--side-hover'], text, 0.06 * t));
+    set('--border', toneMix(c['--border'], text, 0.08 * t));
+    root.dataset.dimmed = 'on';
+  }
+  // Gris carbón: el texto se acerca un poco al fondo (menos contraste, igual de legible).
+  if (soft) set('--text', toneMix(text, editor, 0.16));
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => applyTone());
 
 // Barra de la izquierda: con nombres, solo iconos o «automático» (como Obsidian): solo iconos, con el
 // panel de notas abierto o cerrado; al pasar el ratón se despliega encima con los nombres, sin mover nada.
@@ -355,6 +409,8 @@ function renderAppearance() {
     el('h3', { className: 'ap-sub' }, 'Tema'),
     row('Al elegir un tema', seg('themeStyle', { on: ['Cambiar también estilo y letras'], off: ['Solo los colores'] }, 'Al elegir un tema'), 'Cada tema trae su estilo de interfaz y sus letras'),
     themes,
+    row('Brillo del fondo', range('dim', 0, 100, 5, (v) => (v ? `Tenue ${v} %` : 'Blanco'), 'Brillo del fondo'), 'Tiñe el fondo de las notas, tarjetas y menús con el tono del tema (solo temas claros)'),
+    row('Color del texto', seg('softText', { off: ['Negro'], on: ['Gris carbón'] }, 'Color del texto'), 'Gris carbón cansa menos la vista'),
     el('h3', { className: 'ap-sub' }, 'Color de acento'),
     $('#accent-picker'),
     el('div', { className: 'ap-custom' }, [el('label', { className: 'row' }, ['Color propio', custom]), clearCustom]),
@@ -367,7 +423,7 @@ function renderAppearance() {
     row('Tamaño del texto de las notas', range('noteSize', 13, 24, 1, (v) => `${v} px`, 'Tamaño del texto de las notas')),
     row('Interlineado de las notas', seg('lineHeight', LINE_HEIGHTS, 'Interlineado')),
     el('h3', { className: 'ap-sub' }, 'Diseño'),
-    row('Barra de la izquierda', seg('ribbonLabels', { auto: ['Automático'], on: ['Iconos y nombres'], off: ['Solo iconos'] }, 'Barra de la izquierda'), 'Automático: solo iconos con el panel de notas abierto (pasa el ratón para ver los nombres)'),
+    row('Barra de la izquierda', seg('ribbonLabels', { auto: ['Automático'], on: ['Iconos y nombres'], off: ['Solo iconos'] }, 'Barra de la izquierda'), 'Automático: solo iconos; pasa el ratón para ver los nombres'),
     row('Tamaño del lado izquierdo', seg('sideSize', SIDE_SIZES, 'Tamaño del lado izquierdo'), 'El menú (Notas, Nota diaria…) y el listado de notas'),
     row('Nombres largos en el panel', seg('treeWrap', { off: ['Una línea (cortados)'], on: ['Completos (varias líneas)'] }, 'Nombres largos en el panel')),
     row('Ancho de las notas', seg('noteWidth', NOTE_WIDTHS, 'Ancho de las notas')),
