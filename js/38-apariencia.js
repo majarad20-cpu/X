@@ -178,13 +178,11 @@ function applyLook() {
   if (typeof globalGraph !== 'undefined' && globalGraph) globalGraph.draw?.();
 }
 
-// Barra de la izquierda: con nombres, solo iconos o «automático» (como Obsidian): solo iconos mientras
-// el panel de notas está abierto (al pasar el ratón se despliega encima, sin mover nada) y con nombres
-// cuando está cerrado.
+// Barra de la izquierda: con nombres, solo iconos o «automático» (como Obsidian): solo iconos, con el
+// panel de notas abierto o cerrado; al pasar el ratón se despliega encima con los nombres, sin mover nada.
 function applyRibbonMode(L = look()) {
   const root = document.documentElement;
-  const leftOpen = !$('#app')?.classList.contains('left-collapsed');
-  const mode = L.ribbonLabels === 'off' ? 'off' : L.ribbonLabels === 'auto' && leftOpen ? 'peek' : 'on';
+  const mode = L.ribbonLabels === 'off' ? 'off' : L.ribbonLabels === 'auto' ? 'peek' : 'on';
   if (root.classList.contains('rib-peek') && mode === 'peek') return; // desplegada ahora mismo: se queda
   root.classList.remove('rib-peek');
   root.dataset.riblabels = mode;
