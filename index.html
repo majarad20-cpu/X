@@ -838,122 +838,141 @@
 
     <!-- Ajustes -->
     <section id="view-settings" class="view">
-      <h2 class="section-title first">Apariencia</h2>
-      <div id="appearance" class="card appearance"><div id="accent-picker" class="swatches" role="radiogroup" aria-label="Color de acento"></div></div>
+      <nav class="set-index" aria-label="Secciones de los ajustes">
+        <button type="button" class="chip" data-set-jump="set-g-apariencia">🎨 Apariencia</button>
+        <button type="button" class="chip" data-set-jump="set-g-tareas">✅ Tareas y enfoque</button>
+        <button type="button" class="chip" data-set-jump="set-g-notas">📝 Notas</button>
+        <button type="button" class="chip" data-set-jump="set-g-google">📅 Calendario y correo</button>
+        <button type="button" class="chip" data-set-jump="set-g-datos">💾 Datos y copias</button>
+      </nav>
 
-      <h2 class="section-title">Espacio</h2>
-      <div class="card storage">
-        <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas se archivan solas (a los 7 días, o lo que elijas en «Tareas hechas») y siguen apareciendo en «Hechas».</p>
-        <div id="storage-meter"></div>
-      </div>
+      <section class="set-group" id="set-g-apariencia" aria-labelledby="set-g-apariencia-t">
+        <h2 class="set-group-title" id="set-g-apariencia-t">🎨 Apariencia</h2>
+        <p class="muted set-group-desc">Estilo, tema, colores, letras y diseño de la app.</p>
+        <div id="appearance" class="card appearance"><div id="accent-picker" class="swatches" role="radiogroup" aria-label="Color de acento"></div></div>
+      </section>
 
-      <h2 class="section-title">Tareas hechas</h2>
-      <div class="card">
-        <label class="set-row">Archivar las tareas hechas
-          <select id="set-archive-days" aria-label="Archivar las tareas hechas">
-            <option value="0">al momento</option>
-            <option value="1">después de 1 día</option>
-            <option value="7">después de 7 días</option>
-            <option value="30">después de 30 días</option>
-            <option value="-1">nunca</option>
-          </select>
-        </label>
-        <p class="muted">Las archivadas salen de la lista pero siguen en «Hechas» (filtro «Archivadas»). Cada tarea hecha tiene además «🗄 Archivar» y «🗑 Eliminar».</p>
-      </div>
-
-      <h2 class="section-title">Pomodoro</h2>
-      <div id="pomo-settings" class="card pomo-set"></div>
-
-      <h2 class="section-title">Google Calendar</h2>
-      <div class="card">
-        <label class="switch"><input id="cal-enabled" type="checkbox"> Mostrar mis eventos en Hoy y en la vista Semana</label>
-        <p id="cal-note" class="muted cal-note"></p>
-        <p class="muted">Para agendar una tarea, ábrela y pulsa «📅 Agendar en Google Calendar…». Para reservar tiempo de concentración, usa el botón de Pomodoro.</p>
-      </div>
-
-      <h2 class="section-title">Notas de voz</h2>
-      <div class="card">
-        <label class="switch"><input id="voice-transcribe" type="checkbox" checked> Transcribir mis notas de voz</label>
-        <p class="muted">Mientras grabas, el navegador escribe lo que dices y lo guarda plegado bajo el audio. Para escribir sin guardar audio, usa «🎙 Dictar» (con «/» o el botón derecho en el editor). Algunos navegadores, como Firefox, no lo permiten.</p>
-      </div>
-
-      <h2 class="section-title">Copia en Google Drive</h2>
-      <div class="card g-card" id="gdrive-card">
-        <label class="switch"><input id="gdrive-auto" type="checkbox"> Hacer una copia automática cada día en la carpeta «Enfoque» de mi Drive</label>
-        <div class="row">
-          <button id="gdrive-now" class="primary">Copiar ahora</button>
-          <button id="gdrive-list">Restaurar desde Drive…</button>
+      <section class="set-group" id="set-g-tareas" aria-labelledby="set-g-tareas-t">
+        <h2 class="set-group-title" id="set-g-tareas-t">✅ Tareas y enfoque</h2>
+        <p class="muted set-group-desc">Cuándo se archivan las tareas hechas y cómo funciona el Pomodoro.</p>
+        <h3 class="section-title first">Tareas hechas</h3>
+        <div class="card">
+          <label class="set-row">Archivar las tareas hechas
+            <select id="set-archive-days" aria-label="Archivar las tareas hechas">
+              <option value="0">al momento</option>
+              <option value="1">después de 1 día</option>
+              <option value="7">después de 7 días</option>
+              <option value="30">después de 30 días</option>
+              <option value="-1">nunca</option>
+            </select>
+          </label>
+          <p class="muted">Las archivadas salen de la lista pero siguen en «Hechas» (filtro «Archivadas»). Cada tarea hecha tiene además «🗄 Archivar» y «🗑 Eliminar».</p>
         </div>
-        <p id="gdrive-status" class="muted" role="status"></p>
-        <ul id="gdrive-backups" class="g-list" hidden></ul>
-      </div>
+        <h3 class="section-title">Pomodoro</h3>
+        <div id="pomo-settings" class="card pomo-set"></div>
+      </section>
 
-      <h2 class="section-title">Notas en Google Drive</h2>
-      <div class="card g-card" id="gvault-card">
-        <label class="switch"><input id="gvault-on" type="checkbox"> Guardar cada nota como archivo .md en la carpeta «Enfoque/Notas» de mi Drive</label>
-        <p class="muted">Se mantienen tus carpetas. Lo que edites en Drive (por ejemplo, con Obsidian) vuelve a la app. Las notas con contraseña no se suben. Si borras un archivo en Drive, la nota sigue en la app. ¿Tienes una carpeta de Obsidian? Cópiala dentro de «Enfoque/Notas» (o de «Enfoque») en Drive y pulsa «Sincronizar ahora»: sus notas y subcarpetas aparecen en la app.</p>
-        <div class="row">
-          <button id="gvault-now">Sincronizar ahora</button>
-          <button id="gvault-open" hidden>Abrir la carpeta ↗</button>
+      <section class="set-group" id="set-g-notas" aria-labelledby="set-g-notas-t">
+        <h2 class="set-group-title" id="set-g-notas-t">📝 Notas</h2>
+        <p class="muted set-group-desc">Notas diarias, notas de voz, la bóveda en Drive y Obsidian.</p>
+        <h3 class="section-title first">Notas diarias</h3>
+        <div class="card">
+          <label class="switch"><input id="set-day-panel" type="checkbox" checked> Mostrar el resumen del día en las notas diarias</label>
+          <p class="muted">Arriba de cada nota diaria (en lectura y en la vista dividida): hábitos para marcar, tareas, pomodoros, ideas y eventos de ese día. No se guarda en el texto de la nota.</p>
         </div>
-        <p id="gvault-status" class="muted" role="status"></p>
-      </div>
-
-      <h2 class="section-title">Resumen semanal por Gmail</h2>
-      <div class="card g-card" id="gweekly-card">
-        <label class="switch"><input id="gweekly-on" type="checkbox"> Enviarme cada semana un resumen de lo que hice y lo que viene</label>
-        <div class="row g-row">
-          <label>Día <select id="gweekly-day">
-            <option value="1">lunes</option><option value="2">martes</option><option value="3">miércoles</option><option value="4">jueves</option><option value="5">viernes</option><option value="6">sábado</option><option value="0">domingo</option>
-          </select></label>
-          <label class="g-to">Enviar a <input id="gweekly-to" type="email" placeholder="tu correo de Gmail" autocomplete="email"></label>
+        <h3 class="section-title">Notas de voz</h3>
+        <div class="card">
+          <label class="switch"><input id="voice-transcribe" type="checkbox" checked> Transcribir mis notas de voz</label>
+          <p class="muted">Mientras grabas, el navegador escribe lo que dices y lo guarda plegado bajo el audio. Para escribir sin guardar audio, usa «🎙 Dictar» (con «/» o el botón derecho en el editor). Algunos navegadores, como Firefox, no lo permiten.</p>
         </div>
-        <div class="row">
-          <button id="gweekly-send">Enviar ahora</button>
-          <button id="gweekly-preview">Ver cómo queda</button>
+        <h3 class="section-title">Notas en Google Drive</h3>
+        <div class="card g-card" id="gvault-card">
+          <label class="switch"><input id="gvault-on" type="checkbox"> Guardar cada nota como archivo .md en la carpeta «Enfoque/Notas» de mi Drive</label>
+          <p class="muted">Se mantienen tus carpetas. Lo que edites en Drive (por ejemplo, con Obsidian) vuelve a la app. Las notas con contraseña no se suben. Si borras un archivo en Drive, la nota sigue en la app. ¿Tienes una carpeta de Obsidian? Cópiala dentro de «Enfoque/Notas» (o de «Enfoque») en Drive y pulsa «Sincronizar ahora»: sus notas y subcarpetas aparecen en la app.</p>
+          <div class="row">
+            <button id="gvault-now">Sincronizar ahora</button>
+            <button id="gvault-open" hidden>Abrir la carpeta ↗</button>
+          </div>
+          <p id="gvault-status" class="muted" role="status"></p>
         </div>
-        <p id="gweekly-status" class="muted" role="status"></p>
-        <div id="gweekly-sample" class="g-sample" hidden></div>
-      </div>
-
-      <h2 class="section-title">Notas diarias</h2>
-      <div class="card">
-        <label class="switch"><input id="set-day-panel" type="checkbox" checked> Mostrar el resumen del día en las notas diarias</label>
-        <p class="muted">Arriba de cada nota diaria (en lectura y en la vista dividida): hábitos para marcar, tareas, pomodoros, ideas y eventos de ese día. No se guarda en el texto de la nota.</p>
-      </div>
-
-      <h2 class="section-title">Pasar a notas</h2>
-      <div class="card">
-        <p>Copia tu diario (cada entrada en la nota diaria de su día), tus ideas (una nota por idea en «Ideas») y tus mapas mentales (como esquema en «Mapas»). Los originales se quedan donde están. Si lo vuelves a usar, solo copia lo nuevo.</p>
-        <div class="row"><button id="import-notes" class="primary">Copiar a notas</button></div>
-        <p id="import-message" class="muted" role="status"></p>
-      </div>
-
-      <h2 class="section-title">Copia de seguridad</h2>
-      <div class="card backup">
-        <p>Guarda tus tareas, hábitos y estadísticas en un archivo, o restaura una copia anterior. Restaurar sustituye los datos actuales; podrás deshacerlo unos segundos.</p>
-        <div class="row">
-          <button id="backup-export" class="primary">Descargar copia</button>
-          <button id="backup-copy">Copiar</button>
-          <label class="file-btn">Restaurar desde archivo<input id="backup-file" type="file" accept="application/json,.json"></label>
-          <button id="backup-paste">Pegar copia</button>
+        <h3 class="section-title">Obsidian: importar y exportar</h3>
+        <div class="card backup" id="vault-card">
+          <p>Trae tu bóveda de Obsidian con sus carpetas e imágenes, o llévate tus notas como bóveda. Las notas se escriben igual que en Obsidian: abre la guía para ver toda la sintaxis.</p>
+          <div class="row">
+            <label class="file-btn primary">Importar carpeta<input id="vault-folder" type="file" webkitdirectory multiple></label>
+            <label class="file-btn">Importar .zip o archivos .md<input id="vault-files" type="file" multiple accept=".md,.markdown,.zip,.excalidraw,.canvas,image/*"></label>
+            <button id="vault-export">Exportar como bóveda (.zip)</button>
+            <button id="vault-guide">Guía de sintaxis</button>
+          </div>
+          <p id="vault-message" class="muted" role="status"></p>
         </div>
-        <textarea id="backup-text" rows="4" readonly hidden aria-label="Copia de seguridad"></textarea>
-        <textarea id="restore-text" rows="4" placeholder="Pega aquí el texto de tu copia" hidden aria-label="Texto de la copia a restaurar"></textarea>
-        <p id="backup-message" class="muted" role="status"></p>
-      </div>
-
-      <h2 class="section-title">Obsidian</h2>
-      <div class="card backup" id="vault-card">
-        <p>Trae tu bóveda de Obsidian con sus carpetas e imágenes, o llévate tus notas como bóveda. Las notas se escriben igual que en Obsidian: abre la guía para ver toda la sintaxis.</p>
-        <div class="row">
-          <label class="file-btn primary">Importar carpeta<input id="vault-folder" type="file" webkitdirectory multiple></label>
-          <label class="file-btn">Importar .zip o archivos .md<input id="vault-files" type="file" multiple accept=".md,.markdown,.zip,.excalidraw,.canvas,image/*"></label>
-          <button id="vault-export">Exportar como bóveda (.zip)</button>
-          <button id="vault-guide">Guía de sintaxis</button>
+        <h3 class="section-title">Pasar diario, ideas y mapas a notas</h3>
+        <div class="card">
+          <p>Copia tu diario (cada entrada en la nota diaria de su día), tus ideas (una nota por idea en «Ideas») y tus mapas mentales (como esquema en «Mapas»). Los originales se quedan donde están. Si lo vuelves a usar, solo copia lo nuevo.</p>
+          <div class="row"><button id="import-notes" class="primary">Copiar a notas</button></div>
+          <p id="import-message" class="muted" role="status"></p>
         </div>
-        <p id="vault-message" class="muted" role="status"></p>
-      </div>
+      </section>
+
+      <section class="set-group" id="set-g-google" aria-labelledby="set-g-google-t">
+        <h2 class="set-group-title" id="set-g-google-t">📅 Calendario y correo</h2>
+        <p class="muted set-group-desc">Conexión con Google Calendar y el resumen semanal por Gmail.</p>
+        <h3 class="section-title first">Google Calendar</h3>
+        <div class="card">
+          <label class="switch"><input id="cal-enabled" type="checkbox"> Mostrar mis eventos en Hoy y en la vista Semana</label>
+          <p id="cal-note" class="muted cal-note"></p>
+          <p class="muted">Para agendar una tarea, ábrela y pulsa «📅 Agendar en Google Calendar…». Para reservar tiempo de concentración, usa el botón de Pomodoro.</p>
+        </div>
+        <h3 class="section-title">Resumen semanal por Gmail</h3>
+        <div class="card g-card" id="gweekly-card">
+          <label class="switch"><input id="gweekly-on" type="checkbox"> Enviarme cada semana un resumen de lo que hice y lo que viene</label>
+          <div class="row g-row">
+            <label>Día <select id="gweekly-day">
+              <option value="1">lunes</option><option value="2">martes</option><option value="3">miércoles</option><option value="4">jueves</option><option value="5">viernes</option><option value="6">sábado</option><option value="0">domingo</option>
+            </select></label>
+            <label class="g-to">Enviar a <input id="gweekly-to" type="email" placeholder="tu correo de Gmail" autocomplete="email"></label>
+          </div>
+          <div class="row">
+            <button id="gweekly-send">Enviar ahora</button>
+            <button id="gweekly-preview">Ver cómo queda</button>
+          </div>
+          <p id="gweekly-status" class="muted" role="status"></p>
+          <div id="gweekly-sample" class="g-sample" hidden></div>
+        </div>
+      </section>
+
+      <section class="set-group" id="set-g-datos" aria-labelledby="set-g-datos-t">
+        <h2 class="set-group-title" id="set-g-datos-t">💾 Datos y copias</h2>
+        <p class="muted set-group-desc">Copias de seguridad y espacio usado.</p>
+        <h3 class="section-title first">Copia de seguridad</h3>
+        <div class="card backup">
+          <p>Guarda tus tareas, hábitos y estadísticas en un archivo, o restaura una copia anterior. Restaurar sustituye los datos actuales; podrás deshacerlo unos segundos.</p>
+          <div class="row">
+            <button id="backup-export" class="primary">Descargar copia</button>
+            <button id="backup-copy">Copiar</button>
+            <label class="file-btn">Restaurar desde archivo<input id="backup-file" type="file" accept="application/json,.json"></label>
+            <button id="backup-paste">Pegar copia</button>
+          </div>
+          <textarea id="backup-text" rows="4" readonly hidden aria-label="Copia de seguridad"></textarea>
+          <textarea id="restore-text" rows="4" placeholder="Pega aquí el texto de tu copia" hidden aria-label="Texto de la copia a restaurar"></textarea>
+          <p id="backup-message" class="muted" role="status"></p>
+        </div>
+        <h3 class="section-title">Copia en Google Drive</h3>
+        <div class="card g-card" id="gdrive-card">
+          <label class="switch"><input id="gdrive-auto" type="checkbox"> Hacer una copia automática cada día en la carpeta «Enfoque» de mi Drive</label>
+          <div class="row">
+            <button id="gdrive-now" class="primary">Copiar ahora</button>
+            <button id="gdrive-list">Restaurar desde Drive…</button>
+          </div>
+          <p id="gdrive-status" class="muted" role="status"></p>
+          <ul id="gdrive-backups" class="g-list" hidden></ul>
+        </div>
+        <h3 class="section-title">Espacio</h3>
+        <div class="card storage">
+          <p class="muted">La nube guarda tus datos en bloques de hasta 256 KB: uno para tareas, hábitos y proyectos; otro para ideas; uno por mes para el diario y el archivo de tareas; y uno por cada mapa. Las tareas completadas se archivan solas (a los 7 días, o lo que elijas en «Tareas hechas») y siguen apareciendo en «Hechas».</p>
+          <div id="storage-meter"></div>
+        </div>
+      </section>
     </section>
     </main>
       <footer class="footer">

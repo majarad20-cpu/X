@@ -116,6 +116,14 @@ function restoreBackup(text) {
   restoreFiles(parsed?.files).then((n) => n && setBackupMessage(`Restauradas ${data.tasks.length} tareas, ${data.habits.length} hábitos y ${n} ${n === 1 ? 'imagen' : 'imágenes'}.`));
 }
 
+// Índice de los ajustes: cada botón lleva a su grupo y queda marcado.
+$$('[data-set-jump]').forEach((b) =>
+  b.addEventListener('click', () => {
+    $$('[data-set-jump]').forEach((x) => x.classList.toggle('active', x === b));
+    document.getElementById(b.dataset.setJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  })
+);
+
 $('#open-settings').addEventListener('click', () => {
   showView('settings');
   renderAccents();

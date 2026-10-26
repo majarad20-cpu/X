@@ -624,6 +624,16 @@ textarea.notes:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 }
 .mm-node.left .mm-fold { right: auto; left: -11px; }
 
+/* ---------- Ajustes: grupos e índice ---------- */
+.set-index { position: sticky; top: 0; z-index: 3; display: flex; gap: 6px; padding: 8px 0; margin: 0 0 4px; background: var(--bg); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.set-index::-webkit-scrollbar { display: none; }
+.set-index .chip { flex: none; font-size: .85rem; padding: 3px 10px; }
+.set-group { scroll-margin-top: 56px; }
+.set-group + .set-group { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); }
+.set-group-title { font-size: 1.15rem; margin: 12px 0 2px; }
+.set-group-desc { margin: 0 0 10px; font-size: .85rem; }
+.set-group > .section-title.first { margin-top: 8px; }
+
 /* ---------- Espacio ---------- */
 .storage > p { margin: 0 0 12px; max-width: 70ch; font-size: .85rem; }
 #storage-meter { display: flex; flex-direction: column; gap: 14px; }
