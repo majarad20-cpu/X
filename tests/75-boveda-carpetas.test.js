@@ -199,6 +199,17 @@ const mock = () => {
   for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
   await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(40000);
   check('movida en Drive', await p.evaluate((n) => [noteById('n2').path, noteById('n2').body, window.__calls.filter((x) => x[1] === 'create_file' && x[2].contentMimeType !== 'application/vnd.google-apps.folder').length === n, window.__files.filter((f) => !f.trashed && /^Igual/.test(f.title)).map((f) => [f.parentId, f.title]).sort()], before), ['Cerebro/Archivo/Igual movida', 'mismo texto', true, [['cB', 'Igual.md'], ['cSub', 'Igual movida.md']]]);
+  // Un archivo borrado en Drive: su nota pasa a la papelera de Enfoque y no se vuelve a subir. Uno subido
+  // hace un momento (la búsqueda de Drive puede no verlo aún) no se toca.
+  await p.evaluate(() => {
+    window.__files.find((f) => !f.trashed && f.title === 'Igual movida.md').trashed = true;
+    window.__files.find((f) => !f.trashed && f.title === 'Nueva.md').trashed = true;
+  });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
+  check('aviso de borradas', await p.evaluate(() => /1 nota\(s\) borradas en Drive pasaron a la papelera de Enfoque/.test(document.getElementById('gvault-status').textContent)), true);
+  await p.clock.runFor(40000);
+  check('borrada en Drive', await p.evaluate(() => [!!noteById('n2'), trashList().some((t) => t.id === 'n2'), window.__files.some((f) => !f.trashed && /^Igual movida/.test(f.title)), !!noteById('n5')]), [false, true, false, true]);
   // Carpeta renombrada («4.- ENFOQUE»): si hay que volver a buscarla, se encuentra igual
   check('carpeta renombrada', await p.evaluate(async () => {
     const f = window.__files.find((x) => x.title === 'Enfoque');

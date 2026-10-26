@@ -93,6 +93,7 @@ async function listVaultFolder(folderId) {
     out.push(...(r.files || []));
     pageToken = r.nextPageToken || r.next_page_token;
   } while (pageToken && out.length < 2000);
+  out.complete = !pageToken; // false si la carpeta tiene más archivos de los que se leyeron
   return out;
 }
 
@@ -506,15 +507,31 @@ async function scanVaultNew() {
     entry.path = to;
     made++;
   };
+  // Archivos vistos y carpetas leídas enteras en este repaso: con eso se sabe qué se borró en Drive.
+  const seen = new Set();
+  const complete = new Set();
+  const glance = async (folderId, depth = 0) => {
+    if (depth > 12) return;
+    for (const f of await listVaultFolder(folderId)) {
+      seen.add(f.id);
+      if (f.mimeType === FOLDER_MIME) await glance(f.id, depth + 1);
+    }
+  };
   const visit = async (folderId, path, depth = 0) => {
     if (depth > 12) return;
     const list = await listVaultFolder(folderId);
     const here = new Set(list.map((f) => f.id));
+    list.forEach((f) => seen.add(f.id));
+    if (list.complete) complete.add(folderId);
     for (const f of list) {
       if (f.mimeType === FOLDER_MIME) {
         if (/^\./.test(f.title)) continue;
         const sub = joinPath(path, cleanName(f.title) || 'Carpeta');
-        if (top.has(sub) && top.get(sub) !== f.id) continue; // copia en «Notas» de una carpeta de «Enfoque»
+        // Copia en «Notas» de una carpeta de «Enfoque»: no se recorre, pero sus archivos cuentan como presentes.
+        if (top.has(sub) && top.get(sub) !== f.id) {
+          await glance(f.id, depth + 1);
+          continue;
+        }
         if (!m.folders[sub]) m.folders[sub] = f.id;
         await visit(f.id, sub, depth + 1);
       } else if (/\.md$/i.test(f.title) && known.has(f.id)) {
@@ -550,6 +567,23 @@ async function scanVaultNew() {
   await visit(m.root, '');
   // Las de «Enfoque» se recorren siempre con su ruta, por si tienen archivos nuevos.
   for (const [path, id] of top) await visit(id, path);
+  // Notas cuyo archivo borraste en Drive: van a la papelera de Enfoque (se recuperan desde ahí). Solo si
+  // su carpeta se leyó entera, el archivo no está en ninguna otra carpeta, la nota no tiene cambios sin
+  // subir y el archivo no se subió hace poco (la búsqueda de Drive tarda un poco en verlo).
+  const recent = Date.now() - 10 * 60000;
+  const removed = vaultNotes().filter((n) => {
+    const entry = m.files[n.id];
+    return entry && !seen.has(entry.id) && complete.has(m.folders[folderOf(n.path)]) && (n.updatedAt || 0) <= entry.at && !(Date.parse(entry.mt || 0) > recent);
+  });
+  if (removed.length) {
+    trashNotes(removed);
+    const ids = new Set(removed.map((n) => n.id));
+    state.notes = state.notes.filter((n) => !ids.has(n.id));
+    removed.forEach((n) => delete m.files[n.id]);
+    noteIndex.key = '';
+    made += removed.length;
+    vault.removed = removed.length;
+  }
   m.lastScan = Date.now();
   saveVaultMap();
   if (assetsIn) scheduleFilesSync();
@@ -564,6 +598,7 @@ async function scanVaultNew() {
 async function syncVault({ manual = false, adopt = false } = {}) {
   if (!vaultOn() || vault.busy) return;
   vault.busy = true;
+  vault.removed = 0;
   if (manual) vaultStatus('Sincronizando con Drive…');
   if (typeof renderDriveBtn === 'function') renderDriveBtn();
   try {
@@ -574,8 +609,9 @@ async function syncVault({ manual = false, adopt = false } = {}) {
     const m = vaultMap();
     m.lastSync = Date.now();
     saveVaultMap();
-    vaultStatus(`${Object.keys(m.files).length} notas en Drive · última sincronización ${new Date(m.lastSync).toLocaleTimeString('es', { timeStyle: 'short' })}${pulled ? ` · ${pulled} cambio(s) traídos de Drive` : ''}.`);
-    if (manual) showToastMessage(pushed || pulled ? 'Bóveda de Drive al día' : 'No había cambios');
+    vaultStatus(`${Object.keys(m.files).length} notas en Drive · última sincronización ${new Date(m.lastSync).toLocaleTimeString('es', { timeStyle: 'short' })}${pulled ? ` · ${pulled} cambio(s) traídos de Drive` : ''}${vault.removed ? ` · ${vault.removed} nota(s) borradas en Drive pasaron a la papelera de Enfoque` : ''}.`);
+    if (vault.removed) showToastMessage(`${vault.removed} nota(s) borradas en Drive pasaron a la papelera de Enfoque`);
+    else if (manual) showToastMessage(pushed || pulled ? 'Bóveda de Drive al día' : 'No había cambios');
   } catch (e) {
     vaultStatus(e?.partial ? e.message : `No se pudo sincronizar la bóveda: ${gErrorText(e, DRIVE)}`, true);
   } finally {
