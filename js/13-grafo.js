@@ -239,7 +239,9 @@ class GraphView {
     if (this.hover && !this.byId.has(this.hover)) this.hover = null;
     const isNew = this.nodes.some((n) => !old.has(n.id));
     this.heat(isNew ? 1 : 0.3);
-    if (isNew && old.size === 0) {
+    // Se encuadra la primera vez y cada vez que llegan nodos nuevos (p. ej. una bóveda grande que
+    // termina de sincronizarse), salvo que hayas movido o ampliado la vista a mano.
+    if (isNew && (old.size === 0 || !this.userView)) {
       this.pendingFit = true;
       this.autoFit = true;
     }
@@ -347,6 +349,7 @@ class GraphView {
 
   fit() {
     this.pendingFit = false;
+    this.userView = false;
     if (!this.nodes.length || !this.w) return;
     const ok = this.nodes.filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y));
     if (!ok.length) return;
@@ -367,6 +370,7 @@ class GraphView {
 
   zoom(f, cx = this.w / 2, cy = this.h / 2) {
     this.autoFit = false;
+    this.userView = true;
     const before = this.toWorld(cx, cy);
     this.scale = Math.max(0.15, Math.min(4, this.scale * f));
     this.panX = cx - this.w / 2 - before.x * this.scale;
@@ -510,6 +514,7 @@ class GraphView {
           this.heat(0.3);
         } else {
           this.autoFit = false;
+          this.userView = true;
           this.panX = this.drag.panX + (p.x - this.drag.start.x);
           this.panY = this.drag.panY + (p.y - this.drag.start.y);
         }

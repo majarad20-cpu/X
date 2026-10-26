@@ -39,6 +39,18 @@ const url = process.argv[2];
   for (let i = 0; i < 16 && (await p.evaluate(() => globalGraph.alpha > 0.02)); i++) await p.waitForTimeout(500);
   await p.waitForTimeout(300);
   check('grafo grande estable y visible', await p.evaluate(() => { const g = globalGraph; const far = g.nodes.filter((n) => !Number.isFinite(n.x) || Math.abs(n.x) > 1e5 || Math.abs(n.y) > 1e5).length; const on = g.nodes.filter((n) => { const s = g.toScreen(n); return s.x >= 0 && s.x <= g.w && s.y >= 0 && s.y <= g.h; }).length; return [g.nodes.length > 2600, far, on / g.nodes.length > 0.95]; }), [true, 0, true]);
+  // Si ampliaste la vista a mano, que lleguen notas nuevas no la vuelve a encuadrar
+  check('vista a mano se respeta', await p.evaluate(async () => {
+    const g = globalGraph;
+    g.zoom(1.25);
+    const s = g.scale;
+    state.notes.push({ id: 'q1', path: 'Cerebro/Nueva tras ampliar', body: '[[N1]]', createdAt: 1, updatedAt: 1 });
+    dataRev++;
+    renderAll();
+    openTab({ type: 'graph' });
+    await new Promise((r) => setTimeout(r, 400));
+    return [g.byId.has('n:q1'), g.scale === s];
+  }), [true, true]);
   console.log('errors:', JSON.stringify(errs));
   await b.close();
   process.exit(errs.length ? 1 : 0);
