@@ -188,6 +188,17 @@ const mock = () => {
   for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
   await p.evaluate(() => syncVault({ manual: true, adopt: true })); await p.clock.runFor(2000);
   check('sin copia nueva', await p.evaluate(() => [vaultMap().folders.Cerebro, window.__files.filter((f) => !f.trashed && f.title === 'Cerebro').length, window.__files.filter((f) => !f.trashed && f.title === 'Nueva.md').map((f) => f.parentId), window.__files.filter((f) => !f.trashed && f.title === 'MOC.md').length]), ['cA', 2, ['cA'], 2]);
+  // Un archivo movido y renombrado en Drive (o en Obsidian): la nota cambia igual de ruta y no se vuelve a subir
+  const before = await p.evaluate(() => {
+    window.__files.push({ id: 'cSub', title: 'Archivo', mimeType: 'application/vnd.google-apps.folder', parentId: 'cA', modifiedTime: '2024-01-01T00:00:00Z' });
+    const f = window.__files.find((x) => !x.trashed && x.title === 'Igual.md' && x.parentId === 'cA');
+    f.parentId = 'cSub';
+    f.title = 'Igual movida.md';
+    return window.__calls.filter((x) => x[1] === 'create_file' && x[2].contentMimeType !== 'application/vnd.google-apps.folder').length;
+  });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(40000);
+  check('movida en Drive', await p.evaluate((n) => [noteById('n2').path, noteById('n2').body, window.__calls.filter((x) => x[1] === 'create_file' && x[2].contentMimeType !== 'application/vnd.google-apps.folder').length === n, window.__files.filter((f) => !f.trashed && /^Igual/.test(f.title)).map((f) => [f.parentId, f.title]).sort()], before), ['Cerebro/Archivo/Igual movida', 'mismo texto', true, [['cB', 'Igual.md'], ['cSub', 'Igual movida.md']]]);
   // Carpeta renombrada («4.- ENFOQUE»): si hay que volver a buscarla, se encuentra igual
   check('carpeta renombrada', await p.evaluate(async () => {
     const f = window.__files.find((x) => x.title === 'Enfoque');

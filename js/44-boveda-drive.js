@@ -489,6 +489,23 @@ async function scanVaultNew() {
     m.files[note.id] = { id: f.id, path: note.path, at, mt: f.modifiedTime || '' };
     known.add(f.id);
   };
+  // Un archivo que moviste o renombraste en Drive (o en Obsidian): la nota cambia igual de ruta en la
+  // app, sin volver a subirse. Si la nota tiene cambios sin subir o ya hay otra con esa ruta, se deja.
+  const byFile = new Map(Object.entries(m.files).map(([noteId, f]) => [f.id, noteId]));
+  const follow = (f, path) => {
+    const note = noteById(byFile.get(f.id));
+    const entry = note && m.files[note.id];
+    if (!entry || note.enc || (note.updatedAt || 0) > entry.at) return;
+    const to = joinPath(path, cleanName(f.title.replace(/\.md$/i, '')) || 'Sin título');
+    if (pathKey(to) === pathKey(note.path) || state.notes.some((n) => n !== note && pathKey(n.path) === pathKey(to))) return;
+    const from = note.path;
+    note.path = to;
+    noteIndex.key = '';
+    relinkAll(from, to);
+    if (path && !state.folders.includes(path)) state.folders.push(path);
+    entry.path = to;
+    made++;
+  };
   const visit = async (folderId, path, depth = 0) => {
     if (depth > 12) return;
     const list = await listVaultFolder(folderId);
@@ -500,6 +517,8 @@ async function scanVaultNew() {
         if (top.has(sub) && top.get(sub) !== f.id) continue; // copia en «Notas» de una carpeta de «Enfoque»
         if (!m.folders[sub]) m.folders[sub] = f.id;
         await visit(f.id, sub, depth + 1);
+      } else if (/\.md$/i.test(f.title) && known.has(f.id)) {
+        follow(f, path);
       } else if (/\.md$/i.test(f.title) && !known.has(f.id) && !ignore.has(f.id)) {
         const title = cleanName(f.title.replace(/\.md$/i, '')) || 'Sin título';
         if (vaultTooBig(f) || vaultExcludedPath(joinPath(path, title))) continue; // libros pesados o sacados de Enfoque: se quedan en Drive
