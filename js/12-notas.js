@@ -400,6 +400,23 @@ function openNote(note, { newTab = false, heading = '' } = {}) {
   if (heading) scrollToHeading(note, heading);
 }
 
+// Carpeta para una nota creada desde un enlace: la que más se repite entre las notas que ya enlaza la
+// de origen (un MOC enlaza notas de «MATRIZ DE NOTAS», no de su propia carpeta). Si no enlaza
+// ninguna que exista, la carpeta de la nota de origen.
+function linkFolderFor(from) {
+  const count = new Map();
+  for (const m of (from.body || '').matchAll(/\[\[([^\]|#\n]+)/g)) {
+    const n = findNoteByName(m[1].trim());
+    if (!n || n === from) continue;
+    const f = folderOf(n.path);
+    count.set(f, (count.get(f) || 0) + 1);
+  }
+  let best = folderOf(from.path);
+  let max = 0;
+  for (const [f, c] of count) if (c > max) [best, max] = [f, c];
+  return best;
+}
+
 function openNoteByLink(target, { heading = '', newTab = false, fromNote = null } = {}) {
   if (!target && heading && fromNote) return scrollToHeading(fromNote, heading);
   const note = findNoteByName(target);
@@ -411,7 +428,8 @@ function openNoteByLink(target, { heading = '', newTab = false, fromNote = null 
   const same = clean !== target && findNoteByName(clean);
   if (same) return openNote(same, { newTab, heading });
   const src = fromNote && !fromNote.enc ? fromNote : null;
-  const created = createNote({ folder, title: baseName(clean), body: '', newTab, edit: true });
+  // Sin carpeta en el enlace, la nota nueva va junto a las que ya enlaza la nota de origen.
+  const created = createNote({ folder: folder || (src ? linkFolderFor(src) : ''), title: baseName(clean), body: '', newTab, edit: true });
   if (src && clean !== target) {
     // El enlace de la nota de origen pasa a apuntar al nombre limpio.
     const name = folder ? created.path : baseName(created.path);
