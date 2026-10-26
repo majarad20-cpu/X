@@ -134,6 +134,60 @@ const mock = () => {
   for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
   await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
   check('sin duplicado «2»', await p.evaluate(() => [state.notes.filter((n) => /Dicotomía del control/.test(n.path)).map((n) => n.path), state.notes.find((n) => n.path === 'Estocismo/Dicotomía del control').body]), [['Estocismo/Dicotomía del control'], '# Dicotomía\nversión de otro dispositivo']);
+  // Una carpeta que está directamente en «Enfoque» y además copiada en «Notas» (la creó un dispositivo que
+  // había perdido el mapa): manda la de «Enfoque», las notas se enlazan con sus archivos y no se pierde nada.
+  await p.evaluate(() => {
+    const F = 'application/vnd.google-apps.folder';
+    const enfoque = window.__files.find((x) => x.title === 'Enfoque' && x.mimeType === F);
+    const notas = window.__files.find((x) => x.title === 'Notas' && x.mimeType === F);
+    const old = '2024-01-01T00:00:00Z';
+    const copyAt = new Date(Date.now() - 60000).toISOString();
+    const later = new Date(Date.now() + 60000).toISOString();
+    const add = (f) => window.__files.push({ mimeType: 'text/markdown', modifiedTime: old, ...f });
+    add({ id: 'cA', title: 'Cerebro', mimeType: F, parentId: enfoque.id });
+    add({ id: 'cA1', title: 'MOC.md', parentId: 'cA', text: 'MOC revisado', modifiedTime: later });
+    add({ id: 'cA2', title: 'Igual.md', parentId: 'cA', text: 'mismo texto' });
+    add({ id: 'cA3', title: 'Editada en la app.md', parentId: 'cA', text: 'versión vieja' });
+    add({ id: 'cB', title: 'Cerebro', mimeType: F, parentId: notas.id, modifiedTime: copyAt });
+    add({ id: 'cB1', title: 'MOC.md', parentId: 'cB', text: 'MOC viejo', modifiedTime: copyAt });
+    add({ id: 'cB2', title: 'Igual.md', parentId: 'cB', text: 'mismo texto', modifiedTime: copyAt });
+    add({ id: 'cB3', title: 'Editada en la app.md', parentId: 'cB', text: 'versión nueva', modifiedTime: copyAt });
+    add({ id: 'cB4', title: 'Solo en la copia.md', parentId: 'cB', text: 'solo aquí', modifiedTime: copyAt });
+    const m = vaultMap();
+    m.folders.Cerebro = 'cB';
+    const at = Date.now() - 60000;
+    [['n1', 'MOC', 'MOC viejo', 'cB1'], ['n2', 'Igual', 'mismo texto', 'cB2'], ['n3', 'Editada en la app', 'versión nueva', 'cB3'], ['n4', 'Solo en la copia', 'solo aquí', 'cB4']].forEach(([id, t, body, fid]) => {
+      state.notes.push({ id, path: `Cerebro/${t}`, body, createdAt: at, updatedAt: at });
+      m.files[id] = { id: fid, path: `Cerebro/${t}`, at, mt: copyAt };
+    });
+    saveVaultMap();
+    save();
+  });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(40000);
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000);
+  const cerebro = () => p.evaluate(() => {
+    const live = window.__files.filter((f) => !f.trashed);
+    return {
+      folder: vaultMap().folders.Cerebro,
+      bodies: ['n1', 'n2', 'n3', 'n4'].map((id) => noteById(id).body),
+      linked: ['n1', 'n2', 'n3', 'n4'].map((id) => live.find((f) => f.id === vaultMap().files[id].id)?.parentId),
+      notes: state.notes.filter((n) => n.path.startsWith('Cerebro/')).length,
+      folders: live.filter((f) => f.title === 'Cerebro').length,
+    };
+  });
+  check('carpeta de «Enfoque» manda', await cerebro(), { folder: 'cA', bodies: ['MOC revisado', 'mismo texto', 'versión nueva', 'solo aquí'], linked: ['cA', 'cA', 'cA', 'cB'], notes: 4, folders: 2 });
+  check('la más nueva queda en Drive', await p.evaluate(() => window.__files.filter((f) => !f.trashed && f.parentId === 'cA' && f.title === 'Editada en la app.md').map((f) => f.text)), ['versión nueva']);
+  // Al cambiar la nota que solo estaba en la copia, se guarda en la carpeta de «Enfoque»
+  await p.evaluate(() => { const n = noteById('n4'); n.body += ' y más'; n.updatedAt = Date.now(); save(); });
+  await p.clock.runFor(40000);
+  check('guardada en «Enfoque»', await p.evaluate(() => window.__files.filter((f) => !f.trashed && f.title === 'Solo en la copia.md').map((f) => [f.parentId, f.text])), [['cA', 'solo aquí y más']]);
+  // Un dispositivo sin mapa no vuelve a crear la copia en «Notas»
+  await p.evaluate(() => { localStorage.removeItem('enfoque:vault'); vault.map = null; state.notes.push({ id: 'n5', path: 'Cerebro/Nueva', body: 'nueva', createdAt: Date.now(), updatedAt: Date.now() }); save(); });
+  for (let i = 0; i < 20 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
+  await p.evaluate(() => syncVault({ manual: true, adopt: true })); await p.clock.runFor(2000);
+  check('sin copia nueva', await p.evaluate(() => [vaultMap().folders.Cerebro, window.__files.filter((f) => !f.trashed && f.title === 'Cerebro').length, window.__files.filter((f) => !f.trashed && f.title === 'Nueva.md').map((f) => f.parentId), window.__files.filter((f) => !f.trashed && f.title === 'MOC.md').length]), ['cA', 2, ['cA'], 2]);
   // Carpeta renombrada («4.- ENFOQUE»): si hay que volver a buscarla, se encuentra igual
   check('carpeta renombrada', await p.evaluate(async () => {
     const f = window.__files.find((x) => x.title === 'Enfoque');

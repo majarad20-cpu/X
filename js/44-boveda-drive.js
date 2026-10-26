@@ -54,10 +54,14 @@ const vaultStatus = (text, isError = false) => {
 };
 const driveQuote = (s) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
-async function findOrCreateFolder(title, parentId) {
+async function findFolder(title, parentId) {
   const found = await gCall(DRIVE, 'search_files', { query: `title = '${driveQuote(title)}' and parentId = '${parentId}' and mimeType = '${FOLDER_MIME}'`, pageSize: 5, excludeContentSnippets: true });
-  const folder = (found.files || []).find((f) => f.mimeType === FOLDER_MIME && f.title === title);
-  if (folder) return folder.id;
+  return (found.files || []).find((f) => f.mimeType === FOLDER_MIME && f.title === title)?.id || '';
+}
+
+async function findOrCreateFolder(title, parentId) {
+  const id = await findFolder(title, parentId);
+  if (id) return id;
   const made = await gCall(DRIVE, 'create_file', { title, contentMimeType: FOLDER_MIME, parentId });
   if (!made?.id) throw new Error('sin carpeta');
   return made.id;
@@ -72,8 +76,10 @@ async function vaultFolder(path) {
     saveVaultMap();
   }
   if (m.folders[path]) return m.folders[path];
-  const parent = await vaultFolder(folderOf(path));
-  m.folders[path] = await findOrCreateFolder(baseName(path), parent);
+  // Una carpeta de primer nivel que ya está directamente en «Enfoque» (como una bóveda de Obsidian
+  // copiada allí) se usa tal cual: no se crea otra igual dentro de «Notas».
+  const top = !folderOf(path) && (await findFolder(baseName(path), await driveFolder()));
+  m.folders[path] = top && top !== m.root ? top : await findOrCreateFolder(baseName(path), await vaultFolder(folderOf(path)));
   saveVaultMap();
   return m.folders[path];
 }
@@ -438,17 +444,60 @@ function vaultAssetMd(src) {
 // enlaza con el archivo en vez de duplicarla.
 async function scanVaultNew() {
   const m = vaultMap();
-  if (!m.root) return 0;
+  // Sin raíz (primera vez o mapa perdido) se prepara, para reconocer lo que ya hay en Drive antes de subir nada.
+  if (!m.root) await vaultFolder('');
   const known = new Set(Object.values(m.files).map((f) => f.id));
   const ignore = new Set(m.ignore);
   let made = 0;
   let assetsIn = 0;
+  // Carpetas puestas directamente en «Enfoque» (fuera de «Notas»): también son notas. Si «Notas» tiene
+  // otra con el mismo nombre (la creó un dispositivo que había perdido el mapa), manda la de «Enfoque»:
+  // sus rutas vuelven a apuntar a ella y la copia de «Notas» se deja de recorrer.
+  const pathOf = new Map(Object.entries(m.folders).map(([path, id]) => [id, path]));
+  const top = new Map();
+  for (const f of await listVaultFolder(await driveFolder())) {
+    if (f.mimeType !== FOLDER_MIME || f.id === m.root || /^\./.test(f.title)) continue;
+    const path = pathOf.get(f.id) ?? (cleanName(f.title) || 'Carpeta');
+    if (m.folders[path] && m.folders[path] !== f.id) {
+      for (const k of Object.keys(m.folders)) if (k === path || k.startsWith(`${path}/`)) delete m.folders[k];
+    }
+    m.folders[path] ||= f.id;
+    top.set(path, f.id);
+  }
+  // Una nota enlazada con un archivo de otra carpeta (la copia sobrante) se enlaza con el de su carpeta.
+  // Si los textos difieren, gana el más reciente; si la nota tenía cambios sin subir, lo de Drive se
+  // guarda aparte para no perder nada.
+  const relink = async (note, f) => {
+    const entry = m.files[note.id];
+    const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
+    if (typeof got.content !== 'string') return;
+    const text = b64ToText(got.content).replace(/\r\n?/g, '\n');
+    const pending = (note.updatedAt || 0) > entry.at;
+    let at = note.updatedAt || 0;
+    if (text !== note.body && !(text === '\n' && !note.body)) {
+      if ((f.modifiedTime || '') <= (entry.mt || '')) at = -1; // la nota es más nueva: se sube encima
+      else if (pending) {
+        createNote({ folder: folderOf(note.path), title: `${baseName(note.path)} (desde Drive)`, body: text, open: false, log: false });
+        at = entry.at;
+        made++;
+      } else {
+        note.body = text;
+        note.updatedAt = at = Date.now();
+        made++;
+      }
+    }
+    m.files[note.id] = { id: f.id, path: note.path, at, mt: f.modifiedTime || '' };
+    known.add(f.id);
+  };
   const visit = async (folderId, path, depth = 0) => {
     if (depth > 12) return;
-    for (const f of await listVaultFolder(folderId)) {
+    const list = await listVaultFolder(folderId);
+    const here = new Set(list.map((f) => f.id));
+    for (const f of list) {
       if (f.mimeType === FOLDER_MIME) {
         if (/^\./.test(f.title)) continue;
         const sub = joinPath(path, cleanName(f.title) || 'Carpeta');
+        if (top.has(sub) && top.get(sub) !== f.id) continue; // copia en «Notas» de una carpeta de «Enfoque»
         if (!m.folders[sub]) m.folders[sub] = f.id;
         await visit(f.id, sub, depth + 1);
       } else if (/\.md$/i.test(f.title) && !known.has(f.id) && !ignore.has(f.id)) {
@@ -456,7 +505,10 @@ async function scanVaultNew() {
         if (vaultTooBig(f) || vaultExcludedPath(joinPath(path, title))) continue; // libros pesados o sacados de Enfoque: se quedan en Drive
         const same = state.notes.find((n) => n.path.toLowerCase() === joinPath(path, title).toLowerCase());
         if (same) {
-          if (!m.files[same.id] && !same.enc) m.files[same.id] = { id: f.id, path: same.path, at: same.updatedAt || 0, mt: f.modifiedTime || '' };
+          const entry = m.files[same.id];
+          if (same.enc) continue;
+          if (!entry) m.files[same.id] = { id: f.id, path: same.path, at: same.updatedAt || 0, mt: f.modifiedTime || '' };
+          else if (entry.id !== f.id && !here.has(entry.id)) await relink(same, f);
           continue;
         }
         const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
@@ -477,15 +529,8 @@ async function scanVaultNew() {
     saveVaultMap();
   };
   await visit(m.root, '');
-  // Carpetas puestas directamente en «Enfoque» (fuera de «Notas»): también son notas.
-  // Las que ya se conocen se vuelven a recorrer con su ruta, por si tienen archivos nuevos.
-  const pathOf = new Map(Object.entries(m.folders).map(([path, id]) => [id, path]));
-  for (const f of await listVaultFolder(await driveFolder())) {
-    if (f.mimeType !== FOLDER_MIME || f.id === m.root || /^\./.test(f.title)) continue;
-    const path = pathOf.get(f.id) ?? (cleanName(f.title) || 'Carpeta');
-    if (!m.folders[path]) m.folders[path] = f.id;
-    await visit(f.id, path);
-  }
+  // Las de «Enfoque» se recorren siempre con su ruta, por si tienen archivos nuevos.
+  for (const [path, id] of top) await visit(id, path);
   m.lastScan = Date.now();
   saveVaultMap();
   if (assetsIn) scheduleFilesSync();
