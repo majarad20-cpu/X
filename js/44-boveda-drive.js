@@ -99,6 +99,8 @@ async function listVaultFolder(folderId) {
 }
 
 const vaultNotes = () => state.notes.filter((n) => !n.enc);
+// Nota sin contenido propio: vacía o solo con propiedades (--- … ---) y espacios.
+const vaultIsStub = (body) => !String(body || '').replace(/\r\n?/g, '\n').replace(/^---\n[\s\S]*?\n---\s*/, '').trim();
 
 // Notas que se quedan solo en Drive (p. ej. libros convertidos, muy pesados): se quitan de la app
 // sin borrar su archivo y no se vuelven a traer. La lista va en los ajustes (se sincroniza), así
@@ -509,6 +511,21 @@ async function scanVaultNew() {
     m.files[note.id] = { id: f.id, path: note.path, at, mt: f.modifiedTime || '' };
     known.add(f.id);
   };
+  // Nota que en la app quedó vacía (solo propiedades) pero cuyo archivo en Drive tiene contenido: se trae
+  // el de Drive. Pasa con notas importadas como borrador antes de escribirlas en Obsidian o en Drive.
+  const refill = async (note, f) => {
+    const entry = note && m.files[note.id];
+    if (!entry || note.enc || !vaultIsStub(note.body) || (note.updatedAt || 0) > entry.at) return;
+    if (f.fileSize != null && Number(f.fileSize) <= (note.body || '').length + 40) return;
+    const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
+    if (typeof got.content !== 'string') return;
+    const text = b64ToText(got.content).replace(/\r\n?/g, '\n');
+    if (vaultIsStub(text)) return;
+    note.body = text;
+    note.updatedAt = Date.now();
+    m.files[note.id] = { ...entry, at: note.updatedAt, mt: f.modifiedTime || entry.mt };
+    made++;
+  };
   // Un archivo que moviste o renombraste en Drive (o en Obsidian): la nota cambia igual de ruta en la
   // app, sin volver a subirse. Si la nota tiene cambios sin subir o ya hay otra con esa ruta, se deja.
   const byFile = new Map(Object.entries(m.files).map(([noteId, f]) => [f.id, noteId]));
@@ -555,6 +572,7 @@ async function scanVaultNew() {
         await visit(f.id, sub, depth + 1);
       } else if (/\.md$/i.test(f.title) && known.has(f.id)) {
         follow(f, path);
+        await refill(noteById(byFile.get(f.id)), f);
       } else if (/\.md$/i.test(f.title) && !known.has(f.id) && !ignore.has(f.id)) {
         const title = cleanName(f.title.replace(/\.md$/i, '')) || 'Sin título';
         if (vaultTooBig(f) || vaultExcludedPath(joinPath(path, title))) continue; // libros pesados o sacados de Enfoque: se quedan en Drive
@@ -562,7 +580,10 @@ async function scanVaultNew() {
         if (same) {
           const entry = m.files[same.id];
           if (same.enc) continue;
-          if (!entry) m.files[same.id] = { id: f.id, path: same.path, at: same.updatedAt || 0, mt: f.modifiedTime || '' };
+          if (!entry) {
+            m.files[same.id] = { id: f.id, path: same.path, at: same.updatedAt || 0, mt: f.modifiedTime || '' };
+            await refill(same, f);
+          }
           else if (entry.id !== f.id && !here.has(entry.id)) await relink(same, f);
           continue;
         }
