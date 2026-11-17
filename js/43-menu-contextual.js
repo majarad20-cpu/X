@@ -268,7 +268,7 @@ document.addEventListener('contextmenu', (e) => {
   if (folderRow?.title) return show([...folderMenuItems(folderRow.title), ...ctxExtra('folder', folderRow.title)]);
   if (t.closest('#file-tree')) {
     return show([
-      { label: 'Nueva nota', kbd: 'Ctrl+N', action: () => createNote({}) },
+      { label: 'Nueva nota', kbd: 'Ctrl+N', action: () => createNote({ folder: plainNewFolder() }) },
       { label: 'Nueva carpeta', action: () => $('#new-folder').click() },
     ]);
   }

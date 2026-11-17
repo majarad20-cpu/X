@@ -158,6 +158,18 @@ function allFolders() {
   return [...set].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
+// Carpeta para notas nuevas (Ajustes › Notas en Google Drive): una sola dirección para las notas
+// sueltas. Vacía: la raíz, como antes. Las funciones de la app que crean notas en su propia
+// carpeta (Diario, Revisiones, Mapas…) no cambian.
+const noteHome = () => cleanFolderPath(state.settings.noteHome || '');
+function cleanFolderPath(p) {
+  return String(p).split('/').map((x) => cleanName(x)).filter(Boolean).join('/');
+}
+// Nota creada a mano sin carpeta: va a la carpeta para notas nuevas.
+const newNoteFolder = (folder = '') => folder || noteHome();
+// «Nueva nota»: a la carpeta para notas nuevas si se eligió; si no, junto a la nota abierta.
+const plainNewFolder = () => noteHome() || (activeNote() ? folderOf(activeNote().path) : '');
+
 function uniquePath(folder, name) {
   let candidate = joinPath(folder, name);
   let k = 2;
@@ -429,7 +441,7 @@ function openNoteByLink(target, { heading = '', newTab = false, fromNote = null 
   if (same) return openNote(same, { newTab, heading });
   const src = fromNote && !fromNote.enc ? fromNote : null;
   // Sin carpeta en el enlace, la nota nueva va junto a las que ya enlaza la nota de origen.
-  const created = createNote({ folder: folder || (src ? linkFolderFor(src) : ''), title: baseName(clean), body: '', newTab, edit: true });
+  const created = createNote({ folder: folder || (src ? linkFolderFor(src) : noteHome()), title: baseName(clean), body: '', newTab, edit: true });
   if (src && clean !== target) {
     // El enlace de la nota de origen pasa a apuntar al nombre limpio.
     const name = folder ? created.path : baseName(created.path);
@@ -576,8 +588,8 @@ $('#rib-files').addEventListener('click', () => {
 $('#rib-daily').addEventListener('click', () => openDailyNote());
 $('#rib-switcher').addEventListener('click', () => openSwitcher());
 $('#rib-palette').addEventListener('click', () => openPalette());
-$('#new-note').addEventListener('click', () => createNote({ folder: activeNote() ? folderOf(activeNote().path) : '' }));
-$('#ws-new-tab').addEventListener('click', () => createNote({ newTab: true }));
+$('#new-note').addEventListener('click', () => createNote({ folder: plainNewFolder() }));
+$('#ws-new-tab').addEventListener('click', () => createNote({ folder: noteHome(), newTab: true }));
 $('#new-folder').addEventListener('click', () => promptText({ placeholder: 'Nombre de la carpeta (p. ej. Trabajo/Clientes)', action: 'Crear carpeta', onSubmit: createFolder }));
 $$('.rib[data-view]').forEach((b) => b.addEventListener('click', (e) => showView(b.dataset.view, { newTab: e.ctrlKey || e.metaKey })));
 // Secciones de la barra: se pliegan y se recuerda en este dispositivo (la sección activa sigue visible).
@@ -1736,7 +1748,7 @@ function openSwitcher() {
         .sort((a, b) => b.s - a.s || b.n.updatedAt - a.n.updatedAt)
         .slice(0, 30)
         .map(({ n }) => ({ label: baseName(n.path), detail: folderOf(n.path), action: ({ newTab }) => openNote(n, { newTab }) }));
-      if (q && !findNoteByName(q)) list.push({ label: `Crear nota «${cleanName(q)}»`, create: true, kbd: 'Enter', action: ({ newTab }) => createNote({ folder: folderOf(q), title: baseName(q), newTab }) });
+      if (q && !findNoteByName(q)) list.push({ label: `Crear nota «${cleanName(q)}»`, create: true, kbd: 'Enter', action: ({ newTab }) => createNote({ folder: newNoteFolder(folderOf(q)), title: baseName(q), newTab }) });
       return list;
     },
   });
@@ -1789,8 +1801,8 @@ function commands() {
   const note = activeNote();
   const list = [
     { label: 'Abrir nota…', kbd: 'Ctrl+O', action: openSwitcher },
-    { label: 'Nueva nota', kbd: 'Ctrl+N', action: () => createNote({ folder: note ? folderOf(note.path) : '' }) },
-    { label: 'Nueva nota en pestaña nueva', action: () => createNote({ newTab: true }) },
+    { label: 'Nueva nota', kbd: 'Ctrl+N', action: () => createNote({ folder: plainNewFolder() }) },
+    { label: 'Nueva nota en pestaña nueva', action: () => createNote({ folder: noteHome(), newTab: true }) },
     { label: 'Nueva nota desde plantilla…', action: newNoteFromTemplate },
     { label: 'Insertar plantilla en la nota', action: insertTemplate },
     { label: 'Abrir la nota diaria de hoy', kbd: 'Alt+D', action: () => openDailyNote() },
@@ -1962,6 +1974,7 @@ const VIEW_RENDER = {
     renderAccents();
     renderAppearance();
     renderStorage();
+    if (typeof renderNoteHome === 'function') renderNoteHome();
   },
 };
 // renderAll ya dibuja todas las secciones; así no se repite el trabajo.

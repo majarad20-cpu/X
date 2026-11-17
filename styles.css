@@ -3222,3 +3222,6 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .today-stoa .row { margin-top: 10px; }
 @media (max-width: 480px) { .stoa-stats { width: 100%; justify-content: space-between; } }
 
+.note-home { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: .9rem; font-weight: 600; }
+.note-home select { max-width: 100%; font-weight: 400; }
+#note-home-hint { margin: 6px 0 0; }

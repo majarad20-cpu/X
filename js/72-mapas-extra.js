@@ -523,7 +523,7 @@ function mmNodeToNote(node) {
   const map = currentMap();
   const sub = { ...map, nodes: [{ ...node, parent: null }, ...[...mmDescendants(map, node.id)].map((id) => mmNode(map, id))] };
   const body = childrenOf(sub, node.id).map((c) => mmOutline(sub, c.id, 1)).join('\n').replace(/^ {2}/gm, '');
-  const note = createNote({ title: node.text.slice(0, 80), body: `# ${node.text}\n\n*Del mapa mental «${map.title}».*\n\n${body}\n`, open: false });
+  const note = createNote({ folder: noteHome(), title: node.text.slice(0, 80), body: `# ${node.text}\n\n*Del mapa mental «${map.title}».*\n\n${body}\n`, open: false });
   node.noteId = note.id;
   touchMap(map);
   renderMap();
@@ -540,7 +540,7 @@ function mmLinkNote(node) {
 
 function mmMapToNote(map) {
   const body = childrenOf(map, map.nodes.find((n) => !n.parent).id).map((c) => mmOutline(map, c.id, 1)).join('\n').replace(/^ {2}/gm, '');
-  const note = createNote({ title: map.title.slice(0, 80), body: `# ${map.title}\n\n${body}\n`, open: false });
+  const note = createNote({ folder: noteHome(), title: map.title.slice(0, 80), body: `# ${map.title}\n\n${body}\n`, open: false });
   openNote(note, { newTab: true });
   showToastMessage('Nota creada con el mapa como lista');
 }

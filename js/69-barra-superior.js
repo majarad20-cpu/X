@@ -43,7 +43,7 @@ function tbFillNew(menu) {
     setTimeout(() => $(sel)?.focus(), 30);
   };
   menu.replaceChildren(
-    item('📝 Nota', () => createNote({ folder: activeNote() ? folderOf(activeNote().path) : '' })),
+    item('📝 Nota', () => createNote({ folder: plainNewFolder() })),
     ...CAPTURE_KINDS.filter(([k]) => k !== 'note').map(([k, icon, name]) => item(`${icon} ${name}…`, () => openCapture(k))),
     item('🔥 Hábito…', focusField('habits', '#habit-name')),
     item('📁 Proyecto…', focusField('projects', '#project-name')),

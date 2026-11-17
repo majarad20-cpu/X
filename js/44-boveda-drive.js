@@ -677,7 +677,30 @@ function askVaultBulk() {
   });
 }
 
+// Carpeta para notas nuevas: una sola dirección para las notas sueltas (las de Diario, Revisiones,
+// Mapas y demás funciones siguen en su propia carpeta).
+function renderNoteHome() {
+  const sel = $('#note-home');
+  if (!sel) return;
+  const cur = noteHome();
+  const folders = allFolders().filter((f) => !/^\./.test(f));
+  if (cur && !folders.includes(cur)) folders.unshift(cur);
+  sel.replaceChildren(el('option', { value: '' }, 'Sin carpeta (raíz de «Notas»)'), ...folders.map((f) => el('option', { value: f }, f)));
+  sel.value = cur;
+  const top = cur.split('/')[0];
+  $('#note-home-hint').textContent = cur
+    ? `Las notas que crees con «Nueva nota» o desde un enlace sin carpeta van a «${cur}». En Drive quedan en esa misma carpeta: dentro de «Enfoque/${top}» si esa carpeta está directamente en «Enfoque», o en «Enfoque/Notas/${cur}» si no. Las notas de Diario, Revisiones, Mapas y demás funciones siguen en su carpeta.`
+    : 'Las notas nuevas sin carpeta quedan en la raíz (en Drive, «Enfoque/Notas»). Elige aquí la carpeta de tu bóveda para que todas vayan a un solo lugar.';
+}
+$('#note-home')?.addEventListener('change', (e) => {
+  state.settings.noteHome = e.target.value;
+  save();
+  renderNoteHome();
+  showToastMessage(e.target.value ? `Las notas nuevas irán a «${e.target.value}»` : 'Las notas nuevas irán a la raíz');
+});
+
 function renderVaultSettings() {
+  renderNoteHome();
   if (typeof renderDriveBtn === 'function') renderDriveBtn();
   const g = gSettings();
   const ok = gAvailable();

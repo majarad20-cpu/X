@@ -327,7 +327,7 @@ function moveBulletToNote(b) {
         .sort((a, c) => (ql ? scoreNote(c, ql) - scoreNote(a, ql) : 0) || c.updatedAt - a.updatedAt)
         .slice(0, 30)
         .map((n) => ({ label: baseName(n.path), detail: folderOf(n.path), action: () => bulletTo(b, n) }));
-      if (q && !findNoteByName(q)) list.push({ label: `Crear nota «${cleanName(q)}»`, create: true, action: () => bulletTo(b, createNote({ folder: folderOf(q), title: baseName(q), open: false })) });
+      if (q && !findNoteByName(q)) list.push({ label: `Crear nota «${cleanName(q)}»`, create: true, action: () => bulletTo(b, createNote({ folder: newNoteFolder(folderOf(q)), title: baseName(q), open: false })) });
       return list;
     },
   });

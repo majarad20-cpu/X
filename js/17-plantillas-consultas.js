@@ -75,7 +75,7 @@ function newNoteFromTemplate() {
       promptText({
         placeholder: `Título de la nueva nota (plantilla «${baseName(tpl.path)}»)`,
         action: 'Crear nota',
-        onSubmit: (title) => createNote({ folder: folderOf(title), title: baseName(title), body: fillTemplate(tpl.body, baseName(title)) }),
+        onSubmit: (title) => createNote({ folder: newNoteFolder(folderOf(title)), title: baseName(title), body: fillTemplate(tpl.body, baseName(title)) }),
       }),
     'Nueva nota desde plantilla…'
   );

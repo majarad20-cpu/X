@@ -216,7 +216,7 @@ document.addEventListener('keydown', (e) => {
     if (k === 'g') openTab({ type: 'graph' });
     else if (k === 'o') openSwitcher();
     else if (k === 'p') openPalette();
-    else if (k === 'n') createNote({ folder: activeNote() ? folderOf(activeNote().path) : '' });
+    else if (k === 'n') createNote({ folder: plainNewFolder() });
     else if (k === 'e') toggleNoteMode();
     return;
   }
