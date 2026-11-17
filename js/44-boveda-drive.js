@@ -12,6 +12,7 @@
 const VAULT_KEY = 'enfoque:vault';
 const VAULT_PUSH_MS = 30000;
 const VAULT_PULL_MS = 5 * 60000;
+const VAULT_BULK = 15; // más notas nuevas que esto en una sola subida: se pregunta antes
 const vault = { busy: false, map: null, lastPull: 0, status: '' };
 
 const deviceId = () => {
@@ -223,7 +224,7 @@ async function trashVaultDuplicates(groups) {
 }
 
 // Sube las notas cambiadas, las renombradas o movidas, y quita de Drive las borradas.
-async function pushVault({ adopt = false } = {}) {
+async function pushVault({ adopt = false, manual = false } = {}) {
   const m = vaultMap();
   if (adopt && !Object.keys(m.files).length) {
     // Primera vez en este dispositivo: se reconocen los archivos que ya estén en «Notas» con la misma ruta.
@@ -246,7 +247,25 @@ async function pushVault({ adopt = false } = {}) {
   }
   vaultSamePath(m);
   const notes = vaultNotes();
+  // Muchas notas sin archivo en Drive de una vez (p. ej. un dispositivo que perdió su mapa y guarda notas
+  // que ya se borraron o renombraron en Drive): no se suben sin preguntar. Quedan «en espera».
+  const unseen = notes.filter((n) => !m.files[n.id]);
+  const unseenIds = new Set(unseen.map((n) => n.id));
+  const held = new Set((m.hold || []).filter((id) => unseenIds.has(id)));
+  if (vault.allowBulk) {
+    held.clear();
+    vault.allowBulk = false;
+  } else {
+    const fresh = unseen.filter((n) => !held.has(n.id));
+    if (fresh.length > VAULT_BULK) {
+      fresh.forEach((n) => held.add(n.id));
+      vault.askBulk = true;
+    } else if (manual && held.size) vault.askBulk = true;
+  }
+  m.hold = [...held];
+  saveVaultMap();
   const pending = notes.filter((n) => {
+    if (held.has(n.id)) return false;
     const f = m.files[n.id];
     return !f || f.path !== n.path || (n.updatedAt || 0) > f.at;
   });
@@ -605,11 +624,15 @@ async function syncVault({ manual = false, adopt = false } = {}) {
     let pulled = Date.now() - (vaultMap().lastPull || 0) > VAULT_PULL_MS || manual ? await pullVault() : 0;
     // Al sincronizar a mano (y cada media hora) se buscan también carpetas y .md nuevos aunque sean antiguos.
     if (manual || adopt || Date.now() - (vaultMap().lastScan || 0) > 30 * 60000) pulled += await scanVaultNew();
-    const pushed = await pushVault({ adopt });
+    const pushed = await pushVault({ adopt, manual });
     const m = vaultMap();
     m.lastSync = Date.now();
     saveVaultMap();
-    vaultStatus(`${Object.keys(m.files).length} notas en Drive · última sincronización ${new Date(m.lastSync).toLocaleTimeString('es', { timeStyle: 'short' })}${pulled ? ` · ${pulled} cambio(s) traídos de Drive` : ''}${vault.removed ? ` · ${vault.removed} nota(s) borradas en Drive pasaron a la papelera de Enfoque` : ''}.`);
+    vaultStatus(`${Object.keys(m.files).length} notas en Drive · última sincronización ${new Date(m.lastSync).toLocaleTimeString('es', { timeStyle: 'short' })}${pulled ? ` · ${pulled} cambio(s) traídos de Drive` : ''}${vault.removed ? ` · ${vault.removed} nota(s) borradas en Drive pasaron a la papelera de Enfoque` : ''}${m.hold?.length ? ` · ${m.hold.length} nota(s) en espera: no están en Drive (pulsa «Sincronizar ahora» para decidir)` : ''}.`);
+    if (vault.askBulk) {
+      vault.askBulk = false;
+      askVaultBulk();
+    }
     if (vault.removed) showToastMessage(`${vault.removed} nota(s) borradas en Drive pasaron a la papelera de Enfoque`);
     else if (manual) showToastMessage(pushed || pulled ? 'Bóveda de Drive al día' : 'No había cambios');
   } catch (e) {
@@ -618,6 +641,40 @@ async function syncVault({ manual = false, adopt = false } = {}) {
     vault.busy = false;
     renderVaultSettings();
   }
+}
+
+// Pregunta qué hacer con las notas en espera: subirlas, mandarlas a la papelera de Enfoque o decidir después.
+function askVaultBulk() {
+  const ids = new Set(vaultMap().hold || []);
+  const list = vaultNotes().filter((n) => ids.has(n.id));
+  if (!list.length || typeof pomoAlert !== 'function') return;
+  const sample = list.slice(0, 3).map((n) => `«${baseName(n.path)}»`).join(', ');
+  pomoAlert(`${list.length} notas de este dispositivo no están en tu Drive (por ejemplo ${sample}). Si las borraste o renombraste en Drive desde otro lugar, no las subas: volverían a aparecer repetidas.`, {
+    sticky: true,
+    kind: 'confirm',
+    actions: [
+      { label: 'Decidir después', cls: 'primary', fn: () => {} },
+      { label: 'Mandarlas a la papelera de Enfoque', cls: 'danger-chip', fn: () => {
+        const now = vaultNotes().filter((n) => ids.has(n.id));
+        trashNotes(now);
+        const gone = new Set(now.map((n) => n.id));
+        state.notes = state.notes.filter((n) => !gone.has(n.id));
+        const m = vaultMap();
+        m.hold = (m.hold || []).filter((id) => !gone.has(id));
+        saveVaultMap();
+        noteIndex.key = '';
+        dataRev++;
+        save();
+        renderAll();
+        showToastMessage(`${now.length} nota(s) en la papelera de Enfoque (se pueden recuperar)`);
+        renderVaultSettings();
+      } },
+      { label: `Subirlas a Drive (${list.length})`, fn: () => {
+        vault.allowBulk = true;
+        syncVault({ manual: true });
+      } },
+    ],
+  });
 }
 
 function renderVaultSettings() {
