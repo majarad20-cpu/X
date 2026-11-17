@@ -93,6 +93,20 @@ const check = (name, got, want) => {
   await p.clock.runFor(500);
   check('fuera de la app', await p.evaluate(() => state.notes.filter((n) => n.path.startsWith('Viejas/')).length), 0);
   check('en la papelera', await p.evaluate(() => trashList().filter((t) => t.from.startsWith('Viejas/')).length), 16);
+  // Copias sobrantes: 16 notas iguales (nombre y texto) a otras que ya están, y 2 distintas
+  await p.evaluate(() => {
+    for (let i = 0; i < 16; i++) state.notes.push({ id: 'z' + i, path: `ESTOICISMO/Nota ${i}`, body: `Texto ${i}\r\n`, createdAt: Date.now() - 20000, updatedAt: Date.now() - 20000 });
+    state.notes.push({ id: 'u1', path: 'ESTOICISMO/Única', body: 'solo aquí', createdAt: Date.now() - 20000, updatedAt: Date.now() - 20000 });
+    state.notes.push({ id: 'u2', path: 'ESTOICISMO/Nota 1 bis', body: 'otra', createdAt: Date.now() - 20000, updatedAt: Date.now() - 20000 });
+    save();
+  });
+  await p.evaluate(() => syncVault({ manual: true })); await p.clock.runFor(1000); await wait();
+  check('aviso con repetidas', await p.evaluate(() => /16 ya existen con el mismo nombre y texto/.test(document.getElementById('pomo-alert').textContent) && /«ESTOICISMO\/Única»/.test(document.getElementById('pomo-alert').textContent)), true);
+  await click('Quitar las 16 repetidas'); await p.clock.runFor(500);
+  check('repetidas fuera', await p.evaluate(() => state.notes.filter((n) => /^z/.test(n.id)).length), 0);
+  check('únicas se quedan', await p.evaluate(() => state.notes.filter((n) => /^u/.test(n.id)).map((n) => n.path).sort()), ['ESTOICISMO/Nota 1 bis', 'ESTOICISMO/Única']);
+  check('vuelve a preguntar por el resto', await p.evaluate(() => /2 notas de este dispositivo/.test(document.getElementById('pomo-alert').textContent)), true);
+  check('no se subió nada', await mdCount(), 21);
   await b.close();
   console.log('errors:', fails ? [...errs, `${fails} comprobación(es) fallida(s)`] : errs);
 })();

@@ -644,31 +644,57 @@ async function syncVault({ manual = false, adopt = false } = {}) {
 }
 
 // Pregunta qué hacer con las notas en espera: subirlas, mandarlas a la papelera de Enfoque o decidir después.
+// Notas en espera que ya están en otra carpeta con el mismo nombre y el mismo texto (copias sobrantes).
+function vaultHeldTwins(list) {
+  const norm = (s) => String(s || '').replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').trim();
+  const ids = new Set(list.map((n) => n.id));
+  const others = new Map();
+  vaultNotes().filter((n) => !ids.has(n.id)).forEach((n) => {
+    const k = baseName(n.path).toLowerCase();
+    if (!others.has(k)) others.set(k, new Set());
+    others.get(k).add(norm(n.body));
+  });
+  return list.filter((n) => others.get(baseName(n.path).toLowerCase())?.has(norm(n.body)));
+}
+
+// Manda notas en espera a la papelera de Enfoque (se recuperan desde ahí).
+function trashHeldNotes(now) {
+  trashNotes(now);
+  const gone = new Set(now.map((n) => n.id));
+  state.notes = state.notes.filter((n) => !gone.has(n.id));
+  const m = vaultMap();
+  m.hold = (m.hold || []).filter((id) => !gone.has(id));
+  saveVaultMap();
+  noteIndex.key = '';
+  dataRev++;
+  save();
+  renderAll();
+  showToastMessage(`${now.length} nota(s) en la papelera de Enfoque (se pueden recuperar)`);
+  renderVaultSettings();
+}
+
 function askVaultBulk() {
   const ids = new Set(vaultMap().hold || []);
   const list = vaultNotes().filter((n) => ids.has(n.id));
   if (!list.length || typeof pomoAlert !== 'function') return;
-  const sample = list.slice(0, 3).map((n) => `«${baseName(n.path)}»`).join(', ');
-  pomoAlert(`${list.length} notas de este dispositivo no están en tu Drive (por ejemplo ${sample}). Si las borraste o renombraste en Drive desde otro lugar, no las subas: volverían a aparecer repetidas.`, {
+  const twins = vaultHeldTwins(list);
+  const twinIds = new Set(twins.map((n) => n.id));
+  const rest = list.filter((n) => !twinIds.has(n.id));
+  const names = (arr, k) => arr.slice(0, k).map((n) => `«${n.path}»`).join(', ') + (arr.length > k ? ` y ${arr.length - k} más` : '');
+  const text = `${list.length} notas de este dispositivo no están en tu Drive.`
+    + (twins.length ? ` ${twins.length} ya existen con el mismo nombre y texto en otra carpeta (copias sobrantes).` : '')
+    + (rest.length ? ` ${twins.length ? 'Las otras' : 'Son'}: ${names(rest, 8)}.` : '')
+    + ' Si las borraste o renombraste en Drive desde otro lugar, no las subas: volverían a aparecer repetidas.';
+  pomoAlert(text, {
     sticky: true,
     kind: 'confirm',
     actions: [
       { label: 'Decidir después', cls: 'primary', fn: () => {} },
-      { label: 'Mandarlas a la papelera de Enfoque', cls: 'danger-chip', fn: () => {
-        const now = vaultNotes().filter((n) => ids.has(n.id));
-        trashNotes(now);
-        const gone = new Set(now.map((n) => n.id));
-        state.notes = state.notes.filter((n) => !gone.has(n.id));
-        const m = vaultMap();
-        m.hold = (m.hold || []).filter((id) => !gone.has(id));
-        saveVaultMap();
-        noteIndex.key = '';
-        dataRev++;
-        save();
-        renderAll();
-        showToastMessage(`${now.length} nota(s) en la papelera de Enfoque (se pueden recuperar)`);
-        renderVaultSettings();
-      } },
+      ...(twins.length ? [{ label: `Quitar las ${twins.length} repetidas`, cls: 'danger-chip', fn: () => {
+        trashHeldNotes(vaultNotes().filter((n) => twinIds.has(n.id)));
+        if (rest.length) setTimeout(askVaultBulk, 300);
+      } }] : []),
+      { label: twins.length ? `Mandar las ${list.length} a la papelera de Enfoque` : 'Mandarlas a la papelera de Enfoque', cls: 'danger-chip', fn: () => trashHeldNotes(vaultNotes().filter((n) => ids.has(n.id))) },
       { label: `Subirlas a Drive (${list.length})`, fn: () => {
         vault.allowBulk = true;
         syncVault({ manual: true });
