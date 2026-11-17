@@ -59,6 +59,7 @@ const check = (name, got, want) => {
     notes: [
       { id: 'v', path: 'Bóveda/Libro Mayor', body: '---\nEstado: Pendiente\n---\n\n', createdAt: now, updatedAt: now },
       { id: 'w', path: 'Bóveda/Propia', body: 'Texto escrito en la app', createdAt: now, updatedAt: now },
+      { id: 'x', path: 'Bóveda/IFRS', body: '# IFRS\nÍndice corto antiguo.', createdAt: now - 9e8, updatedAt: now - 9e8 },
     ],
     updatedAt: 1,
   });
@@ -68,6 +69,7 @@ const check = (name, got, want) => {
     window.__files.push({ id: 'enf', title: 'Enfoque', mimeType: 'application/vnd.google-apps.folder', modifiedTime: t });
     window.__files.push({ id: 'bov', title: 'Bóveda', mimeType: 'application/vnd.google-apps.folder', parentId: 'enf', modifiedTime: t });
     window.__files.push({ id: 'lm', title: 'Libro Mayor.md', mimeType: 'text/markdown', parentId: 'bov', modifiedTime: t, text: '---\ntipo: concepto\n---\n# Libro Mayor\nRegistro por cuenta de los movimientos del Libro Diario.\n' });
+    window.__files.push({ id: 'if', title: 'IFRS.md', mimeType: 'text/markdown', parentId: 'bov', modifiedTime: t, fileSize: '900', text: '# IFRS\n' + 'Tabla completa de normas NIC/NIIF con su efecto tributario. '.repeat(14) });
     window.__files.push({ id: 'pr', title: 'Propia.md', mimeType: 'text/markdown', parentId: 'bov', modifiedTime: t, text: '' });
   });
   await c.route(/fonts\.g/, (r) => r.abort());
@@ -81,6 +83,8 @@ const check = (name, got, want) => {
   for (let i = 0; i < 40 && (await p.evaluate(() => vault.busy)); i++) await p.clock.runFor(500);
   check('nota vacía se llena desde Drive', await p.evaluate(() => /Registro por cuenta/.test(noteById('v').body)), true);
   check('el archivo bueno de Drive no se reemplaza', await p.evaluate(() => window.__files.filter((f) => !f.trashed && f.title === 'Libro Mayor.md').map((f) => /Registro por cuenta/.test(f.text))), [true]);
+  check('versión antigua y corta se actualiza desde Drive', await p.evaluate(() => /Tabla completa de normas/.test(noteById('x').body)), true);
+  check('la versión anterior queda en la papelera de Enfoque', await p.evaluate(() => trashList().some((t) => /IFRS \(versión anterior en Enfoque\)/.test(t.from) && /Índice corto antiguo/.test(t.note.body))), true);
   check('una nota con texto propio no se pisa', await p.evaluate(() => noteById('w').body), 'Texto escrito en la app');
   // Una nota ya enlazada que quedó vacía también se repara al sincronizar a mano
   await p.evaluate(() => { const n = noteById('v'); n.body = '---\nEstado: Pendiente\n---\n'; vaultMap().files.v.at = n.updatedAt; saveVaultMap(); });

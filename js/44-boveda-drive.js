@@ -511,16 +511,22 @@ async function scanVaultNew() {
     m.files[note.id] = { id: f.id, path: note.path, at, mt: f.modifiedTime || '' };
     known.add(f.id);
   };
-  // Nota que en la app quedó vacía (solo propiedades) pero cuyo archivo en Drive tiene contenido: se trae
-  // el de Drive. Pasa con notas importadas como borrador antes de escribirlas en Obsidian o en Drive.
+  // Nota que en la app quedó vacía (solo propiedades) o en una versión antigua y mucho más corta que la de
+  // Drive: se trae la de Drive. Pasa con notas importadas como borrador y escritas después en Obsidian o en
+  // Drive. Solo si la nota no tiene cambios sin subir; la versión anterior queda en la papelera de Enfoque.
   const refill = async (note, f) => {
     const entry = note && m.files[note.id];
-    if (!entry || note.enc || !vaultIsStub(note.body) || (note.updatedAt || 0) > entry.at) return;
-    if (f.fileSize != null && Number(f.fileSize) <= (note.body || '').length + 40) return;
+    if (!entry || note.enc || (note.updatedAt || 0) > entry.at) return;
+    const size = f.fileSize != null ? Number(f.fileSize) : null;
+    const len = new TextEncoder().encode(note.body || '').length;
+    const stub = vaultIsStub(note.body);
+    const older = !(Date.parse(f.modifiedTime || '') <= (note.updatedAt || 0));
+    if (stub ? size != null && size <= len + 40 : !(size != null && size > len * 1.3 + 100 && older)) return;
     const got = await gCall(DRIVE, 'download_file_content', { fileId: f.id });
     if (typeof got.content !== 'string') return;
     const text = b64ToText(got.content).replace(/\r\n?/g, '\n');
-    if (vaultIsStub(text)) return;
+    if (vaultIsStub(text) || text === note.body || (!stub && text.length <= (note.body || '').length)) return;
+    if (!stub) trashNotes([{ ...note, id: uid(), path: `${note.path} (versión anterior en Enfoque)` }]);
     note.body = text;
     note.updatedAt = Date.now();
     m.files[note.id] = { ...entry, at: note.updatedAt, mt: f.modifiedTime || entry.mt };
