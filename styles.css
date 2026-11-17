@@ -3190,3 +3190,35 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 :root.zen .zen-exit { display: block; }
 .zen-btn { font-size: 1rem; line-height: 1; }
 .zen-btn[aria-pressed="true"] { color: var(--accent); }
+/* Estoicismo: práctica diaria */
+.stoa-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin: 4px 0 16px; }
+.stoa-title { margin: 0; font-size: 1.35rem; }
+.stoa-head p { margin: 2px 0 0; }
+.stoa-stats { display: flex; align-items: center; gap: 12px; }
+.stoa-stats .stat { min-width: 96px; }
+.stoa-week { display: flex; gap: 4px; }
+.stoa-day { width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: .75rem; color: var(--muted); }
+.stoa-day.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.stoa-day.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stoa-card h3 { margin: 0 0 6px; font-size: 1rem; }
+.stoa-card > p.muted { margin: 0 0 10px; }
+.stoa-card textarea { width: 100%; resize: vertical; }
+.stoa-card .prompt { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.stoa-card .prompt span { font-weight: 600; font-size: .92rem; }
+.stoa-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.stoa-card-head h3 { margin: 0; }
+.stoa-maxim { margin: 0; border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; }
+.stoa-maxim blockquote { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.12rem; line-height: 1.55; }
+.stoa-maxim figcaption { margin-top: 6px; font-size: .85rem; color: var(--muted); }
+.stoa-maxim.compact blockquote { font-size: 1rem; }
+.stoa-ex { list-style: none; margin: 0; padding: 0; }
+.stoa-ex li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.stoa-ex li:last-child { border-bottom: 0; }
+.stoa-ex label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.stoa-ex input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+.stoa-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.stoa-foot p { margin: 0; flex: 1 1 240px; }
+.stoa-opt { display: inline-flex; align-items: center; gap: 6px; }
+.today-stoa .row { margin-top: 10px; }
+@media (max-width: 480px) { .stoa-stats { width: 100%; justify-content: space-between; } }
+

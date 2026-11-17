@@ -22,7 +22,7 @@ const seed = {
   await p.goto(url); await p.clock.runFor(800);
   const views = (sel) => p.$$eval(sel, (n) => n.map((x) => x.dataset.view || x.id));
   check('izquierda: solo notas', await views('.ribbon .rib'), ['rib-files', 'rib-daily', 'rib-weekly', 'rib-monthly', 'rib-random', 'rib-bookmarks', 'rib-switcher', 'rib-graph', 'canvas', 'bases']);
-  check('escribir y pensar', await views('[data-group=write] .tb-menu .rib'), ['journal', 'ideas', 'ask', 'rib-think']);
+  check('escribir y pensar', await views('[data-group=write] .tb-menu .rib'), ['journal', 'ideas', 'stoa', 'ask', 'rib-think']);
   check('planificar', await views('[data-group=plan] .tb-menu .rib'), ['rib-compass', 'tasks', 'projects', 'inbox', 'review', 'plan']);
   check('seguimiento', await views('[data-group=focus] .tb-menu .rib'), ['timer', 'habits', 'progress', 'finanzas']);
   check('más', await views('[data-group=more] .tb-menu .rib'), ['rib-revision', 'shared', 'rib-palette', 'trash']);

@@ -91,8 +91,22 @@ async function backupFromB64(b64) {
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Response(stream).text();
 }
-// Por encima de esto la subida por el conector suele fallar: se prueba sin imágenes.
-const DRIVE_UPLOAD_MAX = 3 * 1024 * 1024;
+// Límites del conector: cada llamada acepta como máximo 1 MiB de entrada (el base64 incluido).
+// Por encima, el archivo viaja como adjunto ($file, hasta 16 MiB) si este visor lo permite;
+// el visor lo deja en la plataforma y el conector recibe el base64 sin pasar por ese límite.
+const DRIVE_INLINE_MAX = 900 * 1024;       // base64 en línea, con margen para título y demás campos
+const DRIVE_FILE_MAX = 15 * 1024 * 1024;   // bytes del adjunto
+let driveFileArgs; // undefined: sin consultar; true/false: el visor admite adjuntos o no
+async function driveCanAttach() {
+  if (driveFileArgs !== undefined) return driveFileArgs;
+  try {
+    driveFileArgs = !!(await cal.mcp.listTools())?.fileArgs;
+  } catch {
+    driveFileArgs = false;
+  }
+  return driveFileArgs;
+}
+const mb = (n) => (n / 1048576).toLocaleString('es', { maximumFractionDigits: 1 });
 
 let driveBusy = false;
 async function backupToDrive({ auto = false } = {}) {
@@ -115,21 +129,37 @@ async function backupToDrive({ auto = false } = {}) {
   let lastError;
   try {
     let parent = await driveFolder();
+    await driveCanAttach();
     // Primero con imágenes y notas de voz; si no caben o la subida falla, sin ellas.
     for (const files of [true, false]) {
       const json = await backupJson({ files });
-      const input = gz
-        ? { title: `enfoque-copia-${stamp}.json.gz`, base64Content: bytesToB64(await gzipText(json)), contentMimeType: 'application/gzip' }
-        : { title: `enfoque-copia-${stamp}.json`, textContent: json, contentMimeType: 'application/json' };
-      const size = (input.base64Content || input.textContent).length;
-      if (files && size > DRIVE_UPLOAD_MAX) continue;
-      if (size > DRIVE_UPLOAD_MAX * 2) throw new Error(`la copia ocupa ${(size / 1048576).toFixed(1)} MB, demasiado para subirla de una vez`);
+      const bytes = gz ? await gzipText(json) : new TextEncoder().encode(json);
+      const name = `enfoque-copia-${stamp}.json${gz ? '.gz' : ''}`;
+      const type = gz ? 'application/gzip' : 'application/json';
+      const b64Len = Math.ceil(bytes.length / 3) * 4;
+      let input;
+      if (b64Len <= DRIVE_INLINE_MAX) {
+        input = { title: name, base64Content: bytesToB64(bytes), contentMimeType: type };
+      } else if (driveFileArgs && bytes.length <= DRIVE_FILE_MAX) {
+        input = { title: name, base64Content: { $file: { data: bytes, name, type } }, contentMimeType: type };
+      } else if (files) {
+        continue; // se reintenta sin imágenes ni notas de voz
+      } else {
+        throw new Error(driveFileArgs
+          ? `la copia ocupa ${mb(bytes.length)} MB comprimida y el máximo es ${mb(DRIVE_FILE_MAX)} MB. Usa «Descargar copia» en Ajustes.`
+          : `la copia ocupa ${mb(bytes.length)} MB comprimida y esta vista solo permite subir ${mb(DRIVE_INLINE_MAX * 0.75)} MB por envío. Ábrela desde claude.ai en el navegador o usa «Descargar copia» en Ajustes.`);
+      }
       Object.assign(input, { disableConversionToGoogleType: true });
       let file;
       try {
         file = await gCall(DRIVE, 'create_file', { ...input, parentId: parent });
       } catch (e) {
         lastError = e;
+        // El adjunto no se aceptó (tipo o visor): se deja de usar en esta sesión y se prueba sin imágenes.
+        if (input.base64Content?.$file && ['bad_request', 'capability_disabled'].includes(e?.code)) {
+          driveFileArgs = false;
+          continue;
+        }
         if (['needs_reauth', 'server_not_connected', 'not_in_manifest', 'not_granted', 'blocked_by_policy'].includes(e?.code)) throw e;
         // La carpeta pudo borrarse: se busca o se crea otra y se reintenta una vez.
         delete gSettings().driveFolder;
