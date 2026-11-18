@@ -3225,3 +3225,11 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .note-home { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: .9rem; font-weight: 600; }
 .note-home select { max-width: 100%; font-weight: 400; }
 #note-home-hint { margin: 6px 0 0; }
+
+/* Verificar con Drive */
+.vault-report { margin-top: 8px; display: grid; gap: 6px; }
+.vault-report p { margin: 0; }
+.vault-report .vcheck { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+.vault-report .vcheck summary { cursor: pointer; }
+.vault-report .vcheck ul { margin: 6px 0; padding-left: 18px; max-height: 180px; overflow: auto; font-size: 0.9em; }
+.vault-report .vcheck button { margin: 4px 4px 2px 0; }

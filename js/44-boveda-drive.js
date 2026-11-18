@@ -794,6 +794,7 @@ function renderVaultSettings() {
   $('#gvault-on').disabled = !ok;
   $('#gvault-on').checked = !!g.vaultDevice && mine;
   $('#gvault-now').disabled = !ok || !mine || vault.busy;
+  if ($('#gvault-verify')) $('#gvault-verify').disabled = !ok || !mine || vault.busy;
   $('#gvault-open').hidden = !mine || !vaultMap().root;
   if (!ok) return vaultStatus('Disponible al abrir la app desde Claude con el conector de Google Drive.');
   if (g.vaultDevice && !mine) return vaultStatus('Tus notas se guardan en Drive desde otro dispositivo. Actívalo aquí si quieres que lo haga este.');
@@ -815,6 +816,7 @@ $('#gvault-on').addEventListener('change', (e) => {
     renderVaultSettings();
   }
 });
+$('#gvault-verify')?.addEventListener('click', () => verifyVault());
 $('#gvault-now').addEventListener('click', () => syncVault({ manual: true, adopt: !Object.keys(vaultMap().files).length }));
 $('#gvault-open').addEventListener('click', () => {
   const root = vaultMap().root;
@@ -829,3 +831,209 @@ document.addEventListener('visibilitychange', () => {
 $('#gvault-on').closest('.switch').nextElementSibling?.after(el('p', { className: 'muted gvault-trash-note' }, 'Al cambiar una nota, la versión anterior va a la papelera de Drive; también la de una nota que proteges con contraseña, que allí sigue sin cifrar. Vacía la papelera desde Drive si quieres borrarlas del todo.'));
 COMMANDS_EXTRA.push(() => (vaultOn() ? [{ label: 'Sincronizar las notas con Drive', action: () => syncVault({ manual: true }) }] : []));
 renderVaultSettings();
+
+// ---------- Verificar con Drive ----------
+// Compara las notas de Enfoque con los .md de la bóveda en Drive leyendo solo nombres, tamaños y fechas
+// (no descarga nada). Muestra qué falta en cada lado, qué está repetido y qué no coincide, con un botón
+// para arreglar cada grupo. Nada se borra: lo que sobra va a la papelera (de Drive o de Enfoque).
+const vaultCheck = { report: null };
+const bytesOf = (s) => new TextEncoder().encode(s || '\n').length;
+
+async function verifyVault() {
+  if (!vaultOn() || vault.busy) return;
+  vault.busy = true;
+  vaultCheck.report = null;
+  renderVaultSettings();
+  vaultStatus('Verificando con Drive… (solo se leen nombres y tamaños)');
+  try {
+    const m = vaultMap();
+    if (!m.root) await vaultFolder('');
+    const files = [];
+    const dupFolders = [];
+    const tops = new Map();
+    for (const f of await listVaultFolder(await driveFolder())) {
+      if (f.mimeType !== FOLDER_MIME || f.id === m.root || /^\./.test(f.title)) continue;
+      tops.set(cleanName(f.title) || 'Carpeta', f.id);
+    }
+    const walk = async (id, path, depth = 0) => {
+      if (depth > 12) return;
+      for (const f of await listVaultFolder(id)) {
+        if (f.mimeType === FOLDER_MIME) {
+          if (/^\./.test(f.title)) continue;
+          const sub = joinPath(path, cleanName(f.title) || 'Carpeta');
+          // Una carpeta de «Enfoque» repetida dentro de «Notas»: se informa y no se recorre.
+          if (!path && tops.has(sub) && tops.get(sub) !== f.id) {
+            dupFolders.push(sub);
+            continue;
+          }
+          await walk(f.id, sub, depth + 1);
+          if (files.length % 50 === 0) vaultStatus(`Verificando con Drive… ${files.length} archivos leídos`);
+        } else if (/\.md$/i.test(f.title)) {
+          files.push({ f, path: joinPath(path, cleanName(f.title.replace(/\.md$/i, '')) || 'Sin título') });
+        }
+      }
+    };
+    await walk(m.root, '');
+    for (const [path, id] of tops) await walk(id, path);
+    vaultCheck.report = vaultReport(files, dupFolders);
+    const r = vaultCheck.report;
+    vaultStatus(r.problems ? `Verificación: ${r.problems} punto(s) por revisar.` : `Verificación: todo coincide (${r.appCount} notas en Enfoque, ${r.driveCount} archivos en Drive).`);
+  } catch (e) {
+    vaultStatus(`No se pudo verificar: ${gErrorText(e, DRIVE)}`, true);
+  } finally {
+    vault.busy = false;
+    renderVaultSettings();
+    renderVaultReport();
+  }
+}
+
+function vaultReport(files, dupFolders) {
+  const m = vaultMap();
+  const notes = vaultNotes();
+  const byFile = new Map(files.map((x) => [x.f.id, x]));
+  const linked = new Set(Object.values(m.files).map((e) => e.id));
+  const ignore = new Set(m.ignore);
+  const groupBy = (list, key) => {
+    const g = new Map();
+    list.forEach((x) => {
+      const k = key(x);
+      if (!g.has(k)) g.set(k, []);
+      g.get(k).push(x);
+    });
+    return [...g.values()];
+  };
+  const appPaths = new Set(notes.map((n) => pathKey(n.path)));
+  const driveDup = groupBy(files, (x) => pathKey(x.path)).filter((g) => g.length > 1);
+  const inDup = new Set(driveDup.flat().map((x) => x.f.id));
+  const onlyDrive = files.filter((x) => !linked.has(x.f.id) && !ignore.has(x.f.id) && !inDup.has(x.f.id)
+    && !vaultTooBig(x.f) && !vaultExcludedPath(x.path) && !appPaths.has(pathKey(x.path)));
+  const notUploaded = notes.filter((n) => !m.files[n.id]);
+  const goneInDrive = notes.filter((n) => m.files[n.id] && !byFile.has(m.files[n.id].id));
+  const appDup = groupBy(notes, (n) => pathKey(n.path)).filter((g) => g.length > 1);
+  const pendingUp = notes.filter((n) => m.files[n.id] && byFile.has(m.files[n.id].id) && (n.updatedAt || 0) > m.files[n.id].at);
+  const differ = notes.filter((n) => {
+    const e = m.files[n.id];
+    const x = e && byFile.get(e.id);
+    if (!x || (n.updatedAt || 0) > e.at || x.f.fileSize == null) return false;
+    return Number(x.f.fileSize) !== bytesOf(n.body);
+  });
+  const r = {
+    at: Date.now(), driveCount: files.length, appCount: notes.length, protectedCount: state.notes.filter((n) => n.enc).length,
+    onlyDrive, notUploaded, goneInDrive, driveDup, appDup, differ, pendingUp, dupFolders,
+  };
+  r.problems = onlyDrive.length + notUploaded.length + goneInDrive.length + driveDup.length + appDup.length + differ.length + dupFolders.length;
+  return r;
+}
+
+// Arreglos de cada grupo. Al terminar se vuelve a verificar.
+const vaultFixes = {
+  async onlyDrive() {
+    await syncVault({ manual: true });
+  },
+  async notUploaded() {
+    vault.allowBulk = true;
+    await syncVault({ manual: true });
+  },
+  async goneUpload(r) {
+    const m = vaultMap();
+    r.goneInDrive.forEach((n) => delete m.files[n.id]);
+    saveVaultMap();
+    vault.allowBulk = true;
+    await syncVault({ manual: true });
+  },
+  async goneTrash(r) {
+    const m = vaultMap();
+    r.goneInDrive.forEach((n) => delete m.files[n.id]);
+    saveVaultMap();
+    trashHeldNotes(r.goneInDrive.map((n) => noteById(n.id)).filter(Boolean));
+  },
+  // Copias en Drive con la misma ruta: queda la enlazada (o la más reciente); las de igual tamaño van a la papelera de Drive.
+  async driveDup(r) {
+    const m = vaultMap();
+    const linked = new Set(Object.values(m.files).map((e) => e.id));
+    let n = 0;
+    for (const g of r.driveDup) {
+      const keep = g.find((x) => linked.has(x.f.id)) || [...g].sort((a, b) => String(b.f.modifiedTime).localeCompare(String(a.f.modifiedTime)))[0];
+      for (const x of g) {
+        if (x === keep || x.f.fileSize !== keep.f.fileSize) continue;
+        await gCall(DRIVE, 'trash_file', { fileId: x.f.id });
+        m.ignore.push(x.f.id);
+        n++;
+      }
+    }
+    saveVaultMap();
+    showToastMessage(`${n} copia(s) repetida(s) en la papelera de Drive`);
+  },
+  // Notas repetidas en Enfoque con el mismo texto: queda la enlazada con Drive (o la más antigua).
+  async appDup(r) {
+    const m = vaultMap();
+    const extra = [];
+    for (const g of r.appDup) {
+      const norm = (s) => String(s || '').replace(/\r\n?/g, '\n').trim();
+      const keep = g.find((n) => m.files[n.id]) || [...g].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))[0];
+      g.forEach((n) => n !== keep && norm(n.body) === norm(keep.body) && extra.push(n));
+    }
+    if (extra.length) trashHeldNotes(extra.map((n) => noteById(n.id)).filter(Boolean));
+  },
+  // Notas cuyo tamaño no coincide con Drive (sin cambios por subir): se trae lo de Drive; la versión de Enfoque queda en la papelera.
+  async differ(r) {
+    const m = vaultMap();
+    let n = 0;
+    for (const note of r.differ) {
+      const live = noteById(note.id);
+      const e = live && m.files[live.id];
+      if (!e || live.enc || (live.updatedAt || 0) > e.at) continue;
+      const got = await gCall(DRIVE, 'download_file_content', { fileId: e.id });
+      if (typeof got.content !== 'string') continue;
+      const text = b64ToText(got.content).replace(/\r\n?/g, '\n');
+      if (text !== live.body && !(text === '\n' && !live.body)) {
+        trashNotes([{ ...live, id: uid(), path: `${live.path} (versión anterior en Enfoque)` }]);
+        live.body = text;
+        live.updatedAt = Date.now();
+        n++;
+      }
+      m.files[live.id] = { ...e, at: live.updatedAt || e.at };
+    }
+    saveVaultMap();
+    dataRev++;
+    save();
+    renderAll();
+    showToastMessage(`${n} nota(s) actualizadas desde Drive (la versión anterior quedó en la papelera de Enfoque)`);
+  },
+};
+
+async function runVaultFix(kind) {
+  const r = vaultCheck.report;
+  if (!r || vault.busy || !vaultFixes[kind]) return;
+  try {
+    await vaultFixes[kind](r);
+  } catch (e) {
+    vaultStatus(`No se pudo arreglar: ${gErrorText(e, DRIVE)}`, true);
+    return;
+  }
+  await verifyVault();
+}
+
+function renderVaultReport() {
+  const box = $('#gvault-report');
+  if (!box) return;
+  const r = vaultCheck.report;
+  box.hidden = !r;
+  if (!r) return (box.innerHTML = '');
+  const names = (list, label) => `<ul>${list.slice(0, 30).map((x) => `<li>${escHtml(label(x))}</li>`).join('')}${list.length > 30 ? `<li class="muted">y ${list.length - 30} más</li>` : ''}</ul>`;
+  const group = (title, help, list, label, fixes) => !list.length ? '' : `<details class="vcheck"><summary>${title} <b>(${list.length})</b></summary><p class="muted">${help}</p>${names(list, label)}${fixes.map(([kind, text]) => `<button data-vfix="${kind}">${text}</button>`).join(' ')}</details>`;
+  const path = (n) => n.path;
+  const dpath = (x) => x.path;
+  const gpath = (g) => `${g[0].path} (${g.length} copias)`;
+  box.innerHTML = `<p><b>${r.problems ? '⚠️' : '✅'} ${r.appCount} notas en Enfoque · ${r.driveCount} archivos en Drive</b>${r.protectedCount ? ` · ${r.protectedCount} protegida(s) con contraseña (no se suben a Drive, a propósito)` : ''}</p>`
+    + (r.problems ? '' : '<p>Todo coincide: no falta ninguna nota en ningún lado y no hay copias repetidas.</p>')
+    + group('Están en Drive y no en Enfoque', 'Archivos .md de la bóveda que la app todavía no trajo.', r.onlyDrive, dpath, [['onlyDrive', 'Traerlas a Enfoque']])
+    + group('Están en Enfoque y nunca se subieron a Drive', 'Notas sin archivo en Drive.', r.notUploaded, path, [['notUploaded', 'Subirlas a Drive']])
+    + group('Su archivo ya no está en Drive', 'Estaban en Drive y el archivo se borró o se movió fuera de la bóveda.', r.goneInDrive, path, [['goneUpload', 'Volver a subirlas'], ['goneTrash', 'Mandarlas a la papelera de Enfoque']])
+    + group('Repetidas en Drive', 'Varios archivos con la misma ruta. Se conserva el enlazado; van a la papelera de Drive solo las copias del mismo tamaño (las distintas quedan para revisar a mano).', r.driveDup, gpath, [['driveDup', 'Quitar las copias iguales']])
+    + group('Repetidas en Enfoque', 'Varias notas con la misma ruta. Van a la papelera de Enfoque solo las que tienen el mismo texto.', r.appDup, (g) => `${g[0].path} (${g.length} notas)`, [['appDup', 'Quitar las copias iguales']])
+    + group('No coinciden con Drive', 'El archivo de Drive tiene otro tamaño y la nota no tiene cambios por subir. Se trae lo de Drive; la versión de Enfoque queda en la papelera.', r.differ, path, [['differ', 'Traer la versión de Drive']])
+    + group('Carpetas repetidas dentro de «Notas»', 'Hay una carpeta con el mismo nombre en «Enfoque» y en «Enfoque/Notas». La app usa la de «Enfoque»; revisa la otra en Drive.', r.dupFolders.map((p) => ({ path: p })), dpath, [])
+    + (r.pendingUp.length ? `<p class="muted">${r.pendingUp.length} nota(s) con cambios por subir: se suben solas en unos segundos.</p>` : '');
+  box.querySelectorAll('[data-vfix]').forEach((b) => b.addEventListener('click', () => runVaultFix(b.dataset.vfix)));
+}

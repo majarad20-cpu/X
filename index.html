@@ -894,9 +894,11 @@
           <p class="muted">Se mantienen tus carpetas. Lo que edites en Drive (por ejemplo, con Obsidian) vuelve a la app. Las notas con contraseña no se suben. Si mueves o renombras un archivo en Drive, la nota también cambia; si lo borras, la nota pasa a la papelera de Enfoque (de donde se puede recuperar). ¿Tienes una carpeta de Obsidian? Cópiala dentro de «Enfoque/Notas» (o de «Enfoque») en Drive y pulsa «Sincronizar ahora»: sus notas y subcarpetas aparecen en la app. Si al activarlo hay muchas notas de este dispositivo que no están en Drive (por ejemplo, porque las borraste allí), la app pregunta antes de subirlas.</p>
           <div class="row">
             <button id="gvault-now">Sincronizar ahora</button>
+            <button id="gvault-verify" title="Compara las notas de Enfoque con los archivos de Drive sin descargar nada">Verificar con Drive</button>
             <button id="gvault-open" hidden>Abrir la carpeta ↗</button>
           </div>
           <p id="gvault-status" class="muted" role="status"></p>
+          <div id="gvault-report" class="vault-report" hidden></div>
           <label class="note-home">Carpeta para notas nuevas
             <select id="note-home"></select>
           </label>
