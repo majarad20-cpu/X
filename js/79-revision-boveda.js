@@ -17,7 +17,9 @@ const RV_ASSET = /^\^|\.(png|jpe?g|gif|webp|bmp|svg|avif|pdf|mp3|mp4|webm|m4a|wa
 // Notas «enormes»: más del límite de la bóveda (100 KB por defecto; cerca del bloque de 256 KB de la nube).
 const rvHuge = () => (typeof vaultMaxKB === 'function' && vaultMaxKB() > 0 ? vaultMaxKB() : 100) * 1024;
 const RV_LIST = 80; // elementos por lista antes de «y N más»
-const rv = { folder: '', report: null, rev: -1 };
+const rv = { folder: '', report: null, rev: -1, days: 14 };
+const RV_MOC = /\bMOC\b/i;
+const rvIsContent = (n) => !n.enc && !RV_APP_FOLDERS.test(n.path) && !RV_MOC.test(baseName(n.path));
 
 const rvBody = (text) => {
   const { end } = parseProps(text);
@@ -82,6 +84,12 @@ function computeVaultReview(folder = '') {
     }));
   }
   r.orphans = notes.filter((n) => !n.enc && !RV_APP_FOLDERS.test(n.path) && !out.get(n.id) && !incoming.get(n.id));
+  // Notas a las que se llega desde algún MOC siguiendo enlaces (directos o a través de otras notas).
+  const reach = rvReachFromMocs();
+  r.mocList = state.notes.filter((n) => !n.enc && RV_MOC.test(baseName(n.path))).sort((a, b) => a.path.localeCompare(b.path, 'es', { numeric: true }));
+  r.noMoc = notes.filter((n) => rvIsContent(n) && !reach.has(n.id)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const since = Date.now() - rv.days * 86400000;
+  r.recent = notes.filter((n) => rvIsContent(n) && (n.createdAt || 0) >= since).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map((n) => ({ n, inMoc: reach.has(n.id) }));
   const byName = new Map();
   notes.forEach((n) => {
     const k = baseName(n.path).toLowerCase();
@@ -93,6 +101,45 @@ function computeVaultReview(folder = '') {
   r.huge.sort((a, b) => (b.body || '').length - (a.body || '').length);
   r.ghostList = [...r.ghosts.values()].sort((a, b) => b.from.size - a.from.size || a.name.localeCompare(b.name, 'es'));
   return r;
+}
+
+function rvReachFromMocs() {
+  const seen = new Set();
+  const queue = state.notes.filter((n) => !n.enc && RV_MOC.test(baseName(n.path)));
+  queue.forEach((n) => seen.add(n.id));
+  while (queue.length) {
+    const n = queue.shift();
+    for (const t of rvTargets(n.body || '')) {
+      const hit = findNoteByName(t);
+      if (hit && !hit.enc && !seen.has(hit.id)) {
+        seen.add(hit.id);
+        queue.push(hit);
+      }
+    }
+  }
+  return seen;
+}
+
+// Añade un enlace a la nota al final del MOC, bajo «## 📥 Por ordenar» (se puede deshacer).
+function rvLinkToMoc(note, moc) {
+  if (!note || !moc || moc.enc) return;
+  const name = baseName(note.path);
+  const target = findNoteByName(name) === note ? name : `${note.path}|${name}`;
+  withUndo(`«${name}» enlazada en ${baseName(moc.path)} (Por ordenar)`, () => {
+    const head = '## 📥 Por ordenar';
+    let body = (moc.body || '').replace(/\s+$/, '');
+    if (!body.includes(head)) body += `\n\n${head}\n`;
+    const lines = body.split('\n');
+    let i = lines.findIndex((l) => l.trim() === head) + 1;
+    while (i < lines.length && !/^#{1,2}\s/.test(lines[i])) i++;
+    while (i > 0 && !lines[i - 1].trim()) i--;
+    lines.splice(i, 0, `- [[${target}]]`);
+    moc.body = `${lines.join('\n').replace(/\s+$/, '')}\n`;
+    moc.updatedAt = Date.now();
+    dataRev++;
+  });
+  rv.rev = -1;
+  renderVaultReview();
 }
 
 // Añade «estado: borrador» a las notas indicadas que no tienen estado (todo de una vez, con «Deshacer»).
@@ -125,6 +172,7 @@ function rvExclude(list) {
 }
 
 // ---------- Informe como nota ----------
+const rvDate = (n) => (n.createdAt ? new Date(n.createdAt).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '');
 function rvMarkdown(r) {
   const link = (n) => `[[${n.path}|${baseName(n.path)}]]`;
   const more = (arr, n = RV_LIST) => (arr.length > n ? [`- … y ${arr.length - n} más`] : []);
@@ -150,6 +198,8 @@ function rvMarkdown(r) {
   sec('Copias de conflicto', r.conflicts);
   sec('Enlaces a notas que no existen', r.ghostList, (g) => `[[${g.name}]] · desde ${g.from.size}`);
   sec('Notas sueltas (sin enlaces)', r.orphans);
+  sec(`Notas nuevas (últimos ${r.days} días)`, r.recent, (x) => `${link(x.n)} · ${rvDate(x.n)}${x.inMoc ? '' : ' · ⚠️ sin MOC'}`);
+  sec('Fuera de los MOCs', r.noMoc);
   return `${L.join('\n')}\n`;
 }
 
@@ -159,6 +209,7 @@ function renderVaultReview() {
   if (!box) return;
   if (!rv.report || rv.rev !== dataRev) {
     rv.report = computeVaultReview(rv.folder);
+    rv.report.days = rv.days;
     rv.rev = dataRev;
   }
   const r = rv.report;
@@ -201,6 +252,19 @@ function renderVaultReview() {
       return a;
     }) : el('p', { className: 'muted' }, 'Todas sus notas están escritas. 🎉'),
   ]));
+  const mocPick = (n) => {
+    const sel = el('select', { className: 'rv-moc-pick', ariaLabel: `Enlazar «${baseName(n.path)}» en un MOC`, title: 'Añade un enlace a esta nota en el MOC que elijas (sección «Por ordenar»)' }, [el('option', { value: '' }, '＋ enlazar en un MOC…'), ...r.mocList.map((m) => el('option', { value: m.id }, baseName(m.path)))]);
+    sel.addEventListener('change', () => sel.value && rvLinkToMoc(n, state.notes.find((m) => m.id === sel.value)));
+    return sel;
+  };
+  const days = el('select', { ariaLabel: 'Notas creadas en los últimos' }, [[7, '7 días'], [14, '14 días'], [30, '30 días'], [90, '90 días']].map(([v, l]) => el('option', { value: String(v) }, l)));
+  days.value = String(rv.days);
+  days.addEventListener('change', () => {
+    rv.days = Number(days.value);
+    rv.rev = -1;
+    renderVaultReview();
+  });
+  const recentNoMoc = r.recent.filter((x) => !x.inMoc).length;
   const totalPending = r.mocs.reduce((s, m) => s + m.pending.length, 0);
   const sinEstado = [...r.sinEstado].sort((a, b) => b[1].length - a[1].length);
   const sinCount = sinEstado.reduce((s, [, l]) => s + l.length, 0);
@@ -211,8 +275,13 @@ function renderVaultReview() {
       el('div', { className: 'row rv-actions' }, [folders, again, saveBtn]),
     ]),
     el('div', { className: 'rv-stats' }, [
-      ['Notas', r.total], ['Palabras', r.words.toLocaleString('es')], ['MOCs', r.mocs.length], ['Por escribir', totalPending], ['Enlaces rotos', r.ghostList.length], ['Sueltas', r.orphans.length],
+      ['Notas', r.total], ['Palabras', r.words.toLocaleString('es')], ['MOCs', r.mocs.length], ['Por escribir', totalPending], ['Enlaces rotos', r.ghostList.length], ['Sueltas', r.orphans.length], ['Nuevas', r.recent.length], ['Fuera de MOCs', r.noMoc.length],
     ].map(([l, v]) => el('div', { className: 'stat rv-stat' }, [el('strong', {}, String(v)), el('span', { className: 'muted' }, l)]))),
+    card(`Notas nuevas${recentNoMoc ? ` · ${recentNoMoc} sin MOC` : ''}`, r.recent.length, 'Las últimas que creaste (con «Nueva nota», desde un enlace o traídas de Drive), las más recientes primero. ⚠️ = ningún MOC llega a ella: enlázala aquí mismo.', () => el('div', {}, [
+      el('label', { className: 'row rv-actions' }, ['Creadas en los últimos ', days]),
+      r.recent.length ? list(r.recent, (x) => [openN(x.n), el('span', { className: 'muted' }, ` · ${folderOf(x.n.path) || 'raíz'} · ${rvDate(x.n)} `), ...(x.inMoc ? [el('span', { className: 'muted', title: 'Algún MOC llega a esta nota' }, '✓ en un MOC')] : [el('span', { className: 'rv-warn', title: 'Ningún MOC llega a esta nota' }, '⚠️ sin MOC '), mocPick(x.n)])]) : el('p', { className: 'muted' }, 'No creaste notas en esos días.'),
+    ]), recentNoMoc ? 'warn' : '', true),
+    card('Fuera de los MOCs', r.noMoc.length, 'Notas a las que no se llega desde ningún MOC, ni directamente ni a través de otras notas. Elige su MOC y se añade el enlace en la sección «Por ordenar».', () => list(r.noMoc, (n) => [openN(n), el('span', { className: 'muted' }, ` · ${folderOf(n.path) || 'raíz'} `), mocPick(n)])),
     card('MOCs y notas por escribir', r.mocs.length, 'Cada enlace de un MOC que aún no tiene nota es una nota por escribir: tu lista de trabajo.', () => el('div', {}, mocs)),
     card('Estado de las notas', r.estados.size + sinCount, 'Propiedad «estado» (borrador, revisada…).', () => el('div', {}, [
       el('p', {}, [...r.estados].sort((a, b) => b[1] - a[1]).map(([e, c]) => el('span', { className: 'chip rv-chip' }, `${e}: ${c}`))),

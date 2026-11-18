@@ -3158,6 +3158,8 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .rv-hint { flex-basis: 100%; font-size: .85rem; }
 .rv-list { margin: 8px 0 0; padding-left: 18px; columns: 2 320px; column-gap: 24px; font-size: .9rem; }
 .rv-list li { break-inside: avoid; margin: 0; padding: 1px 0; line-height: 1.45; }
+.rv-moc-pick { font-size: .8rem; padding: 1px 4px; max-width: 220px; margin-left: 4px; }
+.rv-warn { color: var(--warn, #d97706); font-size: .85rem; }
 .rv-card p { margin: 6px 0; }
 .rv-moc { margin: 6px 0; }
 .rv-moc > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; cursor: pointer; }
