@@ -1323,6 +1323,7 @@ $('#note-editor').addEventListener('input', (e) => {
   noteSaveTimer = setTimeout(() => {
     noteSaveTimer = null;
     save();
+    if (typeof vaultSoon === 'function') vaultSoon();
     snapshotNote(note);
     renderSidePanes();
     renderRightPanel();

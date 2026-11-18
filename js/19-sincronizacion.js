@@ -103,6 +103,8 @@ function localBuckets() {
   state.canvases.forEach((c) => out.set(`canvas-${c.id}`, { canvas: c }));
   state.notes.forEach((n) => out.set(`note-${n.id}`, { note: n }));
   (state.trash || []).forEach((t) => out.set(`trash-${t.id}`, { item: t }));
+  // Enlace de las notas con sus archivos de la bóveda de Drive (44-boveda-drive.js).
+  if (state.vaultLink?.root) out.set('vault-link', { link: state.vaultLink });
   return out;
 }
 
@@ -225,6 +227,7 @@ function bucketIsEmpty(name, data) {
   if (name.startsWith('canvas-')) return !data.canvas;
   if (name.startsWith('note-')) return !data.note;
   if (name.startsWith('trash-')) return !data.item;
+  if (name === 'vault-link') return !data.link;
   if (name === 'fin-meta') return !data.categories?.length && !data.recurring?.length;
   return !data.items?.length;
 }
@@ -307,6 +310,9 @@ function applyBucket(name, data) {
     const i = state.maps.findIndex((x) => x.id === data.map.id);
     if (i >= 0) state.maps[i] = data.map;
     else state.maps.push(data.map);
+  } else if (name === 'vault-link' && data.link) {
+    state.vaultLink = data.link;
+    if (typeof vaultLinkArrived === 'function') vaultLinkArrived();
   } else if (name.startsWith('trash-') && data.item) {
     const list = (state.trash ||= []);
     const i = list.findIndex((x) => x.id === data.item.id);

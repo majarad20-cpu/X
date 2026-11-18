@@ -26,13 +26,25 @@ const deviceId = () => {
 };
 const vaultOn = () => gAvailable() && gSettings().vaultDevice === deviceId();
 
-// Lo que se sabe de Drive se guarda solo en este dispositivo: { root, folders: {ruta: id}, files: {noteId: {id, path, at, mt}}, ignore: [ids], lastPull }
+// Lo que se sabe de Drive: { root, folders: {ruta: id}, files: {noteId: {id, path, at, mt}}, ignore: [ids], lastPull, rev }.
+// El enlace nota ↔ archivo (root, folders, files, ignore) se guarda además en la nube (bloque «vault-link»),
+// así un dispositivo nuevo lo recibe y no cree que todas las notas faltan en Drive. El resto (lastPull,
+// lastScan, notas en espera…) es solo de este dispositivo.
+const VAULT_SHARED = ['root', 'folders', 'files', 'ignore'];
+const VAULT_SOON_MS = 9000; // después de escribir en una nota se sube a Drive a los 9 s (pushVault espera 8 s sin cambios)
 function vaultMap() {
   if (vault.map) return vault.map;
   try {
     vault.map = JSON.parse(localStorage.getItem(VAULT_KEY) || 'null');
   } catch {}
   vault.map ||= {};
+  const shared = state.vaultLink;
+  if (shared?.root && (!vault.map.root || (shared.rev || 0) > (vault.map.rev || 0))) {
+    VAULT_SHARED.forEach((k) => {
+      if (shared[k] !== undefined) vault.map[k] = JSON.parse(JSON.stringify(shared[k]));
+    });
+    vault.map.rev = shared.rev || 0;
+  }
   vault.map.folders ||= {};
   vault.map.files ||= {};
   vault.map.ignore ||= [];
@@ -41,9 +53,29 @@ function vaultMap() {
 function saveVaultMap() {
   const m = vaultMap();
   m.ignore = m.ignore.slice(-500);
+  if (m.root) {
+    const link = Object.fromEntries(VAULT_SHARED.map((k) => [k, m[k]]));
+    const { rev, ...before } = state.vaultLink || {};
+    if (JSON.stringify(before) !== JSON.stringify(link)) {
+      m.rev = Date.now();
+      state.vaultLink = JSON.parse(JSON.stringify({ ...link, rev: m.rev }));
+      save();
+    }
+  }
   try {
     localStorage.setItem(VAULT_KEY, JSON.stringify(m));
   } catch {}
+}
+// Llegó de la nube un enlace más nuevo (lo guardó otro dispositivo): se vuelve a leer, salvo a mitad de una sincronización.
+function vaultLinkArrived() {
+  if (vault.map && !vault.busy && (state.vaultLink?.rev || 0) > (vault.map.rev || 0)) vault.map = null;
+}
+// Una nota cambió: se sube a Drive en unos segundos (sin esperar al intervalo de 30 s).
+let vaultSoonTimer = 0;
+function vaultSoon() {
+  if (!vaultOn()) return;
+  clearTimeout(vaultSoonTimer);
+  vaultSoonTimer = setTimeout(() => syncVault(), VAULT_SOON_MS);
 }
 
 const vaultStatus = (text, isError = false) => {
@@ -641,14 +673,15 @@ async function scanVaultNew() {
   return made + assetsIn;
 }
 
-async function syncVault({ manual = false, adopt = false } = {}) {
+async function syncVault({ manual = false, adopt = false, pull = false } = {}) {
   if (!vaultOn() || vault.busy) return;
   vault.busy = true;
   vault.removed = 0;
   if (manual) vaultStatus('Sincronizando con Drive…');
   if (typeof renderDriveBtn === 'function') renderDriveBtn();
   try {
-    let pulled = Date.now() - (vaultMap().lastPull || 0) > VAULT_PULL_MS || manual ? await pullVault() : 0;
+    // Al abrir la app (pull) o a mano se traen siempre los cambios de Drive; si no, cada 5 minutos.
+    let pulled = Date.now() - (vaultMap().lastPull || 0) > VAULT_PULL_MS || manual || pull ? await pullVault() : 0;
     // Al sincronizar a mano (y cada media hora) se buscan también carpetas y .md nuevos aunque sean antiguos.
     if (manual || adopt || Date.now() - (vaultMap().lastScan || 0) > 30 * 60000) pulled += await scanVaultNew();
     const pushed = await pushVault({ adopt, manual });

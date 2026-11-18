@@ -39,7 +39,7 @@ async function startGoogle() {
 async function runGoogleAutomations() {
   const g = gSettings();
   if (g.driveAuto && g.driveLast !== dateKey()) await backupToDrive({ auto: true });
-  if (vaultOn()) await syncVault({ adopt: !Object.keys(vaultMap().files).length });
+  if (vaultOn()) await syncVault({ adopt: !Object.keys(vaultMap().files).length, pull: true });
   // Un envío sin confirmar de esta semana solo se repite a mano.
   if (g.weekly && weeklyDue() && g.weeklySending?.week !== weekKey()) await sendWeeklySummary({ auto: true });
 }
