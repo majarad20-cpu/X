@@ -26,7 +26,8 @@ Convierte un documento en conocimiento de la bóveda sin duplicar ni perder nada
 3. **No tocar:** las fuentes de `KNOWLEDGE BASE` (solo leerlas), los MOCs y PDF de «000 WIKI PROFESIONAL», las notas personales (estoicismo, «MIS…», proyectos personales) salvo aprobación expresa. **Nunca abrir** archivos de claves o credenciales (p. ej. «CLAVE API IA COPILOT.md»).
 4. **Datos de clientes:** nunca a la bóveda. Si el documento es de un cliente, se extrae solo el conocimiento general y los ejemplos se anonimizan («Empresa A», «Comercial Cachapoal Ltda.» como caso modelo).
 5. **Exactitud:** cada dato duro (tasa, plazo, monto, artículo, fecha) va con su fuente y página. Si algo no se puede verificar, se marca «⚠️ por verificar»; no se inventa.
-6. **Ahorro:** no releer la bóveda completa; usar el índice (paso 3) y abrir solo las notas candidatas.
+6. **Trazabilidad:** toda norma puede haber sido modificada, reemplazada o derogada después. Cuando un dato cambia en el tiempo (tasa, tope, plazo, requisito), la nota debe mostrar el **historial** (valor, desde/hasta, norma que lo fijó, estado: histórico / vigente / futuro / derogado) y **qué rige hoy**. Antes de dar por buena una fuente, buscar normas posteriores que la cambien (circulares nuevas, leyes de reforma, la propia bóveda).
+7. **Ahorro:** no releer la bóveda completa; usar el índice (paso 3) y abrir solo las notas candidatas.
 
 ## Proceso
 
@@ -35,6 +36,12 @@ Convierte un documento en conocimiento de la bóveda sin duplicar ni perder nada
 - Revisar el **Registro de fuentes**: si el documento (mismo nombre, o mismo título y fecha) ya se procesó, avisar y preguntar si se repite.
 - Buscar también si ya hay una **ficha del mismo documento** (título con su número, o pie «Fuente: <archivo>.pdf» de la Biblioteca Atlas): si existe, el trabajo pasa a ser **auditar las notas relacionadas** contra el documento (paso 3).
 - Anotar: título, autor/emisor, fecha de la fuente, tipo (ley, circular, oficio, libro, apunte, curso, presentación…), páginas.
+
+### Descargar fuentes oficiales
+- `www.sii.cl` se descarga directo (curl): circulares `normativa_legislacion/circulares/AAAA/circuNN.pdf`, resoluciones `normativa_legislacion/resoluciones/AAAA/resoNN.pdf` (anexos `resoNN_anexoX.pdf`), FAQ de tasas e historiales.
+- Los PDF de leyes en sii.cl (`dl824.pdf`, `dl825.pdf`, `dl830.pdf`) están **desactualizados** (2017-2020): no usarlos como texto vigente.
+- `www.bcn.cl` (LeyChile) rechaza las descargas automáticas (401): pedir el PDF al usuario o verificar la ley a través de la circular del SII que la instruye.
+- Verificar siempre que el número de una resolución o circular corresponda a la materia: los listados de otras IA suelen equivocarse de número.
 
 ### 2. Leer y desglosar
 - Extraer el texto (PDF con texto, Word, Excel, web). Si es escaneado, leerlo como imagen. Documentos largos: por partes, anotando página.
