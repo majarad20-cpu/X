@@ -125,6 +125,25 @@ const LOOK_PRESETS = {
 
 const look = () => ({ ...LOOK_DEFAULTS, ...(state.settings.look || {}) });
 
+// Apariencia propia por defecto: una copia de la apariencia (y del color de acento) que se guarda en
+// los ajustes, se sincroniza y es a la que vuelve «Restablecer».
+const myLook = () => (state.settings.myLook?.look ? state.settings.myLook : null);
+function saveMyLook() {
+  state.settings.myLook = { look: { ...(state.settings.look || {}) }, accent: state.settings.accent || 'indigo', at: Date.now() };
+  save();
+}
+function restoreLook(mine) {
+  if (mine) state.settings.look = { ...mine.look };
+  else delete state.settings.look;
+  state.settings.accent = mine ? mine.accent : 'indigo';
+  save();
+  applySettings();
+  applyLook();
+  renderAccents();
+  renderAppearance();
+  showToastMessage(mine ? 'Vuelves a tu apariencia' : 'Apariencia original de Enfoque');
+}
+
 const loadedFonts = new Set();
 function ensureFont(key) {
   const f = FONTS[key];
@@ -389,8 +408,11 @@ function renderAppearance() {
     )
   );
 
-  const presets = el('div', { className: 'ap-presets' }, Object.entries(LOOK_PRESETS).map(([k, p]) => {
-    const b = el('button', { className: 'chip' }, p.label);
+  // «Mi apariencia»: la que guardaste como tuya va primero y es a la que vuelve «Restablecer».
+  const mine = myLook();
+  const presetList = [...(mine ? [['mine', { label: '⭐ Mi apariencia', look: mine.look, accent: mine.accent }]] : []), ...Object.entries(LOOK_PRESETS)];
+  const presets = el('div', { className: 'ap-presets' }, presetList.map(([k, p]) => {
+    const b = el('button', { className: `chip${k === 'mine' ? ' primary-chip' : ''}` }, p.label);
     b.addEventListener('click', () => {
       state.settings.accent = p.accent;
       // El estilo no cambia si la barra muestra nombres: eso lo decide cada persona.
@@ -440,17 +462,18 @@ function renderAppearance() {
     row('Densidad', seg('density', { comfortable: ['Cómoda'], compact: ['Compacta'] }, 'Densidad'), 'Compacta muestra más cosas a la vez'),
     row('Animaciones', seg('motion', { normal: ['Normales'], reduce: ['Reducidas'] }, 'Animaciones')),
     (() => {
-      const reset = el('button', {}, 'Restablecer la apariencia');
-      reset.addEventListener('click', () => {
-        delete state.settings.look;
-        state.settings.accent = 'indigo';
-        save();
-        applySettings();
-        applyLook();
-        renderAccents();
+      const keep = el('button', { className: 'primary' }, mine ? '⭐ Guardar esta como mi apariencia' : '⭐ Guardar como mi apariencia por defecto');
+      keep.title = 'Guarda el tema, los colores, las letras y todos estos ajustes como tu apariencia: «Restablecer» volverá a ella y aparece primera en Estilos rápidos';
+      keep.addEventListener('click', () => {
+        saveMyLook();
         renderAppearance();
+        showToastMessage('Guardada como tu apariencia por defecto (también en tus otros dispositivos)');
       });
-      return el('div', { className: 'row ap-reset' }, [reset, el('span', { className: 'muted' }, 'La apariencia se sincroniza entre tus dispositivos.')]);
+      const reset = el('button', {}, mine ? 'Volver a mi apariencia' : 'Restablecer la apariencia');
+      reset.addEventListener('click', () => restoreLook(mine));
+      const original = el('button', { className: 'link', hidden: !mine }, 'Volver a la original de Enfoque');
+      original.addEventListener('click', () => restoreLook(null));
+      return el('div', { className: 'row ap-reset' }, [keep, reset, original, el('span', { className: 'muted' }, mine ? `Tu apariencia guardada: ${(THEMES[mine.look.theme] || THEMES.system).label}. Se sincroniza entre tus dispositivos.` : 'La apariencia se sincroniza entre tus dispositivos.')]);
     })()
   );
   if (focusAt >= 0) box.querySelectorAll(AP_CONTROLS)[focusAt]?.focus({ preventScroll: true });

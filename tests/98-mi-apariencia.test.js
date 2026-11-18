@@ -1,0 +1,30 @@
+const { chromium, launchOptions } = require('./helpers');
+const url = process.argv[2];
+(async () => {
+  const b = await chromium.launch(launchOptions);
+  const errs = [];
+  const check = (label, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); console.log(`${label}: ${JSON.stringify(got)}${ok ? ' ok' : ` ESPERADO ${JSON.stringify(want)}`}`); if (!ok) errs.push(label); };
+  const c = await b.newContext({ viewport: { width: 1300, height: 900 } });
+  await c.addInitScript(() => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify({ tasks: [], habits: [], settings: { notesWelcome: true, accent: 'amber', look: { theme: 'creandoplus', skin: 'classic', uiFont: 'helvetica', noteFont: 'helvetica', noteSize: 18 } }, notes: [], updatedAt: 1 })); });
+  await c.route(/fonts\.g/, (r) => r.abort());
+  const p = await c.newPage();
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(url); await p.waitForTimeout(800);
+  await p.evaluate(() => { showView('settings'); renderAppearance(); }); await p.waitForTimeout(200);
+  await p.click('.ap-reset button:has-text("Guardar como mi apariencia")'); await p.waitForTimeout(150);
+  check('guardada', await p.evaluate(() => [state.settings.myLook.look.theme, state.settings.myLook.look.noteSize, state.settings.myLook.accent]), ['creandoplus', 18, 'amber']);
+  check('primera en estilos rápidos', await p.evaluate(() => document.querySelector('.ap-presets .chip').textContent), '⭐ Mi apariencia');
+  // Cambiar a otro estilo y volver
+  await p.click('.ap-presets .chip:has-text("Original")'); await p.waitForTimeout(150);
+  check('cambiada', await p.evaluate(() => [look().theme, state.settings.accent]), ['system', 'indigo']);
+  await p.click('.ap-reset button:has-text("Volver a mi apariencia")'); await p.waitForTimeout(150);
+  check('vuelve a la suya', await p.evaluate(() => [look().theme, look().noteSize, state.settings.accent, document.documentElement.dataset.theme]), ['creandoplus', 18, 'amber', 'creandoplus']);
+  await p.click('.ap-presets .chip:has-text("Original")'); await p.waitForTimeout(150);
+  await p.click('.ap-presets .chip:has-text("Mi apariencia")'); await p.waitForTimeout(150);
+  check('desde estilos rápidos', await p.evaluate(() => [look().theme, state.settings.accent]), ['creandoplus', 'amber']);
+  await p.click('.ap-reset button:has-text("original de Enfoque")'); await p.waitForTimeout(150);
+  check('original', await p.evaluate(() => [look().theme, state.settings.accent, !!state.settings.myLook]), ['system', 'indigo', true]);
+  console.log('errors:', JSON.stringify(errs));
+  await b.close();
+  process.exit(errs.length ? 1 : 0);
+})();
