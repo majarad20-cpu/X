@@ -15,7 +15,8 @@ Convierte un documento en conocimiento de la bóveda sin duplicar ni perder nada
 | Bóveda | Drive, **«Cerebro Digital X»** (id `1ELX63PzYAtiDOFQzaE1TrYVbAqMwB2He`) → `00.- ATLAS` (id `1swtj5lstGjkONAk-RPhyNVpVyABObLOx`) |
 | Notas nuevas | `00.- ATLAS/MATRIZ DE NOTAS` (id `19AXNpz1kLEhidFcTiWibTPpvzUgCWo58`) |
 | MOCs | `00.- ATLAS/MOCS` (id `1C0yzRWPkpHGRFkLtTVbmbh1k89woMPQJ`): 00 MOC DE MOCS, 1 Contabilidad, 2 Administración, 3 Economía, 4 Emprendimiento y Planes de Negocios, 5 Finanzas, 6 Proyectos e Inversiones, 7 Marketing, 8 Recursos Humanos, 9 Práctica Profesional, 10 Estoicismo, 11 Personal |
-| Registro | Nota `00.- ATLAS/MATRIZ DE NOTAS/📥 Registro de fuentes.md` (créala si no existe) |
+| Registro | Nota `00.- ATLAS/MATRIZ DE NOTAS/📥 Registro de fuentes.md` (id inicial `1by8HX_dzFyb9kVHpcPhQtEojcKlfJq8B`; búscala por título, cambia al editarla) |
+| Procesados | `Bandeja IA/Procesados` (id `1BWGN0XPXXsjkA4SbU5PdVRr9vZWOxet7`); mover con `update_file` + `parentId` |
 | App | Enfoque (artefacto de Claude) refleja Drive: trae los cambios de Drive al sincronizar. |
 
 ## Reglas que no se rompen
@@ -32,6 +33,7 @@ Convierte un documento en conocimiento de la bóveda sin duplicar ni perder nada
 ### 1. Recibir el documento
 - Si el usuario no dice cuál: listar la Bandeja IA y preguntar, o procesar el más antiguo.
 - Revisar el **Registro de fuentes**: si el documento (mismo nombre, o mismo título y fecha) ya se procesó, avisar y preguntar si se repite.
+- Buscar también si ya hay una **ficha del mismo documento** (título con su número, o pie «Fuente: <archivo>.pdf» de la Biblioteca Atlas): si existe, el trabajo pasa a ser **auditar las notas relacionadas** contra el documento (paso 3).
 - Anotar: título, autor/emisor, fecha de la fuente, tipo (ley, circular, oficio, libro, apunte, curso, presentación…), páginas.
 
 ### 2. Leer y desglosar
@@ -44,6 +46,7 @@ Convierte un documento en conocimiento de la bóveda sin duplicar ni perder nada
 - Armar un **índice** una vez por sesión: listar `.md` bajo `00.- ATLAS` (título, carpeta). Para las candidatas, leer YAML (`aliases`, `moc`, `tipo`, `area`, `vigencia`) y encabezados.
 - Para cada concepto, buscar por título, alias, siglas y `fullText contains` en Drive. Abrir solo las 1–5 notas más probables.
 - Comparar el contenido, no solo el nombre. Un alias cuenta como existente (ej.: «Libro Caja» es alias de «Libro de Caja»).
+- **Buscar contradicciones:** en las notas relacionadas, revisar los datos que el documento toca (tasas, topes, artículos citados, quién paga qué). Lo más valioso suele ser una nota antigua que contradice la fuente (p. ej. un tope derogado).
 
 ### 4. Veredicto por concepto
 | Marca | Significa | Propuesta |
@@ -101,6 +104,7 @@ vigencia: "Revisado mmm-AAAA" | "Permanente"
 ### 7. Cerrar
 - Agregar una fila al **Registro de fuentes**: `| fecha | documento (enlace Drive) | veredicto | notas creadas | notas enriquecidas | notas actualizadas |`.
 - Mover el documento procesado de la Bandeja IA a una subcarpeta `Bandeja IA/Procesados` (crearla si no existe), o dejarlo si el usuario prefiere.
+- Si una verificación externa no se pudo abrir (la red de la sesión puede bloquear sii.cl o bcn.cl), decirlo y citar las fuentes que sí se consultaron.
 - Decirle al usuario que sincronice Enfoque y, si quiere, pulse «Verificar con Drive».
 
 ## Errores típicos a evitar
