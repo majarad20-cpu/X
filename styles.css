@@ -3249,3 +3249,18 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 :root:is([data-theme="creando"], [data-theme="creandodark"]) .md :is(h2, h3) { font-weight: 800; }
 :root:is([data-theme="creando"], [data-theme="creandodark"])[data-theme] .md mark { background: #F8B028; color: #000000; border-radius: 0; padding: 0 .15em; }
 :root:is([data-theme="creando"], [data-theme="creandodark"]) ::selection { background: rgb(248 176 40 / .45); }
+
+/* Tema «Creando Gestión · Cotización»: como el tema CreandoGestión de Contabilidad Completa (sus
+   cotizaciones): blanco con negro y ámbar #ffbd59, crema #fff3de, café #8a4f00 para lo activo,
+   barras ámbar de 3 px bajo la barra superior y las pestañas, encabezados de tabla negros. */
+:root[data-theme="creandoplus"] { --bg: #faf7f1; --surface: #ffffff; --text: #1a1a1a; --muted: #646464; --border: #e2e2e2; --side: #ffffff; --side-hover: #fff3de; --editor: #ffffff; --accent: #8a4f00; --accent-soft: #fff3de; --on-accent: #1a1a1a; }
+:root[data-theme="creandoplus"] .prodbar { border-bottom: 3px solid #ffbd59; }
+:root[data-theme="creandoplus"] .ws-tabbar { background: #faf7f1; }
+:root[data-theme="creandoplus"] .ws-tab.active { box-shadow: inset 0 -3px 0 #ffbd59; }
+:root[data-theme="creandoplus"] :is(button.primary, .tab.active, .seg.active, .segmented .seg.active, .primary-chip, .today-badge, .capture-fab, .rib-badge, .vc-day.today .vc-num) { background: #ffbd59; border-color: #ffbd59; color: #1a1a1a; }
+:root[data-theme="creandoplus"] button.primary:hover { background: #ffad33; border-color: #ffad33; }
+:root[data-theme="creandoplus"] .md h1 { font-weight: 800; letter-spacing: -.02em; padding-bottom: 6px; border-bottom: 3px solid #ffbd59; }
+:root[data-theme="creandoplus"] .md h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: .07em; color: #8a4f00; }
+:root[data-theme="creandoplus"] .md th { background: #1a1a1a; color: #ffffff; border-color: #3a3a3a; }
+:root[data-theme="creandoplus"][data-theme] .md mark { background: #ffbd59; color: #1a1a1a; border-radius: 0; padding: 0 .15em; }
+:root[data-theme="creandoplus"] ::selection { background: rgb(255 189 89 / .5); }

@@ -7,6 +7,8 @@
 const THEMES = {
   // De la marca «Creando Gestión» (su sistema de diseño): crema, ámbar y tinta negra; Montserrat.
   creando: { label: 'Creando Gestión', group: 'brand', skin: 'flat', fonts: ['montserrat', 'montserrat'], tone: 'light', accent: 'amber', colors: ['#FCF0C4', '#F8B028', '#000000'] },
+  // Como el tema «CreandoGestión» de Contabilidad Completa (las cotizaciones): blanco, negro y ámbar, Helvetica.
+  creandoplus: { label: 'Creando Gestión · Cotización', group: 'brand', skin: 'classic', fonts: ['helvetica', 'helvetica'], tone: 'light', accent: 'amber', colors: ['#ffffff', '#ffbd59', '#1a1a1a'] },
   creandodark: { label: 'Creando Gestión oscuro', group: 'brand', skin: 'flat', fonts: ['montserrat', 'montserrat'], tone: 'dark', accent: 'amber', colors: ['#1C1810', '#F8B028', '#FCF0C4'] },
   system: { label: 'Según el sistema', group: 'basic', skin: 'classic', fonts: ['system', 'system'], colors: ['#f6f7f9', '#111317', '#6b7280'] },
   light: { label: 'Claro', group: 'basic', skin: 'classic', fonts: ['system', 'system'], tone: 'light', colors: ['#f6f7f9', '#ffffff', '#1c1f24'] },
@@ -61,6 +63,7 @@ const FONTS = {
   serif: { label: 'Serif del sistema', stack: 'Charter, "Iowan Old Style", Georgia, Cambria, "Times New Roman", serif' },
   lora: { label: 'Lora (serif)', stack: '"Lora", Georgia, serif', google: 'Lora:wght@400;600;700' },
   merriweather: { label: 'Merriweather (serif)', stack: '"Merriweather", Georgia, serif', google: 'Merriweather:wght@400;700' },
+  helvetica: { label: 'Helvetica', stack: '"Helvetica Neue", Helvetica, Arial, sans-serif' },
   montserrat: { label: 'Montserrat', stack: '"Montserrat", "Poppins", system-ui, sans-serif', google: 'Montserrat:wght@400;500;600;700;800;900' },
   mono: { label: 'Monoespaciada', stack: '"JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace', google: 'JetBrains+Mono:wght@400;600' },
 };
@@ -99,6 +102,7 @@ const OBS_DETAILS = {
 const OBS_ALL = { obsHeadings: 'on', obsGuides: 'on', obsTags: 'on', obsCallouts: 'on', obsMark: 'on' };
 const LOOK_PRESETS = {
   original: { label: 'Original', look: {}, accent: 'indigo' },
+  creandoplus: { label: 'Creando Gestión · Cotización', look: { skin: 'classic', theme: 'creandoplus', uiFont: 'helvetica', noteFont: 'helvetica', radius: 'soft', obsMark: 'on' }, accent: 'amber' },
   creando: { label: 'Creando Gestión', look: { skin: 'flat', theme: 'creando', uiFont: 'montserrat', noteFont: 'montserrat', radius: 'soft', obsMark: 'on' }, accent: 'amber' },
   obsidianlike: { label: 'Obsidian', look: { skin: 'classic', theme: 'obsdark', uiFont: 'inter', noteFont: 'inter', radius: 'soft', density: 'compact', noteWidth: 'normal', ...OBS_ALL }, accent: 'indigo' },
   minimalobs: { label: 'Minimal', look: { skin: 'flat', theme: 'minimal', uiFont: 'inter', noteFont: 'inter', radius: 'soft', noteWidth: 'normal', obsGuides: 'on', obsTags: 'on', obsCallouts: 'on' }, accent: 'slate' },
