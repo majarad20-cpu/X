@@ -26,6 +26,7 @@
 :root[data-accent="fuchsia"] { --accent-l: #a21caf; --accent-d: #e879f9; }
 :root[data-accent="orange"] { --accent-l: #c2410c; --accent-d: #fb923c; }
 :root[data-accent="slate"] { --accent-l: #334155; --accent-d: #cbd5e1; }
+:root[data-accent="amber"] { --accent-l: #7A4E00; --accent-d: #F8B028; }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -369,6 +370,7 @@ kbd { font: inherit; font-size: .8rem; border: 1px solid var(--border); border-b
 .swatch[data-swatch="fuchsia"] { --sw: #a21caf; }
 .swatch[data-swatch="orange"] { --sw: #c2410c; }
 .swatch[data-swatch="slate"] { --sw: #334155; }
+.swatch[data-swatch="amber"] { --sw: #F8B028; }
 .backup p { margin: 0 0 12px; max-width: 65ch; }
 .backup .row { margin-bottom: 8px; }
 .backup textarea { width: 100%; font: .8rem ui-monospace, monospace; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
@@ -3235,3 +3237,15 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .vault-report .vcheck summary { cursor: pointer; }
 .vault-report .vcheck ul { margin: 6px 0; padding-left: 18px; max-height: 180px; overflow: auto; font-size: 0.9em; }
 .vault-report .vcheck button { margin: 4px 4px 2px 0; }
+
+/* Tema «Creando Gestión» (desde su sistema de diseño): fondo crema, cintas ámbar con texto negro,
+   tinta negra y café para lo secundario. El ámbar #F8B028 nunca lleva texto blanco ni va como texto
+   sobre crema (no se lee): los enlaces usan su versión oscura #7A4E00 (6,3:1). */
+:root[data-theme="creando"] { --bg: #FCF0C4; --surface: #FFFBEB; --text: #000000; --muted: #5C4A24; --border: #EED9A0; --side: #FCE0AC; --side-hover: #F8D493; --editor: #FFFBEB; --accent-soft: #FCE7A8; }
+:root[data-theme="creandodark"] { --bg: #1C1810; --surface: #2A2214; --text: #FCF0C4; --muted: #C9B98E; --border: #3D3320; --side: #16130C; --side-hover: #342A19; --editor: #231E14; --on-accent: #000000; --accent-soft: #3F3218; }
+:root[data-theme="creando"] :is(button.primary, .tab.active, .seg.active, .segmented .seg.active, .primary-chip, .today-badge, .capture-fab, .rib-badge, .vc-day.today .vc-num) { background: #F8B028; border-color: #F8B028; color: #000000; }
+:root[data-theme="creando"] button.primary:hover { background: #FCC03C; }
+:root:is([data-theme="creando"], [data-theme="creandodark"]) .md h1 { font-weight: 900; letter-spacing: -.01em; text-decoration: underline; text-decoration-color: #F8B028; text-decoration-thickness: .2em; text-underline-offset: .14em; text-decoration-skip-ink: none; }
+:root:is([data-theme="creando"], [data-theme="creandodark"]) .md :is(h2, h3) { font-weight: 800; }
+:root:is([data-theme="creando"], [data-theme="creandodark"])[data-theme] .md mark { background: #F8B028; color: #000000; border-radius: 0; padding: 0 .15em; }
+:root:is([data-theme="creando"], [data-theme="creandodark"]) ::selection { background: rgb(248 176 40 / .45); }

@@ -1,7 +1,7 @@
 'use strict';
 
 // ---------- Ajustes: color y copia de seguridad ----------
-const ACCENTS = { indigo: 'Índigo', blue: 'Azul', teal: 'Turquesa', fuchsia: 'Fucsia', orange: 'Naranja', slate: 'Grafito' };
+const ACCENTS = { indigo: 'Índigo', blue: 'Azul', teal: 'Turquesa', fuchsia: 'Fucsia', orange: 'Naranja', slate: 'Grafito', amber: 'Ámbar' };
 
 function applySettings() {
   document.documentElement.dataset.accent = ACCENTS[state.settings.accent] ? state.settings.accent : 'indigo';
