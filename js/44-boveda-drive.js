@@ -120,10 +120,12 @@ async function vaultFolder(path) {
 // Archivos .md que ya hay en una carpeta de la bóveda (para no duplicar si este dispositivo perdió su mapa).
 async function listVaultFolder(folderId) {
   const out = [];
+  const seen = new Set();
   let pageToken;
   do {
     const r = await gCall(DRIVE, 'search_files', { query: `parentId = '${folderId}'`, pageSize: 100, excludeContentSnippets: true, ...(pageToken ? { pageToken } : {}) });
-    out.push(...(r.files || []));
+    // Drive puede repetir un archivo entre una página y la siguiente: se cuenta una sola vez.
+    for (const f of r.files || []) if (!seen.has(f.id)) seen.add(f.id) && out.push(f);
     pageToken = r.nextPageToken || r.next_page_token;
   } while (pageToken && out.length < 2000);
   out.complete = !pageToken; // false si la carpeta tiene más archivos de los que se leyeron
@@ -849,6 +851,7 @@ async function verifyVault() {
     const m = vaultMap();
     if (!m.root) await vaultFolder('');
     const files = [];
+    const ids = new Set();
     const dupFolders = [];
     const tops = new Map();
     for (const f of await listVaultFolder(await driveFolder())) {
@@ -868,7 +871,8 @@ async function verifyVault() {
           }
           await walk(f.id, sub, depth + 1);
           if (files.length % 50 === 0) vaultStatus(`Verificando con Drive… ${files.length} archivos leídos`);
-        } else if (/\.md$/i.test(f.title)) {
+        } else if (/\.md$/i.test(f.title) && !ids.has(f.id)) {
+          ids.add(f.id);
           files.push({ f, path: joinPath(path, cleanName(f.title.replace(/\.md$/i, '')) || 'Sin título') });
         }
       }
@@ -905,7 +909,8 @@ function vaultReport(files, dupFolders) {
   const appPaths = new Set(notes.map((n) => pathKey(n.path)));
   const driveDup = groupBy(files, (x) => pathKey(x.path)).filter((g) => g.length > 1);
   const inDup = new Set(driveDup.flat().map((x) => x.f.id));
-  const onlyDrive = files.filter((x) => !linked.has(x.f.id) && !ignore.has(x.f.id) && !inDup.has(x.f.id)
+  // Un .md vacío (p. ej. la nota de carpeta de Obsidian) no se cuenta: no hay nada que traer.
+  const onlyDrive = files.filter((x) => !linked.has(x.f.id) && !ignore.has(x.f.id) && !inDup.has(x.f.id) && x.f.fileSize !== '0'
     && !vaultTooBig(x.f) && !vaultExcludedPath(x.path) && !appPaths.has(pathKey(x.path)));
   const notUploaded = notes.filter((n) => !m.files[n.id]);
   const goneInDrive = notes.filter((n) => m.files[n.id] && !byFile.has(m.files[n.id].id));
@@ -914,8 +919,13 @@ function vaultReport(files, dupFolders) {
   const differ = notes.filter((n) => {
     const e = m.files[n.id];
     const x = e && byFile.get(e.id);
-    if (!x || (n.updatedAt || 0) > e.at || x.f.fileSize == null) return false;
-    return Number(x.f.fileSize) !== bytesOf(n.body);
+    // Los documentos de Google no tienen un tamaño comparable con el texto; un .md editado en Windows
+    // (Obsidian) tiene saltos de línea \r\n: con eso sigue siendo la misma nota.
+    if (!x || (n.updatedAt || 0) > e.at || x.f.fileSize == null || /^application\/vnd\.google-apps/.test(x.f.mimeType || '')) return false;
+    const size = Number(x.f.fileSize);
+    const len = bytesOf(n.body);
+    if (size === 0 && !String(n.body || '').trim()) return false; // vacía en los dos lados
+    return size !== len && size !== len + (String(n.body || '\n').match(/\n/g) || []).length;
   });
   const r = {
     at: Date.now(), driveCount: files.length, appCount: notes.length, protectedCount: state.notes.filter((n) => n.enc).length,
@@ -955,7 +965,7 @@ const vaultFixes = {
     for (const g of r.driveDup) {
       const keep = g.find((x) => linked.has(x.f.id)) || [...g].sort((a, b) => String(b.f.modifiedTime).localeCompare(String(a.f.modifiedTime)))[0];
       for (const x of g) {
-        if (x === keep || x.f.fileSize !== keep.f.fileSize) continue;
+        if (x === keep || x.f.id === keep.f.id || x.f.fileSize !== keep.f.fileSize) continue;
         await gCall(DRIVE, 'trash_file', { fileId: x.f.id });
         m.ignore.push(x.f.id);
         n++;

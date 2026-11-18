@@ -21,6 +21,7 @@ const mock = () => {
         if (parents.length) out = out.filter((f) => parents.includes(f.parentId));
         if (since) out = out.filter((f) => f.modifiedTime > since[1]);
         if (/mimeType = 'application\/vnd.google-apps.folder'/.test(q)) out = out.filter((f) => f.mimeType === FOLDER);
+        if (window.__dupPage) { const d = out.find((f) => f.id === window.__dupPage); if (d) out = out.concat([d]); }
         return { payload: { files: out.map(({ text, trashed, ...f }) => f) } };
       }
       if (tool === 'create_file') {
@@ -79,6 +80,19 @@ const check = (name, got, want) => {
   await p.evaluate(() => verifyVault()); await idle();
   check('recién sincronizado: todo coincide', await p.evaluate(() => vaultCheck.report.problems), 0);
   check('el informe lo dice', await p.evaluate(() => /Todo coincide/.test(document.getElementById('gvault-report').textContent)), true);
+  // Casos de una bóveda real que no son problemas: Drive repite un archivo entre páginas, un .md editado
+  // en Windows (saltos \r\n) y la nota vacía de carpeta de Obsidian.
+  await p.evaluate(() => {
+    const F = window.__files; const bov = F.find((f) => f.title === 'Bóveda').id;
+    const cuatro = F.find((f) => f.title === 'Cuatro.md' && !f.trashed); cuatro.text = cuatro.text.replace(/\n/g, '\r\n');
+    F.push({ id: 'vacia', title: 'Carpeta.md', mimeType: 'text/markdown', parentId: bov, modifiedTime: new Date().toISOString(), text: '' });
+    window.__dupPage = F.find((f) => f.title === 'Uno.md' && !f.trashed).id;
+  });
+  await sizes();
+  await p.evaluate(() => { window.__files.find((f) => f.id === 'vacia').fileSize = '0'; });
+  await p.evaluate(() => verifyVault()); await idle();
+  check('sin falsas alarmas (páginas repetidas, \\r\\n, archivo vacío)', await p.evaluate(() => vaultCheck.report.problems), 0);
+  await p.evaluate(() => { window.__dupPage = null; });
   // Se preparan los problemas
   await p.evaluate(() => {
     const F = window.__files; const bov = F.find((f) => f.title === 'Bóveda').id; const t = new Date().toISOString();
