@@ -869,6 +869,7 @@ html, body { overflow: hidden; }
 .md table { border-collapse: collapse; font-size: .92rem; }
 .md th, .md td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
 .md th { background: var(--side); }
+.md :is(th, td)[style*="right"] { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .md .props { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: .86rem; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--side); margin: 0 0 1.2em; }
 .md .props dt { color: var(--muted); }
 .md .props dd { margin: 0; }
