@@ -1,6 +1,6 @@
 ---
 name: ingesta-boveda
-description: Procesa un documento (PDF, Word, Excel, presentación, imagen escaneada o enlace web) y lo coteja con la bóveda «Cerebro Digital X» de Obsidian/Enfoque en Google Drive. Lo desglosa en conceptos, dice qué es nuevo, qué ya existe, qué conviene enriquecer y qué está desactualizado, y, solo tras aprobación, crea o mejora notas con su MOC y su fuente. Úsala cuando el usuario diga «procesa este PDF», «ingesta», «revisa la Bandeja IA», «¿esto ya está en la bóveda?» o pase un documento para enriquecer la bóveda.
+description: Procesa un documento (PDF, Word, Excel, presentación, imagen escaneada, cuaderno de apuntes o enlace web) y lo coteja con la bóveda «Cerebro Digital X» de Obsidian/Enfoque en Google Drive. Lo desglosa en conceptos, dice qué es nuevo, qué ya existe, qué conviene enriquecer y qué está desactualizado, y, solo tras aprobación, crea o mejora notas con su MOC y su fuente. Úsala cuando el usuario diga «procesa este PDF», «ingesta», «revisa la Bandeja IA», «¿esto ya está en la bóveda?» o pase un documento para enriquecer la bóveda.
 ---
 
 # Ingesta a la bóveda
@@ -15,7 +15,8 @@ Convierte un documento en conocimiento de la bóveda sin duplicar ni perder nada
 | Bóveda | Drive, **«Cerebro Digital X»** (id `1ELX63PzYAtiDOFQzaE1TrYVbAqMwB2He`) → `00.- ATLAS` (id `1swtj5lstGjkONAk-RPhyNVpVyABObLOx`) |
 | Notas nuevas | `00.- ATLAS/MATRIZ DE NOTAS` (id `19AXNpz1kLEhidFcTiWibTPpvzUgCWo58`) |
 | MOCs | `00.- ATLAS/MOCS` (id `1C0yzRWPkpHGRFkLtTVbmbh1k89woMPQJ`): 00 MOC DE MOCS, 1 Contabilidad, 2 Administración, 3 Economía, 4 Emprendimiento y Planes de Negocios, 5 Finanzas, 6 Proyectos e Inversiones, 7 Marketing, 8 Recursos Humanos, 9 Práctica Profesional, 10 Estoicismo, 11 Personal |
-| Registro | Nota `00.- ATLAS/MATRIZ DE NOTAS/📥 Registro de fuentes.md` (id inicial `1by8HX_dzFyb9kVHpcPhQtEojcKlfJq8B`; búscala por título, cambia al editarla) |
+| Registro | Nota `00.- ATLAS/MATRIZ DE NOTAS/📥 Registro de fuentes.md` (búscala siempre por título: su id cambia cada vez que se edita) |
+| Alertas | Nota `⏰ Alertas Normativas y Seguimiento` (checklist mensual de cambios por venir): agregar ahí todo cambio futuro o ⚠️ con fecha que aparezca en una ingesta |
 | Procesados | `Bandeja IA/Procesados` (id `1BWGN0XPXXsjkA4SbU5PdVRr9vZWOxet7`); mover con `update_file` + `parentId` |
 | App | Enfoque (artefacto de Claude) refleja Drive: trae los cambios de Drive al sincronizar. |
 
@@ -41,7 +42,26 @@ Convierte un documento en conocimiento de la bóveda sin duplicar ni perder nada
 - `www.sii.cl` se descarga directo (curl): circulares `normativa_legislacion/circulares/AAAA/circuNN.pdf`, resoluciones `normativa_legislacion/resoluciones/AAAA/resoNN.pdf` (anexos `resoNN_anexoX.pdf`), FAQ de tasas e historiales.
 - Los PDF de leyes en sii.cl (`dl824.pdf`, `dl825.pdf`, `dl830.pdf`) están **desactualizados** (2017-2020): no usarlos como texto vigente.
 - `www.bcn.cl` (LeyChile) rechaza las descargas automáticas (401): pedir el PDF al usuario o verificar la ley a través de la circular del SII que la instruye.
+- Al recibir un PDF de la BCN, **leer su encabezado** («Versión», «Inicio/Fin Vigencia», «Última modificación»): a veces llega una versión ya procesada, una histórica o una que vence pronto. Si se necesita otra, indicar al usuario el selector **«Versiones»** de LeyChile.
+- La BCN puede mostrar como «versión única» una ley que otra norma derogó **tácitamente** (p. ej. la Ley 13.011 por el DL 3.621): revisar normas posteriores antes de tratar el texto como vigente.
+- Hay beneficios «transitorios» que se prorrogan año a año sin cambiar el texto de la ley original (p. ej. la escala del diésel de la Ley 19.764): confirmar con la pregunta frecuente del SII cuál rige y hasta cuándo.
 - Verificar siempre que el número de una resolución o circular corresponda a la materia: los listados de otras IA suelen equivocarse de número.
+
+### Apuntes académicos y material de carrera (cuadernos, guías, PPT de clases)
+Son fuentes de **menor rango** (apunte < circular < ley) y suelen tener años. Su valor está en lo que **no cambia** y en lo **práctico**:
+- **Leer por lotes:** de a 1 cuaderno o hasta ~30 páginas por vez. Si está escaneado o manuscrito, leer las páginas como imagen; si un pasaje no se entiende, marcarlo «⚠️ ilegible» y no adivinar.
+- **Anotar la fecha** del apunte (año del curso) y la institución en la ficha; todo dato normativo del apunte se trata como **histórico** hasta verificarlo.
+- **Qué sí aporta** (priorizar):
+  1. **Ejercicios resueltos y casos** → nota `Ejercicio - …` o sección de ejemplo en la nota de teoría.
+  2. **Métodos, fórmulas y esquemas** que la nota no tenga (otra forma de explicar, un diagrama, una tabla comparativa).
+  3. **Conceptos ausentes** en la bóveda (revisar el Mapa de Competencias).
+- **Qué no se agrega:**
+  - Lo que la bóveda ya explica igual o mejor (✅).
+  - Tasas, topes, montos o normas del apunte que hoy son distintos: no se copian; si muestran un dato histórico útil, se agregan a la **tabla de trazabilidad** de la nota como «histórico».
+  - Normas derogadas presentadas como vigentes (p. ej. FUT, PCGA o Boletines Técnicos en vez de NIIF, tasas de IDPC antiguas): se marcan ⛔ y, si sirve, se anotan como antecedente.
+- **Preferir ➕ a 🆕:** enriquecer la nota existente antes que crear otra parecida. Crear nota nueva solo si el concepto no existe.
+- **Ejercicios:** aplicar la regla de oro: el ejercicio **enlaza** la nota de la norma en vez de repetir sus tasas, y lleva `vigencia: "Cálculo con normas vigentes al AAAA-MM-DD"`. Si el apunte usaba tasas antiguas, recalcular con las vigentes o dejarlo explícitamente como ejercicio histórico.
+- **Datos personales** del cuaderno (nombres de profesores, compañeros, notas): no pasan a la bóveda.
 
 ### 2. Leer y desglosar
 - Extraer el texto (PDF con texto, Word, Excel, web). Si es escaneado, leerlo como imagen. Documentos largos: por partes, anotando página.
@@ -114,9 +134,16 @@ vigencia: "Revisado mmm-AAAA" | "Permanente"
 - Si una verificación externa no se pudo abrir (la red de la sesión puede bloquear sii.cl o bcn.cl), decirlo y citar las fuentes que sí se consultaron.
 - Decirle al usuario que sincronice Enfoque y, si quiere, pulse «Verificar con Drive».
 
+### Formatos disponibles (se ven en Obsidian y en Enfoque)
+Tablas con alineación (`:--`, `:--:`, `--:`), callouts (`> [!tip]`, `[!warning]`, `[!example]`, `[!question]`, `[!note]`), fórmulas `$$ … $$`, diagramas Mermaid y casillas `- [ ]`. Ver la nota «Plantilla de Ejemplo Práctico».
+
 ## Errores típicos a evitar
 - Creer que una nota no existe por buscar solo el título: revisar alias y contenido.
 - Copiar párrafos largos del documento: resumir y estructurar; citar textual solo normas cortas.
 - Inventar artículos, oficios o cifras para «completar»: marcar «⚠️ por verificar».
 - Dejar notas nuevas sin MOC o sin enlaces: siempre MOC + 2 relacionadas como mínimo.
 - Tocar formatos de notas que no estaban en la propuesta aprobada.
+- Títulos con «:» (Obsidian no los acepta): usar « - ».
+- Contar «duplicados» desde un inventario sin revisar el id de Drive: una búsqueda paginada puede listar dos veces el mismo archivo.
+- Tratar una nota corta como vacía: muchas son **redirecciones** válidas (`tipo: alias`) hacia la nota completa.
+- Si una herramienta de Drive responde «this call did not run», volver a cargarla y repetir la llamada; luego confirmar con una búsqueda que no quedaron versiones duplicadas.
