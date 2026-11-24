@@ -59,7 +59,7 @@ function menusBuildSpecs() {
   const cols = specList().filter((s) => specOn(s.id)).map((s) => {
     let items;
     if (s.id === 'contador') {
-      items = ['radar', 'contradicciones', 'vigencia', 'calendario-trib'].map(menuGrab);
+      items = ['radar', 'contradicciones', 'vigencia', 'calendario-trib', 'clientes', 'calculadoras'].map(menuGrab);
       items.push(menuGrab('#rib-pro-profile'));
     } else {
       items = [menuMake(`panel:${s.id}`, { icon: 'spec', label: s.id === 'estoicismo' ? 'Panel estoico' : 'Panel', title: `Panel de ${s.name}`, action: (e) => specOpen(s.id, e) })];

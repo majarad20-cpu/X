@@ -23,7 +23,7 @@ const seed = {
   const views = (sel) => p.$$eval(sel, (n) => n.map((x) => x.dataset.view || x.id));
   check('izquierda: solo notas', await views('.ribbon .rib'), ['rib-files', 'rib-daily', 'rib-weekly', 'rib-monthly', 'rib-random', 'rib-bookmarks', 'rib-switcher']);
   check('vistas', await views('[data-group=vistas] .tb-menu .rib'), ['rib-graph', 'mapas', 'mosaico', 'linea', 'bases', 'tableros', 'matriz', 'canvas', 'dibujos', 'ideas', 'estudio']);
-  check('especialidades', await p.$$eval('[data-group=especialidades] .tb-menu .rib .rib-label', (n) => n.map((x) => x.textContent)), ['Radar normativo', 'Contradicciones', 'Revisión de vigencia', 'Calendario tributario', 'Perfil', 'Panel estoico', 'Práctica diaria', 'Dicotomía del control', 'Registro de virtudes', 'Perfil', 'Nueva especialidad…', 'Administrar especialidades']);
+  check('especialidades', await p.$$eval('[data-group=especialidades] .tb-menu .rib .rib-label', (n) => n.map((x) => x.textContent)), ['Radar normativo', 'Contradicciones', 'Revisión de vigencia', 'Calendario tributario', 'Clientes', 'Calculadoras', 'Perfil', 'Panel estoico', 'Práctica diaria', 'Dicotomía del control', 'Registro de virtudes', 'Perfil', 'Nueva especialidad…', 'Administrar especialidades']);
   check('escribir y pensar', await views('[data-group=write] .tb-menu .rib'), ['journal', 'ask', 'rib-think']);
   check('planificar', await views('[data-group=plan] .tb-menu .rib'), ['rib-compass', 'tasks', 'projects', 'inbox', 'review', 'plan']);
   check('seguimiento', await views('[data-group=focus] .tb-menu .rib'), ['timer', 'habits', 'progress', 'finanzas']);

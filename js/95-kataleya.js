@@ -89,7 +89,7 @@ estado: en desarrollo
 
 ## Hechos y decisiones
 - 2026-11-24: Finanzas quedó oculta en Enfoque (sus datos se conservan).
-- 2026-11-24: La Fase 3 de la especialidad Contador (clientes, calculadoras e informe) quedó pendiente en la hoja de ruta.
+- 2026-11-24: Fase 3 de la especialidad Contador: panel de clientes, calculadoras (art. 53 CT, impuesto único, APV, finiquito, UF/UTM) e informe al cliente. La firma de documentos es opcional.
 `;
 
 const kataMemoryNote = () => findNoteByName(KATA_MEMORY_PATH) || null;
@@ -208,7 +208,7 @@ ${kataWhereRules()}
 - Para crear o cambiar cosas usa las herramientas de acción: **no hacen nada solas**, dejan una propuesta que la persona aprueba con un botón. Di qué propusiste y nunca digas que ya está hecho.
 - Para mostrar algo, usa abrir_vista (no necesita aprobación).
 - Puedes usar la app como la persona: editar notas (editar_nota: lee la nota primero y copia el fragmento exacto), enlazarlas (enlazar: relacionar, menciones, entrantes, moc, sugerir, rotos y reparar; para «¿qué debería enlazar?» usa sugerir y después propone), organizar tareas, hábitos, proyectos, ideas, diario y Pomodoro (organizar) y ejecutar cualquier comando de la paleta (comando: primero listar). Todo queda como propuesta con vista previa.
-- Puedes ir más allá de las notas con crear_documento: PDF, Google Docs, hojas de cálculo (Google Sheets o CSV) y borradores de Gmail. Redacta con tono profesional, en español de Chile, con la norma, su vigencia y la fuente cuando corresponda; usa la firma de la sección «Firma» de tu memoria si existe; nunca pongas datos reales de clientes si no te los dio la persona. Los correos quedan como borrador: jamás digas que se enviaron.
+- Puedes ir más allá de las notas con crear_documento: PDF, Google Docs, hojas de cálculo (Google Sheets o CSV) y borradores de Gmail. Redacta con tono profesional, en español de Chile, con la norma, su vigencia y la fuente cuando corresponda; no escribas firma ni datos de contacto en el contenido: la app agrega la firma de la persona solo si ella la configuró y la deja marcada en la tarjeta (con firma: true o false solo sugieres); nunca pongas datos reales de clientes si no te los dio la persona. Los correos quedan como borrador: jamás digas que se enviaron.
 - Si la persona te cuenta algo que valga la pena recordar (una preferencia, una regla, una decisión), propón guardarlo con recordar.
 - Respeta la memoria: sus reglas y límites mandan.
 - Markdown sencillo: párrafos cortos y listas.
@@ -248,10 +248,11 @@ const kataSrc = (o) => {
 const KATA_SRC_SCHEMA = { type: 'object', description: 'Origen de las notas: {tipo: "carpeta"|"etiqueta"|"moc"|"todo", valor}', properties: { tipo: { type: 'string', enum: ['carpeta', 'etiqueta', 'moc', 'todo'] }, valor: { type: 'string' } } };
 
 // Deja una acción pendiente de aprobación y devuelve su resumen a Claude.
-function kataPropose(label, detail, run) {
+// opts.firma (true/false): la tarjeta muestra la casilla «Incluir mi firma» y run la recibe en a.firma.
+function kataPropose(label, detail, run, opts = {}) {
   const id = `a${++kata.seq}`;
   const turn = kata.turns.at(-1);
-  kata.pending.set(id, { label, detail, run, status: 'pending', result: null });
+  kata.pending.set(id, { label, detail, run, status: 'pending', result: null, ...(typeof opts.firma === 'boolean' ? { firma: opts.firma } : {}) });
   if (turn) (turn.actions ||= []).push(id);
   kataRender();
   return { propuesta: id, estado: 'pendiente de aprobación por la persona', resumen: `${label}${detail ? ` · ${detail}` : ''}` };
@@ -280,6 +281,33 @@ function kataToolsAll() {
     { name: 'calendario', description: 'Vencimientos tributarios, alertas con fecha y vigencias futuras de los próximos días (por defecto 30).', inputSchema: { type: 'object', properties: { dias: { type: 'number' } } }, execute: ({ dias = 30 } = {}) => ctEvents(dateKey(), dateKey(new Date(Date.now() + Math.min(366, Number(dias) || 30) * 864e5))).map((e) => `${e.date} · ${e.title}${e.detail ? ` · ${e.detail}` : ''}`).slice(0, 60) },
     { name: 'notas_por_revisar', description: 'Cola de revisión de vigencia: notas que conviene revisar y por qué.', inputSchema: { type: 'object', properties: { meses: { type: 'number' } } }, execute: ({ meses = 6 } = {}) => vgQueue({ t: 'all' }, Number(meses) || 6).slice(0, 25).map((x) => ({ nota: baseName(x.note.path), motivos: x.reasons.map((r) => r.text) })) },
   ] : [];
+  if (pro.length && typeof clientList === 'function') {
+    const findClient = (t) => {
+      const q = fold(String(t || ''));
+      const c = clientList().find((n) => fold(baseName(n.path)) === q) || clientList().find((n) => fold(baseName(n.path)).includes(q));
+      if (!c) throw new Error(`No hay un cliente llamado «${t}» (clientes: ${clientList().map((n) => baseName(n.path)).slice(0, 15).join(', ') || 'ninguno'})`);
+      return c;
+    };
+    pro.push(
+      { name: 'clientes_lista', description: 'Clientes (notas tipo: cliente): RUT, régimen, estado, próximo vencimiento y pendientes.', inputSchema: { type: 'object', properties: {} }, execute: () => (kataProgress('Revisando tus clientes…'), clientList().map(clientInfo).map((c) => ({ cliente: c.name, rut: c.rut || null, regimen: c.regimen || null, estado: c.estado, proximo_vencimiento: (() => { const e = clientEvents(c, 45)[0]; return e ? `${e.date} · ${e.title}` : null; })(), pendientes: clientTasks(c).length }))) },
+      { name: 'cliente_ficha', description: 'Ficha de un cliente: datos, vencimientos de los próximos 45 días según sus obligaciones, pendientes, notas que lo enlazan y bitácora.', inputSchema: { type: 'object', properties: { cliente: { type: 'string' } }, required: ['cliente'] }, execute: ({ cliente }) => {
+        const c = clientInfo(findClient(cliente));
+        kataProgress(`Leyendo la ficha de ${c.name}…`);
+        return { cliente: c.name, rut: c.rut, regimen: c.regimen, giro: c.giro, contacto: c.contacto, estado: c.estado, obligaciones: c.obligaciones, vencimientos: clientEvents(c, 45).map((e) => `${e.date} · ${e.title}`), pendientes: clientTasks(c).map((t) => `${t.title}${t.due ? ` (${t.due})` : ''}`).slice(0, 20), notas_que_lo_enlazan: (typeof backlinksOf === 'function' ? backlinksOf(c.note).linked : []).map((x) => baseName(x.note.path)).slice(0, 15), bitacora: clientSection(c, 'Bit[aá]cora').slice(-8) };
+      } },
+      { name: 'calcular', description: `Calculadora del contador con los parámetros del perfil. tipo: ${CALC_TYPES.map((t) => t.id).join(', ')}. datos: los campos de cada tipo.`, inputSchema: { type: 'object', properties: { tipo: { type: 'string' }, datos: { type: 'object' } }, required: ['tipo'] }, execute: (i) => {
+        kataProgress('Calculando…');
+        const r = calcRun(i.tipo, i.datos || {});
+        if (r.error) return { error: r.error, campos: (r.type || calcType(i.tipo))?.fields.map((f) => `${f.k}: ${f.label}${f.options ? ` (${f.options.map((o) => o[0]).join('|')})` : ''}`) || [], avisos: r.warnings || [] };
+        return { calculo: r.type.title, filas: r.rows.map(([a, b, c]) => `${a}: ${b}${c ? ` (${c})` : ''}`), total: `${r.total[0]}: ${r.total[1]}`, avisos: r.warnings, parametros: r.used, tabla_markdown: calcMarkdown(i.tipo, i.datos || {}) };
+      } },
+      { name: 'informe_cliente', description: 'Abre el informe al cliente (vencimientos, pendientes, novedades normativas) para que la persona lo revise y lo exporte a PDF, nota o Google Doc. observaciones: texto opcional al final; dias: período (15 a 90).', inputSchema: { type: 'object', properties: { cliente: { type: 'string' }, dias: { type: 'number' }, observaciones: { type: 'string' } }, required: ['cliente'] }, execute: (i) => {
+        const n = findClient(i.cliente);
+        informeOpen(n, { dias: Number(i.dias) || 30, observaciones: String(i.observaciones || '') });
+        return { texto: `Abrí el informe de ${baseName(n.path)} para que lo revises y lo exportes.` };
+      } }
+    );
+  }
   const ext = [];
   if (kataSource('web') !== 'off') {
     ext.push(
@@ -387,19 +415,19 @@ function kataToolsAll() {
       await gCall('Google Calendar', 'create_event', { summary: String(i.titulo), startTime: localStamp(start), endTime: localStamp(end), timeZone: tz(), description: `${i.detalle || ''}\n\nAgendado por Kataleya desde Enfoque.`.trim() });
       return { texto: 'Evento creado en Google Calendar' };
     }) },
-    { name: 'crear_pdf', description: 'Propone generar un PDF descargable (informe, carta, minuta, respuesta a un cliente). contenido en Markdown (títulos, listas, tablas); para y firma opcionales.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'string' }, guardar_nota: { type: 'boolean' } }, required: ['titulo', 'contenido'] }, execute: (i) => kataPropose(`📄 PDF «${i.titulo}»`, `${String(i.contenido).length} caracteres${i.para ? ` · para ${i.para}` : ''}${i.guardar_nota ? ' · y como nota' : ''}`, async () => {
-      const md = kataDocMarkdown(i);
+    { name: 'crear_pdf', description: 'Propone generar un PDF descargable (informe, carta, minuta, respuesta a un cliente). contenido en Markdown (títulos, listas, tablas), sin firma; para opcional; firma: true/false para sugerir si va la firma de la persona (ella decide en la tarjeta).', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'boolean' }, guardar_nota: { type: 'boolean' } }, required: ['titulo', 'contenido'] }, execute: (i) => kataPropose(`📄 PDF «${i.titulo}»`, `${String(i.contenido).length} caracteres${i.para ? ` · para ${i.para}` : ''}${i.guardar_nota ? ' · y como nota' : ''}`, async (a) => {
+      const md = kataDocMarkdown(i, a?.firma);
       await exportNotesPdf([{ id: `kata-${uid()}`, path: String(i.titulo), body: md }], { title: String(i.titulo) });
       if (i.guardar_nota) {
         if (!state.folders.includes('Documentos')) state.folders.push('Documentos');
         createNote({ folder: 'Documentos', title: String(i.titulo).slice(0, 80), body: md, open: false, edit: false, log: false });
       }
       return { texto: 'PDF generado (revisa la descarga)' };
-    }) },
-    { name: 'crear_doc', description: 'Propone crear un documento editable de Google Docs en el Drive (carpeta «Kataleya» si existe). contenido en Markdown; para y firma opcionales.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'string' } }, required: ['titulo', 'contenido'] }, execute: (i) => kataPropose(`📝 Google Doc «${i.titulo}»`, `${String(i.contenido).length} caracteres · en tu Drive`, async () => {
-      const r = await kataDriveUpload(String(i.titulo), kataDocHtml(kataDocMarkdown(i)), 'text/html');
+    }, { firma: kataFirmaInitial(i.firma) }) },
+    { name: 'crear_doc', description: 'Propone crear un documento editable de Google Docs en el Drive (carpeta «Kataleya» si existe). contenido en Markdown, sin firma; para opcional; firma: true/false (la persona decide en la tarjeta).', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'boolean' } }, required: ['titulo', 'contenido'] }, execute: (i) => kataPropose(`📝 Google Doc «${i.titulo}»`, `${String(i.contenido).length} caracteres · en tu Drive`, async (a) => {
+      const r = await kataDriveUpload(String(i.titulo), kataDocHtml(kataDocMarkdown(i, a?.firma)), 'text/html');
       return { texto: `Documento creado en ${r.folder}`, abrir: r.url ? () => kataOpenUrl(r.url) : null };
-    }) },
+    }, { firma: kataFirmaInitial(i.firma) }) },
     { name: 'crear_hoja', description: 'Propone crear una hoja de cálculo: en el Drive como Google Sheets (destino «drive», por defecto) o como archivo CSV descargable (destino «csv»). columnas: los encabezados; filas: una lista por fila (números sin puntos de miles, con punto decimal).', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, columnas: { type: 'array', items: { type: 'string' } }, filas: { type: 'array', items: { type: 'array', items: { type: ['string', 'number'] } } }, destino: { type: 'string', enum: ['drive', 'csv'] } }, required: ['titulo', 'columnas', 'filas'] }, execute: (i) => { const rows = (i.filas || []).slice(0, 2000); return kataPropose(`📊 Hoja «${i.titulo}»`, `${plural((i.columnas || []).length, 'columna', 'columnas')} · ${plural(rows.length, 'fila', 'filas')} · ${i.destino === 'csv' ? 'CSV descargable' : 'Google Sheets en tu Drive'}`, async () => {
       const csv = kataCsv((i.columnas || []).map(String), rows);
       if (i.destino === 'csv') {
@@ -449,7 +477,7 @@ function kataTools(max = 20) {
   const out = [...pick('buscar_notas', 'leer_nota')];
   out.push(group('tareas_y_diario', 'Lee tareas (donde: tareas; estado pendientes, hechas o todas) o entradas del diario (donde: diario; desde y hasta AAAA-MM-DD). consulta opcional filtra por palabras.', 'donde', { tareas: 'buscar_tareas', diario: 'buscar_diario' }, { consulta: { type: 'string' }, estado: { type: 'string', enum: ['pendientes', 'hechas', 'todas'] }, desde: { type: 'string' }, hasta: { type: 'string' } }));
   if (all.has('radar_norma')) {
-    out.push(group('contador', 'Herramientas del contador. consulta: «radar» (una norma: notas que la citan, artículos, señales de derogación o cambio, vigencias futuras y alertas; requiere norma, p. ej. «Ley 21.713» o «LIR»), «contradicciones» (datos distintos entre notas), «alertas» (alertas normativas abiertas), «calendario» (vencimientos de los próximos días) o «por_revisar» (notas con la vigencia por revisar).', 'consulta', { radar: 'radar_norma', contradicciones: 'contradicciones', alertas: 'alertas_abiertas', calendario: 'calendario', por_revisar: 'notas_por_revisar' }, { norma: { type: 'string' }, dias: { type: 'number' }, meses: { type: 'number' } }));
+    out.push(group('contador', `Herramientas del contador. consulta: «radar» (una norma: notas que la citan, artículos, señales de derogación o cambio, vigencias futuras y alertas; requiere norma, p. ej. «Ley 21.713» o «LIR»), «contradicciones» (datos distintos entre notas), «alertas» (alertas normativas abiertas), «calendario» (vencimientos de los próximos días), «por_revisar» (notas con la vigencia por revisar)${all.has('calcular') ? ', «clientes» (lista), «cliente» (ficha; requiere cliente), «calcular» (tipo: art53, iusc, apv, finiquito o conversion; datos: sus campos; si faltan, la respuesta dice cuáles) o «informe» (abre el informe al cliente para revisarlo; cliente, dias, observaciones)' : ''}.`, 'consulta', { radar: 'radar_norma', contradicciones: 'contradicciones', alertas: 'alertas_abiertas', calendario: 'calendario', por_revisar: 'notas_por_revisar', ...(all.has('calcular') ? { clientes: 'clientes_lista', cliente: 'cliente_ficha', calcular: 'calcular', informe: 'informe_cliente' } : {}) }, { norma: { type: 'string' }, dias: { type: 'number' }, meses: { type: 'number' }, cliente: { type: 'string' }, tipo: { type: 'string' }, datos: { type: 'object' }, observaciones: { type: 'string' } }));
   }
   const outside = Object.fromEntries([['internet', 'buscar_en_internet'], ['pagina', 'leer_pagina'], ['drive', 'buscar_en_drive'], ['archivo_drive', 'leer_archivo_drive']].filter(([, n]) => all.has(n)));
   if (Object.keys(outside).length) {
@@ -460,7 +488,7 @@ function kataTools(max = 20) {
     titulo: { type: 'string' }, contenido: { type: 'string' }, carpeta: { type: 'string' }, moc: { type: 'string' }, fecha: { type: 'string', description: 'AAAA-MM-DD' }, hora: { type: 'string', description: 'HH:MM' }, prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] }, minutos: { type: 'number' }, detalle: { type: 'string' }, texto: { type: 'string' }, nota: { type: 'string' }, hecho: { type: 'string' }, seccion: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, propiedad: { type: 'string' }, valor: { type: 'string' },
   }));
   out.push(group('crear_documento', 'Propone crear un documento fuera de las notas (se aprueba con un botón). tipo: «pdf» descargable (titulo, contenido en Markdown, para, firma, guardar_nota), «doc» de Google Docs en el Drive (titulo, contenido, para, firma), «hoja» de cálculo (titulo, columnas, filas; destino «drive» = Google Sheets o «csv» = descarga) o «correo»: un borrador de Gmail que nunca se envía solo (destinatarios, asunto, cuerpo en texto simple).', 'tipo', { pdf: 'crear_pdf', doc: 'crear_doc', hoja: 'crear_hoja', correo: 'crear_borrador' }, {
-    titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'string' }, guardar_nota: { type: 'boolean' }, columnas: { type: 'array', items: { type: 'string' } }, filas: { type: 'array', items: { type: 'array' } }, destino: { type: 'string', enum: ['drive', 'csv'] }, destinatarios: { type: 'array', items: { type: 'string' } }, asunto: { type: 'string' }, cuerpo: { type: 'string' },
+    titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'boolean' }, guardar_nota: { type: 'boolean' }, columnas: { type: 'array', items: { type: 'string' } }, filas: { type: 'array', items: { type: 'array' } }, destino: { type: 'string', enum: ['drive', 'csv'] }, destinatarios: { type: 'array', items: { type: 'string' } }, asunto: { type: 'string' }, cuerpo: { type: 'string' },
   }));
   // En el grupo, los destinatarios del correo van en «destinatarios» (en el documento, «para» es un texto).
   const docs = out.at(-1);
@@ -487,9 +515,19 @@ function kataTools(max = 20) {
 // Google Drive convierte el HTML o el CSV al subirlo) o como borrador de Gmail (nunca se envía solo).
 // Lo que va al Drive queda en la carpeta «Kataleya» si existe; si no, en «Mi unidad».
 const kataEsc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-function kataDocMarkdown(i) {
+// La firma es opcional: solo la que la persona configuró en Ajustes y solo si queda marcada en la tarjeta.
+function kataDocMarkdown(i, withFirma = false) {
   const fecha = new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
-  return [`# ${String(i.titulo || 'Documento')}`, `*${fecha}${i.para ? ` · Para: ${i.para}` : ''}*`, '', String(i.contenido || ''), i.firma ? `\n---\n${String(i.firma)}` : ''].join('\n');
+  const firma = withFirma && typeof firmaReady === 'function' && firmaReady() ? firmaMarkdown() : '';
+  return [`# ${String(i.titulo || 'Documento')}`, `*${fecha}${i.para ? ` · Para: ${i.para}` : ''}*`, '', String(i.contenido || ''), firma ? `\n---\n${firma}` : ''].join('\n');
+}
+// Valor inicial de la casilla: lo que sugiere Kataleya o, si no dice, la preferencia de Ajustes.
+const kataFirmaInitial = (v) => (typeof firmaReady === 'function' && firmaReady() ? (typeof v === 'boolean' ? v : firmaDefault()) : false);
+function kataFirmaToggle(a) {
+  const ready = typeof firmaReady === 'function' && firmaReady();
+  const box = el('input', { type: 'checkbox', checked: !!a.firma && ready, disabled: !ready });
+  box.addEventListener('change', () => (a.firma = box.checked));
+  return el('label', { className: 'kata-firma', title: ready ? 'Tu firma de Ajustes › Notas › Firma de documentos' : 'Configura tu firma en Ajustes › Notas › Firma de documentos' }, [box, ready ? ' ✍️ Incluir mi firma' : ' ✍️ Sin firma configurada']);
 }
 const kataDocHtml = (md) => `<!doctype html><html><head><meta charset="utf-8"></head><body>${renderMd(md, { noTasks: true, noExternalImages: true }).replace(/<a [^>]*class="[^"]*wikilink[^"]*"[^>]*>(.*?)<\/a>/g, '$1')}</body></html>`;
 async function kataDriveFolder() {
@@ -1050,7 +1088,7 @@ async function kataApprove(id) {
   a.status = 'running';
   kataRender();
   try {
-    a.result = (await a.run()) || { texto: 'Hecho' };
+    a.result = (await a.run(a)) || { texto: 'Hecho' };
     a.status = 'done';
   } catch (e) {
     a.status = 'error';
@@ -1192,6 +1230,7 @@ function kataRender() {
         return el('div', { className: `kata-act s-${a.status}` }, [
           el('div', {}, [el('strong', {}, a.label), a.detail ? el('div', { className: 'muted' }, a.detail) : '']),
           diff,
+          a.status === 'pending' && 'firma' in a ? kataFirmaToggle(a) : '',
           a.status === 'pending' ? el('div', { className: 'kata-row' }, [btn('Aprobar', '', () => kataApprove(id), 'primary'), btn('Descartar', '', () => kataReject(id), 'link')]) : el('div', { className: 'kata-row' }, [el('span', {}, status), a.status === 'done' && a.result?.abrir ? btn('Abrir', '', () => a.result.abrir(), 'link') : '']),
         ]);
       });

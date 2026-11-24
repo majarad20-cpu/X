@@ -3613,3 +3613,63 @@ body.kata-open .kata-fab { display: none; }
 .kata-diff .dp { display: block; background: color-mix(in srgb, var(--low) 16%, transparent); }
 .kata-diff .dc { display: block; color: var(--muted); }
 .kata-diff .de { display: block; color: var(--muted); text-align: center; }
+
+/* ---------- Especialidad Contador, fase 3: calculadoras, clientes, informe y firma ---------- */
+.calc-card { max-width: 1100px; }
+.calc-form { display: grid; grid-template-columns: minmax(240px, 360px) 1fr; gap: 18px; align-items: start; }
+.calc-fields { display: flex; flex-direction: column; gap: 10px; }
+.calc-field { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.calc-field input, .calc-field select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.calc-field small { font-size: 11.5px; }
+.calc-out { min-width: 0; }
+.calc-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.calc-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.calc-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.calc-sub { font-size: 11.5px; }
+.calc-total td { font-weight: 700; border-bottom: 2px solid var(--accent, #4f46e5); font-size: 15px; }
+.calc-warn { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, #f59e0b 14%, transparent); font-size: 12.5px; }
+.calc-info { margin: 6px 0 0; font-size: 12px; }
+.calc-used { margin-top: 8px; font-size: 12px; }
+.calc-used ul { margin: 4px 0 0 18px; padding: 0; }
+.calc-actions { margin-top: 10px; align-items: center; }
+.calc-origin { font-size: 12px; }
+.calc-in-note { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 10px 0; background: var(--surface); }
+.calc-in-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.calc-box > table { width: auto; }
+@media (max-width: 760px) { .calc-form { grid-template-columns: 1fr; } }
+
+.cl-wrap { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 14px; align-items: start; min-height: 0; }
+.cl-list { display: flex; flex-direction: column; gap: 6px; overflow: auto; max-height: calc(100vh - 210px); padding-right: 2px; }
+.cl-item { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.cl-item:hover { border-color: var(--accent, #4f46e5); }
+.cl-item.on { border-color: var(--accent, #4f46e5); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #4f46e5) 25%, transparent); }
+.cl-item .muted { font-size: 12px; }
+.cl-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+.pro-badge.warn { background: color-mix(in srgb, #ef4444 16%, transparent); }
+.cl-detail { min-width: 0; }
+.cl-head { margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+.cl-field { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.cl-field span:last-child { text-align: right; }
+.cl-log { margin: 0 0 6px 16px; padding: 0; font-size: 13px; }
+.cl-empty { max-width: 640px; }
+@media (max-width: 760px) { .cl-wrap { grid-template-columns: 1fr; } .cl-list { max-height: 260px; } }
+
+.informe-modal { width: min(860px, 100%); }
+.informe-opts { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 10px 16px 0; font-size: 13px; }
+.informe-hint { padding: 4px 16px 0; margin: 0; font-size: 12.5px; }
+.informe-text { margin: 8px 16px; min-height: 340px; flex: 1; resize: vertical; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg, var(--surface)); color: var(--text); }
+.informe-foot { padding: 0 16px 14px; gap: 8px; }
+
+.firma-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 12px; margin: 8px 0; }
+.firma-field { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.firma-field input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.firma-preview { border-left: 3px solid var(--border); padding: 2px 10px; font-size: 13px; }
+.firma-check, .kata-firma { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; cursor: pointer; }
+.kata-firma { margin: 6px 0 2px; }
+.firma-check input:disabled + *, .kata-firma input:disabled { cursor: not-allowed; }
+.calc-scroll { overflow: auto; }
+.calc-actions { margin: 0 0 10px; }
+.cl-detail .pro-line strong { max-width: 72%; }
+.md .calc-in-note .calc-table td, .calc-in-note .calc-table td { border: 0; border-bottom: 1px solid var(--border); padding: 6px 8px; }
+.md .calc-in-note .calc-total td { border-bottom: 2px solid var(--accent, #4f46e5); }
+.calc-in-note .calc-num { white-space: nowrap; text-align: right; }

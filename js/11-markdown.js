@@ -472,6 +472,11 @@ function renderBlocks(src, ctx) {
         html += `<div class="mermaid-box" data-code="${encodeURIComponent(body.join('\n'))}"><pre class="code"><code data-lang="mermaid">${escHtml(body.join('\n'))}</code></pre></div>`;
         return;
       }
+      if (lang === 'calculadora' || lang === 'calc') {
+        const code = body.join('\n');
+        html += `<div class="calc-box" data-code="${encodeURIComponent(code)}">${typeof calcStaticHtml === 'function' ? calcStaticHtml(code) : `<pre class="code"><code>${escHtml(code)}</code></pre>`}</div>`;
+        return;
+      }
       if (['tareas', 'tasks', 'notas', 'notes', 'tabla', 'table', 'tablero', 'kanban', 'galeria', 'gallery', 'calendario', 'calendar'].includes(lang)) {
         const kind = lang.startsWith('gal') ? 'galeria' : lang.startsWith('cal') ? 'calendario' : lang === 'tablero' || lang === 'kanban' ? 'tablero' : lang.startsWith('tab') ? 'tabla' : lang.startsWith('ta') ? 'tareas' : 'notas';
         html += `<div class="query" data-kind="${kind}" data-code="${encodeURIComponent(body.join('\n'))}"></div>`;
