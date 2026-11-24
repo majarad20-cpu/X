@@ -1,8 +1,9 @@
 'use strict';
 
 // ---------- Vistas gráficas de las notas ----------
-// Seis vistas propias, cada una con su icono en la barra (después de Bases), para trabajar las notas
+// Vistas propias, cada una con su icono en la barra (después de Bases), para trabajar las notas
 // de forma visual:
+//   ✏️ Dibujos    · galería de los dibujos (al estilo Excalidraw) de todas las notas (88-vista-dibujos.js)
 //   📋 Tableros   · kanban: columnas por el valor de una propiedad; arrastrar cambia la propiedad
 //   ▦  Matriz     · dos propiedades como ejes; arrastrar a otra casilla cambia las dos
 //   🗺️ Mapas      · un MOC (o cualquier nota) como mapa: títulos como ramas y enlaces como hojas
@@ -23,6 +24,7 @@ Object.assign(ICONS, {
 });
 
 const GV_VIEWS = [
+  { id: 'dibujos', title: 'Dibujos', icon: 'pencil', hint: 'Dibujos: todos tus dibujos (al estilo Excalidraw) en una galería; crea uno nuevo o edita los que tienes' },
   { id: 'tableros', title: 'Tableros', icon: 'kanban', hint: 'Tableros (kanban): tus notas en columnas según una propiedad; arrastra una tarjeta para cambiarla' },
   { id: 'matriz', title: 'Matriz', icon: 'matrix', hint: 'Matriz: tus notas en una cuadrícula de dos propiedades (por ejemplo, área × estado)' },
   { id: 'mapas', title: 'Mapas de notas', icon: 'map-notes', hint: 'Mapas de notas: un MOC o una nota como mapa mental, organigrama, esquema o mapa radial' },
@@ -213,10 +215,41 @@ function gvSetProps(note, pairs) {
 
 const gvOpen = (n, e) => openNote(n, { newTab: !!(e?.ctrlKey || e?.metaKey) });
 
+// Cabecera compacta: título, ⓘ (la explicación, plegada salvo que se pida) y pantalla completa.
 function gvHead(view, text) {
   const v = GV_VIEWS.find((x) => x.id === view);
-  return el('div', { className: 'gv-head' }, [el('h2', { className: 'gv-title' }, [ico(v.icon), ` ${v.title}`]), el('p', { className: 'muted gv-sub' }, text)]);
+  const open = gvCfg().help === true;
+  const info = el('button', { className: `gv-icon-btn${open ? ' on' : ''}`, title: open ? 'Ocultar la explicación' : text, ariaLabel: 'Cómo se usa', ariaPressed: String(open) }, 'ⓘ');
+  info.addEventListener('click', () => {
+    gvCfg().help = !open;
+    save();
+    VIEW_RENDER[view]?.();
+  });
+  const full = document.documentElement.classList.contains('gv-full');
+  const fs = el('button', { className: 'gv-icon-btn', title: full ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa', ariaLabel: full ? 'Salir de pantalla completa' : 'Pantalla completa' }, full ? '✕' : '⛶');
+  fs.addEventListener('click', () => gvFull(!full));
+  return el('div', { className: 'gv-head' }, [
+    el('div', { className: 'gv-head-row' }, [el('h2', { className: 'gv-title' }, [ico(v.icon), ` ${v.title}`]), info, el('span', { className: 'gv-spacer' }), fs]),
+    open ? el('p', { className: 'muted gv-sub' }, text) : '',
+  ]);
 }
+
+// Pantalla completa: la vista tapa paneles y pestañas (Esc vuelve).
+function gvFull(on) {
+  document.documentElement.classList.toggle('gv-full', on);
+  const tab = activeTab();
+  if (tab?.type === 'view') VIEW_RENDER[tab.view]?.();
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !document.documentElement.classList.contains('gv-full')) return;
+  if (document.querySelector('#picker:not([hidden]), #note-menu:not([hidden]), #draw:not([hidden])')) return;
+  gvFull(false);
+});
+// Al salir de una vista gráfica, se sale de la pantalla completa.
+RENDER_HOOKS.push(() => {
+  const tab = activeTab();
+  if (document.documentElement.classList.contains('gv-full') && !(tab?.type === 'view' && GV_VIEWS.some((v) => v.id === tab.view))) document.documentElement.classList.remove('gv-full');
+});
 const gvBtn = (label, fn, cls = 'gv-chip', title = '') => {
   const b = el('button', { className: cls, title }, label);
   b.addEventListener('click', fn);
@@ -297,7 +330,7 @@ function renderTableros() {
     el('span', { className: 'muted gv-count' }, plural(total, 'nota', 'notas')),
     gvBtn('⋯', (e) => gvBoardMenu(board, e.currentTarget), 'gv-chip', 'Más opciones del tablero'),
   ]);
-  const wrap = el('div', { className: 'nb-board gv-board' }, cols.map((c, ci) => {
+  const wrap = el('div', { className: 'nb-board gv-board gv-fill' }, cols.map((c, ci) => {
     const add = gvBtn('+', () => promptText({ placeholder: `Nombre de la nota nueva (${c.value ? `${board.group}: ${c.label}` : c.label})`, action: 'Crear nota', onSubmit: (name) => {
       const folder = board.src.t === 'folder' ? board.src.v : '';
       const props = c.value ? `---\n${board.group}: ${yamlScalar(c.value)}\n---\n` : '';
@@ -424,7 +457,7 @@ function renderMatriz() {
   box.replaceChildren(
     gvHead('matriz', 'Cada casilla junta las notas con esos dos valores. Arrastra una tarjeta a otra casilla y la nota cambia las dos propiedades. El color indica cuántas notas hay.'),
     bar,
-    notes.length ? el('div', { className: 'gvm-wrap' }, el('table', { className: 'gvm' }, [el('thead', {}, head), el('tbody', {}, rows)])) : el('p', { className: 'empty' }, 'No hay notas en este origen.')
+    notes.length ? el('div', { className: 'gvm-wrap gv-fill' }, el('table', { className: 'gvm' }, [el('thead', {}, head), el('tbody', {}, rows)])) : el('p', { className: 'empty' }, 'No hay notas en este origen.')
   );
 }
 

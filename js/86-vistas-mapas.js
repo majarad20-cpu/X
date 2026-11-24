@@ -206,7 +206,8 @@ function renderMapas() {
   const vp = el('div', { className: 'gvmap-viewport', tabIndex: 0, ariaLabel: `Mapa de ${baseName(note.path)}` }, stage);
   const zoomBar = el('div', { className: 'gvmap-zoom' }, [
     gvBtn('−', () => gvMapZoom(vp, stage, 1 / 1.2), 'gv-chip', 'Alejar'),
-    gvBtn('Ajustar', () => gvMapFit(vp, stage, L), 'gv-chip', 'Ver todo el mapa'),
+    gvBtn('Ver todo', () => gvMapFit(vp, stage, L, true), 'gv-chip', 'Encajar todo el mapa en la pantalla'),
+    gvBtn('Centrar', () => gvMapFit(vp, stage, L), 'gv-chip', 'Volver a la nota principal a tamaño legible'),
     gvBtn('+', () => gvMapZoom(vp, stage, 1.2), 'gv-chip', 'Acercar'),
   ]);
   const leaves = nodes.filter((n) => n.kind === 'note').length;
@@ -214,7 +215,7 @@ function renderMapas() {
   box.replaceChildren(
     gvHead('mapas', `${plural(all.filter((n) => n.kind === 'note').length, 'nota enlazada', 'notas enlazadas')}${missing ? ` · ${plural(missing, 'nota por escribir', 'notas por escribir')} (en línea discontinua)` : ''}${leaves < all.filter((n) => n.kind === 'note').length ? ' · algunas ramas plegadas' : ''}. Arrastra el fondo para moverte; rueda para acercar o alejar.`),
     bar,
-    el('div', { className: 'gvmap-wrap' }, [vp, zoomBar])
+    el('div', { className: 'gvmap-wrap gv-fill' }, [vp, zoomBar])
   );
   gvMapPanZoom(vp, stage);
   const key = `${note.id}|${kind}|${members}`;
@@ -226,12 +227,22 @@ function renderMapas() {
 }
 
 const gvMapApply = (stage) => (stage.style.transform = `translate(${gvMap.x}px, ${gvMap.y}px) scale(${gvMap.z})`);
-function gvMapFit(vp, stage, L) {
+// Encaja el mapa. Si para verlo entero el texto quedaría ilegible, se queda a un tamaño legible
+// centrado en la nota principal (salvo «Ver todo», que lo encaja siempre).
+function gvMapFit(vp, stage, L, all = false) {
   const r = vp.getBoundingClientRect();
   if (!r.width) return;
-  gvMap.z = Math.max(0.15, Math.min(1.2, Math.min(r.width / L.width, r.height / L.height)));
-  gvMap.x = (r.width - L.width * gvMap.z) / 2;
-  gvMap.y = Math.max(0, (r.height - L.height * gvMap.z) / 2);
+  const fit = Math.min(1.2, Math.min((r.width - 20) / L.width, (r.height - 20) / L.height));
+  if (!all && fit < 0.6 && L.pos.root) {
+    const p = L.pos.root;
+    gvMap.z = 0.8;
+    gvMap.x = r.width / 2 - (p.x + p.w / 2) * gvMap.z;
+    gvMap.y = r.height / 2 - (p.y + p.h / 2) * gvMap.z;
+  } else {
+    gvMap.z = Math.max(0.1, fit);
+    gvMap.x = (r.width - L.width * gvMap.z) / 2;
+    gvMap.y = Math.max(0, (r.height - L.height * gvMap.z) / 2);
+  }
   gvMapApply(stage);
 }
 function gvMapZoom(vp, stage, f, cx, cy) {
@@ -440,7 +451,7 @@ function renderMosaico() {
   const crumb = inside
     ? el('div', { className: 'gvt-crumb' }, [gvBtn(`← ${by === 'carpeta' ? 'Carpetas' : by}`, () => { gvTile.open = null; renderMosaico(); }, 'link back-link'), el('strong', {}, ` ${gvTile.open}`), el('span', { className: 'muted' }, ` · ${plural(inside.length, 'nota', 'notas')} · toca un bloque para abrir la nota`)])
     : el('div', { className: 'gvt-crumb muted' }, `${plural(groups.size, 'bloque', 'bloques')} · ${plural(notes.length, 'nota', 'notas')} · toca un bloque para ver sus notas`);
-  box.replaceChildren(gvHead('mosaico', 'Cada bloque es un grupo de notas, de tamaño proporcional. El color dice cuánto está terminado o cuán al día está.'), bar, crumb, notes.length ? board : el('p', { className: 'empty' }, 'No hay notas en este origen.'), legend);
+  box.replaceChildren(gvHead('mosaico', 'Cada bloque es un grupo de notas, de tamaño proporcional. El color dice cuánto está terminado o cuán al día está.'), bar, crumb, notes.length ? el('div', { className: 'gvt-fill gv-fill' }, board) : el('p', { className: 'empty' }, 'No hay notas en este origen.'), legend);
 }
 
 Object.assign(VIEW_RENDER, { mapas: renderMapas, mosaico: renderMosaico });

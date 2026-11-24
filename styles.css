@@ -3267,12 +3267,23 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 :root[data-theme="creandoplus"] ::selection { background: rgb(255 189 89 / .5); }
 
 /* ---------- Vistas gráficas: Tableros, Matriz, Mapas, Mosaico, Línea de tiempo y Tarjetas ---------- */
-#views-pane main:has(.gv-view.active) { max-width: none; }
-.gv-head { margin-bottom: 10px; }
-.gv-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.3rem; }
-.gv-title svg { width: 22px; height: 22px; color: var(--accent); }
-.gv-sub { margin: 4px 0 0; max-width: 90ch; }
-.gv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+/* La vista ocupa todo el alto: cabecera y barra compactas arriba y el contenido (.gv-fill) llena el resto. */
+#views-pane main:has(.gv-view.active) { max-width: none; height: 100%; display: flex; flex-direction: column; padding: 8px 14px 10px; }
+#views-pane:has(.gv-view.active) > .footer { display: none; }
+.gv-view.active { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.gv-fill { flex: 1 1 auto; min-height: 280px; }
+.gv-head { margin-bottom: 6px; }
+.gv-head-row { display: flex; align-items: center; gap: 6px; }
+.gv-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.15rem; }
+.gv-title svg { width: 20px; height: 20px; color: var(--accent); }
+.gv-icon-btn { width: 30px; height: 30px; padding: 0; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--muted); font-size: 1rem; line-height: 1; }
+.gv-icon-btn:hover, .gv-icon-btn.on { color: var(--accent); border-color: var(--border); background: var(--surface); }
+.gv-sub { margin: 2px 0 0; max-width: 100ch; font-size: .85rem; }
+.gv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 8px; }
+.gv-bar > .primary { padding: 5px 14px; border-radius: 999px; font-size: .86rem; }
+/* Pantalla completa: la vista tapa paneles y pestañas. */
+:root.gv-full .gv-view.active { position: fixed; inset: 0; z-index: 80; background: var(--bg); padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
+:root.gv-full .capture-fab { display: none; }
 .gv-bar .view-switch { margin-bottom: 0; }
 .gv-chip { border-radius: 999px; padding: 5px 12px; font-size: .86rem; white-space: nowrap; }
 .gv-chip:hover { border-color: var(--accent); color: var(--accent); }
@@ -3287,10 +3298,12 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .gv-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
 .gv-preset { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; margin: 0; cursor: pointer; }
 .gv-preset:hover { border-color: var(--accent); }
-.gv-board { min-height: 300px; }
+.gv-board { align-items: stretch; overflow: auto; }
+.gv-board .nb-col { max-height: 100%; min-height: 0; }
+.gv-board .nb-cards { overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 2px; }
 
 /* Matriz */
-.gvm-wrap { overflow: auto; max-height: calc(100vh - 250px); border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.gvm-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .gvm { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: .85rem; }
 .gvm th { position: sticky; background: var(--side); color: var(--text); font-weight: 600; padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); white-space: nowrap; z-index: 1; }
 .gvm thead th { top: 0; }
@@ -3304,8 +3317,8 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .gvm-num { width: 100%; min-height: 44px; border: 0; background: none; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* Mapas de notas */
-.gvmap-wrap { position: relative; }
-.gvmap-viewport { position: relative; overflow: hidden; height: calc(100vh - 250px); min-height: 360px; border: 1px solid var(--border); border-radius: 12px; cursor: grab; touch-action: none; background: var(--surface); background-image: radial-gradient(color-mix(in srgb, var(--border) 80%, transparent) 1px, transparent 1px); background-size: 22px 22px; }
+.gvmap-wrap { position: relative; display: flex; }
+.gvmap-viewport { position: relative; flex: 1; overflow: hidden; min-height: 280px; border: 1px solid var(--border); border-radius: 12px; cursor: grab; touch-action: none; background: var(--surface); background-image: radial-gradient(color-mix(in srgb, var(--border) 80%, transparent) 1px, transparent 1px); background-size: 22px 22px; }
 .gvmap-viewport.panning { cursor: grabbing; }
 .gvmap-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .gvmap-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
@@ -3325,7 +3338,8 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 /* Mosaico */
 .gvt-crumb { margin-bottom: 8px; font-size: .88rem; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
 .gvt-crumb .back-link { margin: 0; }
-.gvt-board { position: relative; height: calc(100vh - 290px); min-height: 340px; border-radius: 12px; overflow: hidden; background: var(--surface); }
+.gvt-fill { display: flex; }
+.gvt-board { position: relative; flex: 1; min-height: 280px; border-radius: 12px; overflow: hidden; background: var(--surface); }
 .gvt-tile { position: absolute; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 2px; padding: 6px 8px; border: 2px solid var(--surface); border-radius: 8px; background: color-mix(in srgb, var(--tone, var(--accent)) 28%, var(--surface)); color: var(--text); text-align: left; overflow: hidden; cursor: pointer; transition: filter .12s; }
 .gvt-tile:hover { filter: brightness(.94); border-color: var(--tone); z-index: 1; }
 .gvt-name { font-weight: 600; font-size: .86rem; line-height: 1.25; overflow-wrap: anywhere; }
@@ -3336,8 +3350,8 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 .gvt-key::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 5px; vertical-align: -2px; border-radius: 3px; background: color-mix(in srgb, var(--tone) 45%, var(--surface)); }
 
 /* Línea de tiempo */
-.gvl-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; align-items: stretch; min-height: 320px; }
-.gvl-col { flex: 0 0 230px; display: flex; flex-direction: column; background: var(--side); border: 1px solid var(--border); border-radius: 12px; padding: 8px; max-height: calc(100vh - 260px); }
+.gvl-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; align-items: stretch; }
+.gvl-col { flex: 0 0 240px; display: flex; flex-direction: column; background: var(--side); border: 1px solid var(--border); border-radius: 12px; padding: 8px; min-height: 0; }
 .gvl-col.empty { flex-basis: 70px; }
 .gvl-col.empty .gvl-head span:first-child { writing-mode: vertical-rl; transform: rotate(180deg); }
 .gvl-col.past { opacity: .62; }
@@ -3376,4 +3390,22 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
   .gvl-col { flex-basis: 78vw; }
   .gvs-card { padding: 16px; }
   .gvs-g { min-width: 0; flex: 1 1 40%; }
+}
+
+/* Dibujos */
+.gvd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-content: start; overflow-y: auto; padding: 2px; }
+.gvd-card { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px; text-align: left; cursor: pointer; }
+.gvd-card:hover { border-color: var(--accent); }
+.gvd-frame { aspect-ratio: 4 / 3; border-radius: 8px; background: #fff; border: 1px solid var(--border); display: grid; place-items: center; overflow: hidden; }
+.gvd-thumb { max-width: 100%; max-height: 100%; object-fit: contain; }
+.gvd-name { font-weight: 600; font-size: .88rem; overflow-wrap: anywhere; }
+.gvd-date { font-size: .75rem; }
+/* Pantallas pequeñas: la barra se desplaza de lado en vez de ocupar varias filas */
+@media (max-width: 640px) {
+  #views-pane main:has(.gv-view.active) { padding: 6px 8px 8px; }
+  .gv-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .gv-bar::-webkit-scrollbar { display: none; }
+  .gv-bar .gv-spacer, .gv-bar .gv-count { display: none; }
+  .gv-search { flex: 0 0 200px; }
+  .gvd-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }

@@ -180,7 +180,7 @@ function renderLinea() {
     ]);
     return col;
   });
-  const strip = el('div', { className: 'gvl-strip' }, cols);
+  const strip = el('div', { className: 'gvl-strip gv-fill' }, cols);
   box.replaceChildren(
     gvHead('linea', mode === 'texto' ? 'Las fechas escritas en tus notas (vigencias, plazos, publicaciones en el Diario Oficial) en columnas por periodo. Toca una para abrir la nota en esa línea.' : 'Las propiedades con fecha de tus notas (creada, actualizada, vence…) en columnas por periodo.'),
     bar,

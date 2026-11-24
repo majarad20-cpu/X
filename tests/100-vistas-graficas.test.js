@@ -21,7 +21,7 @@ const notes = [
   p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
   await p.goto(url); await p.waitForTimeout(800);
   const shot = async (name) => out && p.screenshot({ path: `${out}/100-${name}.png` });
-  check('iconos tras Bases', await p.$$eval('.ribbon .rib[data-view]', (n) => n.map((x) => x.dataset.view)), ['canvas', 'bases', 'tableros', 'matriz', 'mapas', 'mosaico', 'linea', 'estudio']);
+  check('iconos tras Bases', await p.$$eval('.ribbon .rib[data-view]', (n) => n.map((x) => x.dataset.view)), ['canvas', 'bases', 'dibujos', 'tableros', 'matriz', 'mapas', 'mosaico', 'linea', 'estudio']);
 
   // Tableros
   await p.click('.ribbon [data-view="tableros"]'); await p.waitForTimeout(150);
@@ -95,6 +95,37 @@ const notes = [
   check('calificada', await p.evaluate(() => [gvStudy.queue.length, Object.values(state.settings.gv.srs).map((r) => r.box)]), [3, [1]]);
   await p.click('#view-estudio .seg >> text=Una por sección'); await p.waitForTimeout(150);
   check('tarjetas por sección', await p.evaluate(() => gvStudyCards(gvOpt('estudio', 'src'), 'seccion').map((x) => x.heading)), ['Delitos', 'Trazabilidad', 'Fondos']);
+
+  // Pantalla: el contenido llena el alto y hay pantalla completa
+  await p.click('.ribbon [data-view="mosaico"]'); await p.waitForTimeout(150);
+  check('el mosaico llena el alto', await p.evaluate(() => document.querySelector('#view-mosaico .gv-fill').getBoundingClientRect().height > 500), true);
+  await p.click('#view-mosaico .gv-icon-btn[aria-label="Pantalla completa"]'); await p.waitForTimeout(150);
+  check('pantalla completa', await p.evaluate(() => [document.documentElement.classList.contains('gv-full'), Math.round(document.querySelector('#view-mosaico').getBoundingClientRect().width)]), [true, 1400]);
+  await shot('mosaico-completo');
+  await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+  check('Esc sale', await p.evaluate(() => document.documentElement.classList.contains('gv-full')), false);
+  await p.click('#view-mosaico .gv-icon-btn[aria-label="Cómo se usa"]'); await p.waitForTimeout(100);
+  check('explicación a la vista', await p.evaluate(() => !!document.querySelector('#view-mosaico .gv-sub')), true);
+
+  // Dibujos
+  await p.evaluate(async () => {
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    await putFile({ id: 'dib1', name: 'Dibujo', type: 'image/png', data: png, width: 1, height: 1, createdAt: Date.now(), drawing: { type: 'excalidraw', version: 2, elements: [{ id: 'r', type: 'rectangle', x: 0, y: 0, width: 50, height: 40, strokeColor: '#1e1e1e', backgroundColor: 'transparent' }], appState: { viewBackgroundColor: '#ffffff' } } });
+    await putFile({ id: 'foto1', name: 'foto.png', type: 'image/png', data: png, width: 1, height: 1, createdAt: Date.now() });
+    const n = noteById('c');
+    n.body += '\n![Dibujo](img:dib1)\n![foto](img:foto1)\n';
+    dataRev++; save();
+  });
+  await p.click('.ribbon [data-view="dibujos"]'); await p.waitForTimeout(500);
+  check('galería de dibujos (sin fotos)', await p.$$eval('#view-dibujos .gvd-name', (n) => n.map((x) => x.textContent)), ['IVA en Servicios']);
+  await shot('dibujos');
+  await p.click('#view-dibujos .gvd-card'); await p.waitForTimeout(400);
+  check('abre el dibujo en su nota', await p.evaluate(() => [activeNote()?.id, !document.querySelector('#draw').hidden, xd.elements.length]), ['c', true, 1]);
+  await p.evaluate(() => closeDrawing());
+  await p.click('.ribbon [data-view="dibujos"]'); await p.waitForTimeout(200);
+  await p.click('#view-dibujos .gv-bar .primary'); await p.waitForTimeout(400);
+  check('nuevo dibujo en una nota nueva', await p.evaluate(() => [activeNote()?.path.startsWith('Dibujos/Dibujo '), !document.querySelector('#draw').hidden]), [true, true]);
+  await p.evaluate(() => closeDrawing());
 
   console.log('errors:', JSON.stringify(errs));
   await b.close();
