@@ -88,7 +88,7 @@ const GS_PROVIDERS = [
   },
   {
     type: 'view', label: 'Secciones', icon: 'command',
-    items: () => [...Object.entries(VIEW_TITLES), ['graph', 'Grafo']].map(([v, t]) => ({ id: v, title: t, text: '', icon: v === 'graph' ? 'graph' : VIEW_ICONS[v], sub: 'Sección' })),
+    items: () => [...Object.entries(VIEW_TITLES).filter(([v]) => !(typeof isViewHidden === 'function' && isViewHidden(v))), ['graph', 'Grafo']].map(([v, t]) => ({ id: v, title: t, text: '', icon: v === 'graph' ? 'graph' : VIEW_ICONS[v], sub: 'Sección' })),
     open: (it, { newTab }) => (it.id === 'graph' ? openTab({ type: 'graph' }, { newTab }) : showView(it.id, { newTab })),
   },
 ];

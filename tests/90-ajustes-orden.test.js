@@ -13,8 +13,8 @@ const url = process.argv[2];
   // Los ajustes van agrupados por tema, con todas las secciones de antes
   check('grupos', await p.evaluate(() => [...document.querySelectorAll('#view-settings > .set-group')].map((g) => [g.querySelector('.set-group-title').textContent, [...g.querySelectorAll(':scope > .section-title')].map((h) => h.textContent)])), [
     ['🎨 Apariencia', []],
-    ['✅ Tareas y enfoque', ['Tareas hechas', 'Pomodoro']],
-    ['📝 Notas', ['Notas diarias', 'Notas de voz', 'Notas en Google Drive', 'Obsidian: importar y exportar', 'Pasar diario, ideas y mapas a notas']],
+    ['✅ Tareas y enfoque', ['Tareas hechas', 'Pomodoro', 'Secciones']],
+    ['📝 Notas', ['Notas diarias', 'Notas de voz', 'Notas en Google Drive', 'Obsidian: importar y exportar', 'Pasar diario, ideas y mapas a notas', 'Especialidad']],
     ['📅 Calendario y correo', ['Google Calendar', 'Resumen semanal por Gmail']],
     ['💾 Datos y copias', ['Copia de seguridad', 'Copia en Google Drive', 'Espacio']],
   ]);

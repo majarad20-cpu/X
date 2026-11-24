@@ -21,7 +21,7 @@ const notes = [
   p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
   await p.goto(url); await p.waitForTimeout(800);
   const shot = async (name) => out && p.screenshot({ path: `${out}/100-${name}.png` });
-  check('iconos tras Bases', await p.$$eval('.ribbon .rib[data-view]', (n) => n.map((x) => x.dataset.view)), ['canvas', 'bases', 'dibujos', 'tableros', 'matriz', 'mapas', 'mosaico', 'linea', 'estudio']);
+  check('iconos tras Bases', await p.$$eval('.ribbon [data-group="notes"] .rib[data-view]', (n) => n.map((x) => x.dataset.view)), ['canvas', 'bases', 'dibujos', 'tableros', 'matriz', 'mapas', 'mosaico', 'linea', 'estudio']);
 
   // Tableros
   await p.click('.ribbon [data-view="tableros"]'); await p.waitForTimeout(150);

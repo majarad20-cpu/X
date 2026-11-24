@@ -3409,3 +3409,41 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
   .gv-search { flex: 0 0 200px; }
   .gvd-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
+
+/* ---------- Especialidad: Radar normativo y Contradicciones ---------- */
+.pro-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 8px; align-content: start; }
+.pro-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.pro-item[open] { border-color: var(--accent); }
+.pro-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; list-style: none; flex-wrap: wrap; }
+.pro-row::-webkit-details-marker { display: none; }
+.pro-row::before { content: "▸"; color: var(--muted); transition: transform .15s; }
+.pro-item[open] > .pro-row::before { transform: rotate(90deg); }
+.pro-key { flex: 1 1 260px; min-width: 0; }
+.pro-num { font-size: .8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pro-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.pro-badge { font-size: .74rem; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--border); background: var(--side); white-space: nowrap; }
+.pro-badge.s-derogada, .pro-badge.s-reemplazada { color: var(--high); border-color: color-mix(in srgb, var(--high) 45%, var(--border)); }
+.pro-badge.s-modificada, .pro-badge.s-postergada { color: var(--mid); border-color: color-mix(in srgb, var(--mid) 45%, var(--border)); }
+.pro-badge.s-futura { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.pro-badge.s-alerta { color: var(--mid); background: color-mix(in srgb, var(--mid) 12%, var(--surface)); }
+.pro-detail { padding: 2px 14px 12px 30px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.pro-arts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: .82rem; }
+.pro-art { border-radius: 6px; padding: 1px 7px; background: var(--accent-soft); color: var(--accent); font-variant-numeric: tabular-nums; }
+.pro-sub { margin: 6px 0 0; font-size: .8rem; font-weight: 600; color: var(--muted); }
+.pro-lines { display: flex; flex-direction: column; gap: 3px; width: 100%; }
+.pro-line { display: flex; gap: 8px; align-items: baseline; text-align: left; border: 0; border-left: 2px solid var(--border); border-radius: 0; background: none; padding: 3px 8px; font-size: .82rem; width: 100%; }
+.pro-line:hover { border-left-color: var(--accent); background: var(--side); }
+.pro-line strong { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pro-line .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pro-card { margin: 0; padding: 12px 14px; }
+.pro-card.k-gone { border-left: 4px solid var(--high); }
+.pro-card:not(.k-gone) { border-left: 4px solid var(--mid); }
+.pro-card-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.pro-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-top: 6px; }
+.pro-group { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--side); }
+.pro-vals { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+.pro-val { font-weight: 700; font-variant-numeric: tabular-nums; border-radius: 6px; padding: 0 7px; background: color-mix(in srgb, var(--mid) 18%, var(--surface)); }
+@media (max-width: 640px) { .pro-detail { padding-left: 12px; } .pro-line { flex-direction: column; gap: 0; } .pro-line strong { max-width: 100%; } }
+.pro-group .pro-line { flex-direction: column; gap: 0; }
+.pro-group .pro-line strong { max-width: 100%; }
+.pro-group .pro-line .muted { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }

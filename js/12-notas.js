@@ -1848,7 +1848,8 @@ function commands() {
   }
   COMMANDS_EXTRA.forEach((f) => list.push(...(f(note) || [])));
   list.push({ label: 'Cerrar la pestaña actual', action: () => closeTab(ws.active) });
-  Object.entries(VIEW_TITLES).forEach(([v, t]) => list.push({ label: `Ir a ${t}`, action: ({ newTab }) => showView(v, { newTab }) }));
+  // Las secciones ocultas en Ajustes (90-secciones.js) no salen.
+  Object.entries(VIEW_TITLES).filter(([v]) => !(typeof isViewHidden === 'function' && isViewHidden(v))).forEach(([v, t]) => list.push({ label: `Ir a ${t}`, action: ({ newTab }) => showView(v, { newTab }) }));
   return list;
 }
 

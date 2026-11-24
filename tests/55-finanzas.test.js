@@ -23,7 +23,7 @@ const mock = (initial) => {
     if (!ok) errs.push(`${label}: ${JSON.stringify(got)}`);
   };
   const c = await b.newContext({ viewport: { width: 1300, height: 900 }, locale: 'es-ES', acceptDownloads: true });
-  await c.addInitScript((s) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify(s)); }, { tasks: [], habits: [], settings: { notesWelcome: true }, updatedAt: 1 });
+  await c.addInitScript((s) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify(s)); }, { tasks: [], habits: [], settings: { notesWelcome: true, hiddenViews: [] }, updatedAt: 1 });
   await c.route(/fonts\.g/, (r) => r.abort());
   const p = await c.newPage();
   p.on('pageerror', (e) => errs.push(e.message));
