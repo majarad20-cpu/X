@@ -13,7 +13,7 @@ const now = new Date('2026-10-11T10:00:00').getTime();
   await p.clock.install({ time: new Date(now) });
   await p.goto(url); await p.clock.runFor(800);
   // Botón en la barra izquierda y pantalla vacía
-  await p.click('.ribbon .rib[data-view="bases"]'); await p.clock.runFor(50);
+  await p.evaluate(() => document.querySelector('.rib[data-view="bases"]').click()); await p.clock.runFor(50);
   check('sección sin bases', await p.evaluate(() => [activeTab().view, !!document.querySelector('#view-bases .empty')]), ['bases', true]);
   // Plantilla Biblioteca
   await p.click('#view-bases .bases-head button'); await p.clock.runFor(50);

@@ -137,7 +137,7 @@ async function canvasMain(b) {
   await c.addInitScript(() => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify({ tasks: [], habits: [], settings: { notesWelcome: true }, notes: [{ id: 'a', path: 'Proyectos/Web nueva', body: '# Web nueva\n- Diseño\n- Textos\n![[Otra]]', createdAt: 1, updatedAt: 1 }], updatedAt: 1 })); });
   const p = await c.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.goto(url); await p.waitForFunction(() => document.documentElement.dataset.ready);
-  await p.click('.rib[data-view=canvas]');
+  await p.click('[data-group=vistas] .tb-head'); await p.click('.rib[data-view=canvas]');
   await p.fill('#canvas-title', 'Plan del lanzamiento'); await p.press('#canvas-title', 'Enter'); await p.waitForTimeout(300);
   console.log('cards:', await p.$$eval('.cv-card', n => n.length));
   const vp = await (await p.$('#cv-viewport')).boundingBox();

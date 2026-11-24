@@ -38,7 +38,7 @@ for (const p of ['/opt/node-tools/node_modules/jszip/dist/jszip.min.js', () => p
   const cardBox = async (id) => (await p.$(`#cv-world .cv-card[data-id="${id}"]`)).boundingBox();
 
   // --- Lienzo nuevo y clic derecho en el fondo
-  await p.click('.rib[data-view=canvas]');
+  await p.click('[data-group=vistas] .tb-head'); await p.click('.rib[data-view=canvas]');
   await p.fill('#canvas-title', 'Pruebas'); await p.press('#canvas-title', 'Enter'); await p.waitForTimeout(300);
   const vp = await (await p.$('#cv-viewport')).boundingBox();
   await p.mouse.click(vp.x + 120, vp.y + 120, { button: 'right' });

@@ -21,8 +21,10 @@ const seed = {
   await p.clock.install({ time: new Date(now) });
   await p.goto(url); await p.clock.runFor(800);
   const views = (sel) => p.$$eval(sel, (n) => n.map((x) => x.dataset.view || x.id));
-  check('izquierda: solo notas', await views('.ribbon .rib'), ['rib-files', 'rib-daily', 'rib-weekly', 'rib-monthly', 'rib-random', 'rib-bookmarks', 'rib-switcher', 'rib-graph', 'canvas', 'bases', 'dibujos', 'tableros', 'matriz', 'mapas', 'mosaico', 'linea', 'estudio', 'radar', 'contradicciones', 'vigencia', 'calendario-trib', 'rib-pro-profile']);
-  check('escribir y pensar', await views('[data-group=write] .tb-menu .rib'), ['journal', 'ideas', 'stoa', 'ask', 'rib-think']);
+  check('izquierda: solo notas', await views('.ribbon .rib'), ['rib-files', 'rib-daily', 'rib-weekly', 'rib-monthly', 'rib-random', 'rib-bookmarks', 'rib-switcher']);
+  check('vistas', await views('[data-group=vistas] .tb-menu .rib'), ['rib-graph', 'mapas', 'mosaico', 'linea', 'bases', 'tableros', 'matriz', 'canvas', 'dibujos', 'ideas', 'estudio']);
+  check('especialidades', await p.$$eval('[data-group=especialidades] .tb-menu .rib .rib-label', (n) => n.map((x) => x.textContent)), ['Radar normativo', 'Contradicciones', 'Revisión de vigencia', 'Calendario tributario', 'Perfil', 'Panel estoico', 'Práctica diaria', 'Dicotomía del control', 'Registro de virtudes', 'Perfil', 'Nueva especialidad…', 'Administrar especialidades']);
+  check('escribir y pensar', await views('[data-group=write] .tb-menu .rib'), ['journal', 'ask', 'rib-think']);
   check('planificar', await views('[data-group=plan] .tb-menu .rib'), ['rib-compass', 'tasks', 'projects', 'inbox', 'review', 'plan']);
   check('seguimiento', await views('[data-group=focus] .tb-menu .rib'), ['timer', 'habits', 'progress', 'finanzas']);
   check('más', await views('[data-group=more] .tb-menu .rib'), ['rib-revision', 'shared', 'rib-palette', 'trash']);

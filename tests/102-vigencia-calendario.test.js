@@ -24,11 +24,11 @@ const notes = [
   await p.clock.install({ time: new Date('2026-11-24T10:00:00') });
   await p.goto(url); await p.clock.runFor(800);
   const shot = async (n) => out && p.screenshot({ path: `${out}/102-${n}.png` });
-  check('sección Contador', await p.$$eval('.ribbon [data-group="pro"] .rib', (n) => n.map((x) => x.dataset.view || x.id)), ['radar', 'contradicciones', 'vigencia', 'calendario-trib', 'rib-pro-profile']);
+  check('sección Contador', await p.$$eval('[data-group="especialidades"] .tb-col:first-child .rib', (n) => n.map((x) => x.dataset.view || x.id)), ['radar', 'contradicciones', 'vigencia', 'calendario-trib', 'rib-pro-profile']);
 
   // Revisión de vigencia
   check('cola', await p.evaluate(() => vgQueue({ t: 'all' }, 6).map((x) => [x.note.id, x.reasons.map((r) => r.id)])), [['a', ['llega', 'antigua']], ['c', ['derogada']], ['e', ['sin']]]);
-  await p.click('.ribbon [data-view="vigencia"]'); await p.clock.runFor(200);
+  await p.evaluate(() => document.querySelector('.rib[data-view="vigencia"]').click()); await p.clock.runFor(200);
   check('primera tarjeta', await p.evaluate(() => document.querySelector('#view-vigencia .vg-title').textContent), 'Ganancias de Capital');
   await shot('vigencia');
   await p.keyboard.press('1'); await p.clock.runFor(200);
@@ -44,7 +44,7 @@ const notes = [
   check('diciembre', dec, ['2026-12-10 obl Cotizaciones previsionales (pago no electrónico)', '2026-12-14 obl F29 (IVA, PPM y retenciones)', '2026-12-14 obl Cotizaciones previsionales (pago electrónico)', '2026-12-21 obl F29 por internet', '2026-12-31 alerta ⚠️ Prórroga del diésel']);
   check('vigencia futura', await p.evaluate(() => ctEvents('2027-10-01', '2027-10-31').filter((e) => e.kind !== 'obl').map((e) => `${e.date} ${e.kind}`)), ['2027-10-15 alerta', '2027-10-15 norma']);
   check('abril', await p.evaluate(() => ctEvents('2027-04-01', '2027-04-30').filter((e) => /F22|Contribuciones/.test(e.title)).map((e) => `${e.date} ${e.title}`)), ['2027-04-30 F22 Declaración anual de impuestos a la renta', '2027-04-30 Contribuciones de bienes raíces (cuotas)']);
-  await p.click('.ribbon [data-view="calendario-trib"]'); await p.clock.runFor(200);
+  await p.evaluate(() => document.querySelector('.rib[data-view="calendario-trib"]').click()); await p.clock.runFor(200);
   check('mes y próximos', await p.evaluate(() => [document.querySelector('#view-calendario-trib .ct-month').textContent, document.querySelectorAll('#view-calendario-trib .ct-up .ct-ev').length > 3]), ['noviembre de 2026', true]);
   await shot('calendario');
   await p.click('#view-calendario-trib .gv-chip >> text="›"'); await p.clock.runFor(200);

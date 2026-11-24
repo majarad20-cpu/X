@@ -17,7 +17,7 @@ const url = process.argv[2];
   p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
   await p.goto(url); await p.waitForTimeout(1000);
   check('notas reparadas', await p.evaluate(() => state.notes.map((n) => [n.path, typeof n.body]).sort()), [['ESTOICISMO/MOC', 'string'], ['ESTOICISMO/Séneca', 'string'], ['Sin texto', 'string']]);
-  await p.click('#rib-graph'); await p.waitForTimeout(1200);
+  await p.evaluate(() => document.querySelector('#rib-graph').click()); await p.waitForTimeout(1200);
   check('grafo abierto', await p.evaluate(() => { const c = document.getElementById('graph-canvas').getBoundingClientRect(); return [activeTab().type, c.width > 100 && c.height > 100]; }), ['graph', true]);
   check('sin adjuntos ni bloques como «sin crear»', await p.evaluate(() => buildGraphData({}).nodes.filter((n) => n.kind === 'ghost').map((n) => n.label)), ['Pendiente']);
   // Una nota que llega sin texto mientras se usa la app (p. ej. de la nube)

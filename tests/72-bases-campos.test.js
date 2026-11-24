@@ -15,7 +15,7 @@ const now = new Date('2026-10-11T10:00:00').getTime();
   check('parseFields', await p.evaluate(() => parseFields('autor, estado:opción[A|B], n:número')), [{ key: 'autor', type: 'texto', options: [] }, { key: 'estado', type: 'opción', options: ['A', 'B'] }, { key: 'n', type: 'número', options: [] }]);
   check('fieldsStr ida y vuelta', await p.evaluate(() => fieldsStr(parseFields('autor, estado:opción[A|B], hecho:casilla'))), 'autor, estado:opción[A|B], hecho:casilla');
   // Plantilla Biblioteca: campos con tipo
-  await p.click('.ribbon .rib[data-view="bases"]'); await p.clock.runFor(50);
+  await p.evaluate(() => document.querySelector('.rib[data-view="bases"]').click()); await p.clock.runFor(50);
   await p.click('#view-bases .bases-head button'); await p.clock.runFor(50);
   await p.click('#picker-list .pk-item:has-text("Biblioteca")'); await p.clock.runFor(100);
   check('campos de la plantilla', await p.evaluate(() => baseFields(noteById(bases.open)).map((f) => `${f.key}:${f.type}`)), ['autor:texto', 'estado:opción', 'puntuacion:número', 'genero:texto']);

@@ -15,7 +15,7 @@ const now = new Date('2026-10-11T10:00:00').getTime();
   await p.goto(url); await p.clock.runFor(800);
   check('valores', await p.evaluate(() => [impNum('1.234,5'), impNum('12,5'), impNum('3.5'), impDate('7/3/2024'), impGuessType('x', ['sí', 'no', 'sí']).type]), [1234.5, 12.5, 3.5, '2024-03-07', 'casilla']);
   // Importar un CSV como base nueva
-  await p.click('.ribbon .rib[data-view="bases"]'); await p.clock.runFor(50);
+  await p.evaluate(() => document.querySelector('.rib[data-view="bases"]').click()); await p.clock.runFor(50);
   await p.click('#view-bases .bases-head button'); await p.clock.runFor(50);
   const csv = 'Páginas;Título;Autor;Estado;Leído el\n600;Rayuela;Cortázar;Leído;12/03/2024\n400;Ficciones;Borges;Por leer;\n300;El túnel;Sabato;Leído;01/02/2023\n250;Aura;Fuentes;Leyendo;\n';
   const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click('#picker-list .pk-item:has-text("Importar desde un CSV")')]);
