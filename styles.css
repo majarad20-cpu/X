@@ -3265,3 +3265,115 @@ body:has(#entry-modal:not([hidden])) .picker-wrap { z-index: 57; }
 :root[data-theme="creandoplus"] .md th { background: #1a1a1a; color: #ffffff; border-color: #3a3a3a; }
 :root[data-theme="creandoplus"][data-theme] .md mark { background: #ffbd59; color: #1a1a1a; border-radius: 0; padding: 0 .15em; }
 :root[data-theme="creandoplus"] ::selection { background: rgb(255 189 89 / .5); }
+
+/* ---------- Vistas gráficas: Tableros, Matriz, Mapas, Mosaico, Línea de tiempo y Tarjetas ---------- */
+#views-pane main:has(.gv-view.active) { max-width: none; }
+.gv-head { margin-bottom: 10px; }
+.gv-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.3rem; }
+.gv-title svg { width: 22px; height: 22px; color: var(--accent); }
+.gv-sub { margin: 4px 0 0; max-width: 90ch; }
+.gv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.gv-bar .view-switch { margin-bottom: 0; }
+.gv-chip { border-radius: 999px; padding: 5px 12px; font-size: .86rem; white-space: nowrap; }
+.gv-chip:hover { border-color: var(--accent); color: var(--accent); }
+.gv-spacer { flex: 1; }
+.gv-count { font-size: .82rem; }
+.gv-seg .seg { font-size: .82rem; padding: 4px 11px; white-space: nowrap; }
+.gv-search { flex: 1 1 220px; max-width: 340px; padding: 5px 12px; border-radius: 999px; font-size: .86rem; }
+.gv-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+.gv-tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 12px; color: var(--muted); font-size: .9rem; }
+.gv-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.gv-tab.gv-add { color: var(--accent); }
+.gv-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
+.gv-preset { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; margin: 0; cursor: pointer; }
+.gv-preset:hover { border-color: var(--accent); }
+.gv-board { min-height: 300px; }
+
+/* Matriz */
+.gvm-wrap { overflow: auto; max-height: calc(100vh - 250px); border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.gvm { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: .85rem; }
+.gvm th { position: sticky; background: var(--side); color: var(--text); font-weight: 600; padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); white-space: nowrap; z-index: 1; }
+.gvm thead th { top: 0; }
+.gvm tbody th { left: 0; max-width: 220px; white-space: normal; }
+.gvm .gvm-corner { left: 0; z-index: 2; color: var(--muted); font-weight: 500; font-size: .78rem; }
+.gvm-total { margin-left: 6px; font-size: .72rem; color: var(--muted); font-weight: 400; }
+.gvm-cell { vertical-align: top; min-width: 170px; max-width: 260px; padding: 6px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); background: color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 22%), var(--surface)); }
+.gvm-cell.drop-over { outline: 2px dashed var(--accent); outline-offset: -3px; }
+.gvm-card { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 3px 7px; margin-bottom: 4px; cursor: grab; overflow-wrap: anywhere; line-height: 1.3; }
+.gvm-card:hover { border-color: var(--accent); color: var(--accent); }
+.gvm-num { width: 100%; min-height: 44px; border: 0; background: none; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Mapas de notas */
+.gvmap-wrap { position: relative; }
+.gvmap-viewport { position: relative; overflow: hidden; height: calc(100vh - 250px); min-height: 360px; border: 1px solid var(--border); border-radius: 12px; cursor: grab; touch-action: none; background: var(--surface); background-image: radial-gradient(color-mix(in srgb, var(--border) 80%, transparent) 1px, transparent 1px); background-size: 22px 22px; }
+.gvmap-viewport.panning { cursor: grabbing; }
+.gvmap-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gvmap-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.gvmap-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.gvmap-node { position: absolute; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font-size: 13px; line-height: 17px; text-align: center; overflow-wrap: anywhere; cursor: pointer; --bc: var(--accent); }
+.gvmap-node.b0 { --bc: var(--b0); } .gvmap-node.b1 { --bc: var(--b1); } .gvmap-node.b2 { --bc: var(--b2); }
+.gvmap-node.b3 { --bc: var(--b3); } .gvmap-node.b4 { --bc: var(--b4); } .gvmap-node.b5 { --bc: var(--b5); }
+.gvmap-node:hover { border-color: var(--bc); box-shadow: 0 2px 10px rgb(0 0 0 / .12); }
+.gvmap-node.k-root { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 15px; line-height: 20px; }
+.gvmap-node.k-head { border: 2px solid var(--bc); background: color-mix(in srgb, var(--bc) 12%, var(--surface)); font-weight: 600; }
+.gvmap-node.k-note { box-shadow: inset 3px 0 0 var(--bc); }
+.gvmap-node.k-missing { border-style: dashed; color: var(--muted); }
+.gvmap-fold { font-size: 11px; border-radius: 999px; padding: 0 6px; background: var(--bc); color: #fff; font-weight: 700; }
+.gvmap-zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; }
+.gvmap-zoom .gv-chip { background: var(--surface); box-shadow: 0 2px 8px rgb(0 0 0 / .12); }
+
+/* Mosaico */
+.gvt-crumb { margin-bottom: 8px; font-size: .88rem; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.gvt-crumb .back-link { margin: 0; }
+.gvt-board { position: relative; height: calc(100vh - 290px); min-height: 340px; border-radius: 12px; overflow: hidden; background: var(--surface); }
+.gvt-tile { position: absolute; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 2px; padding: 6px 8px; border: 2px solid var(--surface); border-radius: 8px; background: color-mix(in srgb, var(--tone, var(--accent)) 28%, var(--surface)); color: var(--text); text-align: left; overflow: hidden; cursor: pointer; transition: filter .12s; }
+.gvt-tile:hover { filter: brightness(.94); border-color: var(--tone); z-index: 1; }
+.gvt-name { font-weight: 600; font-size: .86rem; line-height: 1.25; overflow-wrap: anywhere; }
+.gvt-meta { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gvt-tile.tiny .gvt-meta { display: none; }
+.gvt-tile.tiny .gvt-name { font-size: .7rem; font-weight: 500; }
+.gvt-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: .8rem; }
+.gvt-key::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 5px; vertical-align: -2px; border-radius: 3px; background: color-mix(in srgb, var(--tone) 45%, var(--surface)); }
+
+/* Línea de tiempo */
+.gvl-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; align-items: stretch; min-height: 320px; }
+.gvl-col { flex: 0 0 230px; display: flex; flex-direction: column; background: var(--side); border: 1px solid var(--border); border-radius: 12px; padding: 8px; max-height: calc(100vh - 260px); }
+.gvl-col.empty { flex-basis: 70px; }
+.gvl-col.empty .gvl-head span:first-child { writing-mode: vertical-rl; transform: rotate(180deg); }
+.gvl-col.past { opacity: .62; }
+.gvl-col.now { border: 2px solid var(--accent); background: var(--accent-soft); opacity: 1; }
+.gvl-head { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .85rem; text-transform: capitalize; margin-bottom: 6px; }
+.gvl-now { font-size: .68rem; text-transform: none; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 0 7px; }
+.gvl-items { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+.gvl-item { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; text-align: left; padding: 6px 8px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); font-size: .8rem; line-height: 1.3; }
+.gvl-item:hover { border-color: var(--accent); }
+.gvl-item.past { border-left-color: var(--muted); }
+.gvl-item.today { border-left-color: var(--high); }
+.gvl-date { grid-row: span 2; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); white-space: nowrap; }
+.gvl-note { font-weight: 600; overflow-wrap: anywhere; }
+.gvl-text { color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Tarjetas de estudio */
+.gvs-stats { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; font-size: .88rem; color: var(--muted); }
+.gvs-stats strong { color: var(--text); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.gvs-card { max-width: 760px; margin: 0 auto 12px; padding: 22px 26px; min-height: 220px; }
+.gvs-card.shown { border-color: var(--accent); }
+.gvs-meta { font-size: .78rem; margin-bottom: 8px; display: flex; gap: 4px; align-items: baseline; }
+.gvs-meta .link { padding: 0; font-size: .78rem; }
+.gvs-front h3 { margin: 0; font-size: 1.35rem; }
+.gvs-sub { margin: 4px 0 0; font-size: 1.05rem; color: var(--accent); font-weight: 600; }
+.gvs-back { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); max-height: 50vh; overflow: auto; }
+.gvs-grades { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; max-width: 760px; margin: 0 auto; }
+.gvs-g { display: flex; flex-direction: column; align-items: center; min-width: 120px; padding: 8px 14px; }
+.gvs-g span { font-size: .74rem; }
+.gvs-g.g1:hover { border-color: var(--high); color: var(--high); }
+.gvs-g.g2:hover { border-color: var(--mid); color: var(--mid); }
+.gvs-g.g3:hover, .gvs-g.g4:hover { border-color: var(--low); color: var(--low); }
+.gvs-left { text-align: center; font-size: .8rem; }
+.gvs-done { max-width: 760px; margin: 0 auto; text-align: center; padding: 28px; }
+.gvs-big { font-size: 1.3rem; font-weight: 700; margin: 0 0 6px; }
+@media (max-width: 640px) {
+  .gvl-col { flex-basis: 78vw; }
+  .gvs-card { padding: 16px; }
+  .gvs-g { min-width: 0; flex: 1 1 40%; }
+}
