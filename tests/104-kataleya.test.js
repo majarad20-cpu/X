@@ -29,11 +29,14 @@ const mock = () => {
   const mcp = {
     callTool: async (server, tool, input) => {
       window.__mcp = (window.__mcp || []).concat([[server, tool, input]]);
+      if (tool === 'search_files' && /folder/.test(input.query)) return { payload: { files: [{ id: 'carpeta-k', title: 'Kataleya' }] } };
       if (tool === 'web_search') return { payload: { results: [
         { url: 'https://solutiontax.cl/blog', title: 'Blog de impuestos', publish_date: '2026-07-31', excerpts: ['El interés penal es 7,70 %'] },
         { url: 'https://www.sii.cl/normativa_legislacion/resoluciones/2026/reso88.pdf', title: 'Res. Ex. SII N° 88', publish_date: '2026-06-26', excerpts: ['Tasa penal diaria 0,0213888889%'] },
       ] } };
       if (tool === 'search_files') return { payload: { files: [{ id: 'f1', title: 'Contrato cliente.pdf', mimeType: 'application/pdf', modifiedTime: '2026-11-01T00:00:00Z', contentSnippet: 'cláusula de honorarios' }] } };
+      if (tool === 'create_file') return { payload: { id: 'nuevo', title: input.title, viewUrl: 'https://drive.google.com/file/d/nuevo/view' } };
+      if (tool === 'create_draft') return { payload: { id: 'd1', viewUrl: 'https://mail.google.com/mail/#drafts/d1' } };
       if (tool === 'read_file_content') return { payload: { title: 'Contrato cliente.pdf', fileContent: 'Texto del contrato', viewUrl: 'https://drive.google.com/file/d/f1/view' } };
       throw Object.assign(new Error('x'), { code: 'tool_error' });
     },
@@ -59,7 +62,7 @@ const mock = () => {
   await p.fill('#kata-input', '¿Qué pasa con el art. 107?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
   const call = await p.evaluate(() => window.__calls[0]);
   check('instrucciones', [/Eres \*\*Kataleya\*\*/.test(call.first), /Modo Contador/.test(call.first), /Memoria de Kataleya/.test(call.first), /Comercial Cachapoal/.test(call.first), /\[\[Ganancias de Capital\]\]/.test(call.first)], [true, true, true, true, true]);
-  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive', 'abrir_vista', 'proponer', 'crear_visual']);
+  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive', 'abrir_vista', 'proponer', 'crear_documento', 'crear_visual']);
   check('dentro de los límites', await p.evaluate(() => window.__sizes.filter(([, d, sch]) => d > 1000 || sch > 4000)), []);
   check('lectura', await p.evaluate(() => window.__res), { hits: ['Ganancias de Capital'], radar: [['DL 824', 1]] });
   check('propuestas pendientes', await p.$$eval('#kata-panel .kata-act.s-pending strong', (n) => n.map((x) => x.textContent)), ['📋 Tablero «Tributaria por estado»', '✏️ Dibujo «Cierre mensual»', '🗺️ Diagrama «IVA»', '☑ Tarea «Revisar F29 de Comercial Cachapoal»', '🧠 ¿Lo recuerdo?']);
@@ -100,6 +103,35 @@ const mock = () => {
   });
   check('respaldo sin herramientas', fb, ['Respuesta sin herramientas', 'Respondí sin mis herramientas (no pude usarlas en esta vista).', 'Has hecho muchas peticiones seguidas o llegaste a tu límite de uso. Prueba de nuevo en un rato. (código: rate_limited)']);
 
+  // Documentos: PDF, Google Doc, hoja y borrador de Gmail
+  const docs = await p.evaluate(async () => {
+    window.__pdf = null; window.__dl = null; window.__mcp = [];
+    exportNotesPdf = async (notes, o) => { window.__pdf = [notes[0].path, notes[0].body, o.title]; };
+    offerDownload = async (name, blob) => { window.__dl = [name, await blob.text()]; return true; };
+    kata.turns = [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'ok' }];
+    kata.pending.clear();
+    const T = kataTools(16).find((t) => t.name === 'crear_documento');
+    T.execute({ tipo: 'pdf', titulo: 'Cambio del art. 107 LIR', contenido: '## Qué cambia\nDesde el **01-01-2027** es ingreso no renta.', para: 'Comercial Cachapoal Ltda.', firma: 'Contador auditor', guardar_nota: true });
+    T.execute({ tipo: 'doc', titulo: 'Minuta', contenido: 'Texto con [[Ganancias de Capital]]' });
+    T.execute({ tipo: 'hoja', titulo: 'Vencimientos diciembre', columnas: ['Fecha', 'Obligación'], filas: [['2026-12-14', 'F29, en papel'], ['2026-12-21', 'F29 "internet"']] });
+    T.execute({ tipo: 'hoja', titulo: 'Vencimientos CSV', columnas: ['A'], filas: [[1]], destino: 'csv' });
+    T.execute({ tipo: 'correo', destinatarios: ['cliente@ejemplo.cl', 'no es correo'], asunto: 'F29 atrasado', cuerpo: 'Hola,\nle escribo por <su> F29.' });
+    const cards = [...kata.pending.values()].map((a) => a.label);
+    for (const id of [...kata.pending.keys()]) await kataApprove(id);
+    const calls = window.__mcp.filter((c) => c[1] !== 'search_files');
+    return { cards, status: [...kata.pending.values()].map((a) => a.status), pdf: window.__pdf, nota: !!state.notes.find((n) => n.path === 'Documentos/Cambio del art. 107 LIR'),
+      doc: [calls[0][2].title, calls[0][2].contentMimeType, calls[0][2].parentId, /<h1[^>]*>Minuta<\/h1>/.test(calls[0][2].textContent), /wikilink/.test(calls[0][2].textContent)],
+      hoja: [calls[1][2].contentMimeType, calls[1][2].textContent], csv: window.__dl,
+      correo: [calls[2][1], calls[2][2].to, calls[2][2].subject, calls[2][2].htmlBody] };
+  });
+  check('tarjetas de documentos', docs.cards, ['📄 PDF «Cambio del art. 107 LIR»', '📝 Google Doc «Minuta»', '📊 Hoja «Vencimientos diciembre»', '📊 Hoja «Vencimientos CSV»', '✉️ Borrador «F29 atrasado»']);
+  check('todas hechas', docs.status, ['done', 'done', 'done', 'done', 'done']);
+  check('pdf', [docs.pdf[0], /^# Cambio del art\. 107 LIR\n\*\d+ de \S+ de \d{4} · Para: Comercial Cachapoal Ltda\.\*\n\n## Qué cambia/.test(docs.pdf[1]), /---\nContador auditor$/.test(docs.pdf[1]), docs.nota], ['Cambio del art. 107 LIR', true, true, true]);
+  check('google doc', docs.doc, ['Minuta', 'text/html', 'carpeta-k', true, false]);
+  check('hoja', docs.hoja, ['text/csv', 'Fecha,Obligación\r\n2026-12-14,"F29, en papel"\r\n2026-12-21,"F29 ""internet"""']);
+  check('csv', [docs.csv[0], docs.csv[1].replace(/^\ufeff/, '')], ['Vencimientos CSV.csv', 'A\r\n1']);
+  check('borrador', docs.correo, ['create_draft', ['cliente@ejemplo.cl'], 'F29 atrasado', '<div>Hola,<br>le escribo por &lt;su&gt; F29.</div>']);
+
   // Internet y Drive
   await p.evaluate(() => { kata.turns = []; kata.pending.clear(); kataRender(); });
   const web = await p.evaluate(async () => {
@@ -111,7 +143,7 @@ const mock = () => {
     const f = await T('leer_archivo_drive').execute({ id: 'f1' });
     await T('buscar_notas').execute({ consulta: 'IVA' });
     kataRender();
-    return { names: tools.map((t) => t.name).filter((n) => /internet|pagina|drive/.test(n)), first: r.map((x) => [x.titulo, x.oficial]), drive: d.map((x) => x.titulo), file: f.texto, query: window.__mcp.find((c) => c[1] === 'search_files')[2].query, used: kata.turns.at(-1).used };
+    return { names: tools.map((t) => t.name).filter((n) => /internet|pagina|drive/.test(n)), first: r.map((x) => [x.titulo, x.oficial]), drive: d.map((x) => x.titulo), file: f.texto, query: window.__mcp.filter((c) => c[1] === 'search_files').at(-1)[2].query, used: kata.turns.at(-1).used };
   });
   check('herramientas externas', web.names, ['buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive']);
   check('oficial primero', web.first, [['Res. Ex. SII N° 88', true], ['Blog de impuestos', false]]);

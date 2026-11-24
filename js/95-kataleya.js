@@ -207,6 +207,7 @@ Reglas:
 ${kataWhereRules()}
 - Para crear o cambiar cosas usa las herramientas de acción: **no hacen nada solas**, dejan una propuesta que la persona aprueba con un botón. Di qué propusiste y nunca digas que ya está hecho.
 - Para mostrar algo, usa abrir_vista (no necesita aprobación).
+- Puedes ir más allá de las notas con crear_documento: PDF, Google Docs, hojas de cálculo (Google Sheets o CSV) y borradores de Gmail. Redacta con tono profesional, en español de Chile, con la norma, su vigencia y la fuente cuando corresponda; usa la firma de la sección «Firma» de tu memoria si existe; nunca pongas datos reales de clientes si no te los dio la persona. Los correos quedan como borrador: jamás digas que se enviaron.
 - Si la persona te cuenta algo que valga la pena recordar (una preferencia, una regla, una decisión), propón guardarlo con recordar.
 - Respeta la memoria: sus reglas y límites mandan.
 - Markdown sencillo: párrafos cortos y listas.
@@ -385,6 +386,32 @@ function kataToolsAll() {
       await gCall('Google Calendar', 'create_event', { summary: String(i.titulo), startTime: localStamp(start), endTime: localStamp(end), timeZone: tz(), description: `${i.detalle || ''}\n\nAgendado por Kataleya desde Enfoque.`.trim() });
       return { texto: 'Evento creado en Google Calendar' };
     }) },
+    { name: 'crear_pdf', description: 'Propone generar un PDF descargable (informe, carta, minuta, respuesta a un cliente). contenido en Markdown (títulos, listas, tablas); para y firma opcionales.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'string' }, guardar_nota: { type: 'boolean' } }, required: ['titulo', 'contenido'] }, execute: (i) => kataPropose(`📄 PDF «${i.titulo}»`, `${String(i.contenido).length} caracteres${i.para ? ` · para ${i.para}` : ''}${i.guardar_nota ? ' · y como nota' : ''}`, async () => {
+      const md = kataDocMarkdown(i);
+      await exportNotesPdf([{ id: `kata-${uid()}`, path: String(i.titulo), body: md }], { title: String(i.titulo) });
+      if (i.guardar_nota) {
+        if (!state.folders.includes('Documentos')) state.folders.push('Documentos');
+        createNote({ folder: 'Documentos', title: String(i.titulo).slice(0, 80), body: md, open: false, edit: false, log: false });
+      }
+      return { texto: 'PDF generado (revisa la descarga)' };
+    }) },
+    { name: 'crear_doc', description: 'Propone crear un documento editable de Google Docs en el Drive (carpeta «Kataleya» si existe). contenido en Markdown; para y firma opcionales.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'string' } }, required: ['titulo', 'contenido'] }, execute: (i) => kataPropose(`📝 Google Doc «${i.titulo}»`, `${String(i.contenido).length} caracteres · en tu Drive`, async () => {
+      const r = await kataDriveUpload(String(i.titulo), kataDocHtml(kataDocMarkdown(i)), 'text/html');
+      return { texto: `Documento creado en ${r.folder}`, abrir: r.url ? () => kataOpenUrl(r.url) : null };
+    }) },
+    { name: 'crear_hoja', description: 'Propone crear una hoja de cálculo: en el Drive como Google Sheets (destino «drive», por defecto) o como archivo CSV descargable (destino «csv»). columnas: los encabezados; filas: una lista por fila (números sin puntos de miles, con punto decimal).', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, columnas: { type: 'array', items: { type: 'string' } }, filas: { type: 'array', items: { type: 'array', items: { type: ['string', 'number'] } } }, destino: { type: 'string', enum: ['drive', 'csv'] } }, required: ['titulo', 'columnas', 'filas'] }, execute: (i) => { const rows = (i.filas || []).slice(0, 2000); return kataPropose(`📊 Hoja «${i.titulo}»`, `${plural((i.columnas || []).length, 'columna', 'columnas')} · ${plural(rows.length, 'fila', 'filas')} · ${i.destino === 'csv' ? 'CSV descargable' : 'Google Sheets en tu Drive'}`, async () => {
+      const csv = kataCsv((i.columnas || []).map(String), rows);
+      if (i.destino === 'csv') {
+        await offerDownload(`${pdfFileName(String(i.titulo))}.csv`, new Blob([`\ufeff${csv}`], { type: 'text/csv' }), 'text/csv');
+        return { texto: 'CSV generado (revisa la descarga)' };
+      }
+      const r = await kataDriveUpload(String(i.titulo), csv, 'text/csv');
+      return { texto: `Hoja creada en ${r.folder}`, abrir: r.url ? () => kataOpenUrl(r.url) : null };
+    }); } },
+    { name: 'crear_borrador', description: 'Propone dejar un BORRADOR de correo en Gmail (nunca se envía solo: la persona lo revisa y lo envía). para: direcciones de correo (puede ir vacío); cuerpo en texto simple, sin Markdown.', inputSchema: { type: 'object', properties: { para: { type: 'array', items: { type: 'string' } }, asunto: { type: 'string' }, cuerpo: { type: 'string' } }, required: ['asunto', 'cuerpo'] }, execute: (i) => { const to = (i.para || []).map(String).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)); return kataPropose(`✉️ Borrador «${i.asunto}»`, `${to.length ? `para ${to.join(', ')}` : 'sin destinatario'} · ${String(i.cuerpo).length} caracteres · no se envía`, async () => {
+      const r = await kataMcp('Gmail', 'create_draft', { to, subject: String(i.asunto), body: String(i.cuerpo), htmlBody: `<div>${kataEsc(i.cuerpo).replace(/\n/g, '<br>')}</div>`, includeSignature: true });
+      return { texto: 'Borrador guardado en Gmail', abrir: /^https:\/\//.test(r?.viewUrl || '') ? () => kataOpenUrl(r.viewUrl) : null };
+    }); } },
     { name: 'recordar', description: 'Propone guardar algo en tu memoria (preferencias, reglas, decisiones, datos de contexto). seccion: Sobre mí, Reglas de trabajo, Preferencias, Límites o Hechos y decisiones.', inputSchema: { type: 'object', properties: { hecho: { type: 'string' }, seccion: { type: 'string' } }, required: ['hecho'] }, execute: (i) => kataPropose('🧠 ¿Lo recuerdo?', `${i.hecho}${i.seccion ? ` (${i.seccion})` : ''}`, () => { kataRemember(String(i.hecho), String(i.seccion || 'Hechos y decisiones')); return { texto: 'Guardado en la memoria' }; }) },
   ];
   // Lo que lee la bóveda queda marcado como fuente 🗂.
@@ -427,6 +454,13 @@ function kataTools(max = 20) {
   out.push(group('proponer', 'Propone una acción que la persona aprueba con un botón (no se hace sola). accion: «tarea» (titulo, fecha, hora, prioridad), «nota» (titulo, contenido en Markdown, carpeta, moc), «alerta» (texto y nota afectada), «evento» en Google Calendar (titulo, fecha, hora, minutos, detalle), «recordar» en la memoria (hecho, seccion), «propiedad» (notas, propiedad, valor; vacío la quita) o «revisadas» (notas).', 'accion', { tarea: 'crear_tarea', nota: 'crear_nota', alerta: 'agregar_alerta', evento: 'agendar', recordar: 'recordar', propiedad: 'cambiar_propiedad', revisadas: 'marcar_revisadas' }, {
     titulo: { type: 'string' }, contenido: { type: 'string' }, carpeta: { type: 'string' }, moc: { type: 'string' }, fecha: { type: 'string', description: 'AAAA-MM-DD' }, hora: { type: 'string', description: 'HH:MM' }, prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] }, minutos: { type: 'number' }, detalle: { type: 'string' }, texto: { type: 'string' }, nota: { type: 'string' }, hecho: { type: 'string' }, seccion: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, propiedad: { type: 'string' }, valor: { type: 'string' },
   }));
+  out.push(group('crear_documento', 'Propone crear un documento fuera de las notas (se aprueba con un botón). tipo: «pdf» descargable (titulo, contenido en Markdown, para, firma, guardar_nota), «doc» de Google Docs en el Drive (titulo, contenido, para, firma), «hoja» de cálculo (titulo, columnas, filas; destino «drive» = Google Sheets o «csv» = descarga) o «correo»: un borrador de Gmail que nunca se envía solo (destinatarios, asunto, cuerpo en texto simple).', 'tipo', { pdf: 'crear_pdf', doc: 'crear_doc', hoja: 'crear_hoja', correo: 'crear_borrador' }, {
+    titulo: { type: 'string' }, contenido: { type: 'string' }, para: { type: 'string' }, firma: { type: 'string' }, guardar_nota: { type: 'boolean' }, columnas: { type: 'array', items: { type: 'string' } }, filas: { type: 'array', items: { type: 'array' } }, destino: { type: 'string', enum: ['drive', 'csv'] }, destinatarios: { type: 'array', items: { type: 'string' } }, asunto: { type: 'string' }, cuerpo: { type: 'string' },
+  }));
+  // En el grupo, los destinatarios del correo van en «destinatarios» (en el documento, «para» es un texto).
+  const docs = out.at(-1);
+  const docsRun = docs.execute;
+  docs.execute = (input = {}) => docsRun(input.tipo === 'correo' ? { ...input, para: input.destinatarios || [] } : input);
   out.push(group('crear_visual', 'Propone crear algo visual (se aprueba con un botón). tipo: «tablero» kanban (nombre, agrupar por una propiedad, columnas, mostrar, origen), «base» (nombre, carpeta, propiedades, tablero_por, fecha, icono), «diagrama» en Ideas y mapas (titulo, esquema como lista con sangría de dos espacios, forma: mindmap, radial, org, outline, fishbone, process, timeline, matrix, pyramid, concept, flow, venn, cycle, funnel o radar), «lienzo» (titulo, notas, textos, conexiones [{desde, hasta, etiqueta}] por índice) o «dibujo» editable (titulo; forma «flujo» con pasos —un paso que termina en «?» es una decisión— o «libre» con elementos {forma, x, y, ancho, alto, texto} y flechas [[desde, hasta]]).', 'tipo', { tablero: 'crear_tablero', base: 'crear_base', diagrama: 'crear_diagrama', lienzo: 'crear_lienzo', dibujo: 'crear_dibujo' }, {
     nombre: { type: 'string' }, titulo: { type: 'string' }, origen: KATA_SRC_SCHEMA, agrupar: { type: 'string' }, columnas: { type: 'array', items: { type: 'string' } }, mostrar: { type: 'array', items: { type: 'string' } }, carpeta: { type: 'string' }, propiedades: { type: 'array', items: { type: 'string' } }, tablero_por: { type: 'string' }, fecha: { type: 'string' }, icono: { type: 'string' }, esquema: { type: 'string' }, forma: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, textos: { type: 'array', items: { type: 'string' } }, conexiones: { type: 'array', items: { type: 'object' } }, pasos: { type: 'array', items: { type: 'string' } }, elementos: { type: 'array', items: { type: 'object' } }, flechas: { type: 'array', items: { type: 'array', items: { type: 'number' } } },
   }));
@@ -439,6 +473,35 @@ function kataTools(max = 20) {
     return visualRun(i);
   };
   return out.slice(0, Math.max(1, max));
+}
+
+// ---------- Documentos: PDF, Google Docs, hojas de cálculo y borradores de Gmail ----------
+// El documento se arma en Markdown (título, fecha, destinatario, cuerpo y firma) y sale como PDF
+// (el mismo generador de «Exportar a PDF»), como Google Doc o como hoja en el Drive (el conector de
+// Google Drive convierte el HTML o el CSV al subirlo) o como borrador de Gmail (nunca se envía solo).
+// Lo que va al Drive queda en la carpeta «Kataleya» si existe; si no, en «Mi unidad».
+const kataEsc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+function kataDocMarkdown(i) {
+  const fecha = new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+  return [`# ${String(i.titulo || 'Documento')}`, `*${fecha}${i.para ? ` · Para: ${i.para}` : ''}*`, '', String(i.contenido || ''), i.firma ? `\n---\n${String(i.firma)}` : ''].join('\n');
+}
+const kataDocHtml = (md) => `<!doctype html><html><head><meta charset="utf-8"></head><body>${renderMd(md, { noTasks: true, noExternalImages: true }).replace(/<a [^>]*class="[^"]*wikilink[^"]*"[^>]*>(.*?)<\/a>/g, '$1')}</body></html>`;
+async function kataDriveFolder() {
+  const r = await kataMcp(KATA_DRIVE, 'search_files', { query: "title = 'Kataleya' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", pageSize: 1, excludeContentSnippets: true }).catch(() => null);
+  return r?.files?.[0]?.id || null;
+}
+async function kataDriveUpload(title, text, mime) {
+  const parentId = await kataDriveFolder();
+  const r = await kataMcp(KATA_DRIVE, 'create_file', { title, textContent: text, contentMimeType: mime, ...(parentId ? { parentId } : {}) });
+  return { url: /^https:\/\//.test(r?.viewUrl || '') ? r.viewUrl : null, folder: parentId ? 'Kataleya' : 'Mi unidad' };
+}
+const kataOpenUrl = (u) => u && /^https:\/\//.test(u) && window.open(u, '_blank', 'noopener');
+function kataCsv(cols, rows) {
+  const cell = (v) => {
+    const t = String(v ?? '');
+    return /[",;\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  return [cols, ...rows].filter((r) => Array.isArray(r) && r.length).map((r) => r.map(cell).join(',')).join('\r\n');
 }
 
 // ---------- Dibujos generados ----------
@@ -610,7 +673,7 @@ function kataSaveConversation() {
 // ---------- Interfaz ----------
 const KATA_QUICK = {
   general: ['¿Qué tengo pendiente esta semana?', 'Resume la nota abierta', '¿Qué notas debería revisar hoy?', 'Hazme un tablero de mis notas por estado'],
-  contador: ['¿Qué vence en los próximos 15 días?', '¿Qué dice la bóveda sobre el art. 107 LIR?', '¿Salió algo nuevo de mis alertas abiertas? Búscalo en internet', '¿Hay contradicciones que deba revisar?', 'Dibújame el flujo del cierre contable mensual'],
+  contador: ['¿Qué vence en los próximos 15 días?', '¿Qué dice la bóveda sobre el art. 107 LIR?', '¿Salió algo nuevo de mis alertas abiertas? Búscalo en internet', 'Hazme un PDF para un cliente explicando el cambio del art. 107 LIR', 'Arma una hoja con los vencimientos de diciembre', 'Redacta un correo a un cliente por su F29 atrasado'],
   estoicismo: ['Ayúdame con la premeditatio de hoy', 'Hagamos el examen de la noche', 'Dame una cita de Séneca de mis notas', 'Separa esto en lo que depende de mí y lo que no'],
 };
 
@@ -703,7 +766,7 @@ function kataRender() {
   } else if (!kata.turns.length) {
     msgs.append(el('div', { className: 'kata-empty' }, [
       el('p', {}, '👋 Hola, soy Kataleya. ¿En qué te ayudo?'),
-      el('p', { className: 'muted' }, 'Busco en tu bóveda, te digo qué rige hoy y puedo crear tareas, notas, alertas, tableros, bases, diagramas, lienzos y dibujos (siempre con tu aprobación).'),
+      el('p', { className: 'muted' }, 'Busco en tu bóveda, en tu Drive y en internet; te digo qué rige hoy y puedo crear tareas, notas, alertas, tableros, bases, diagramas, lienzos, dibujos, PDF, Google Docs, hojas de cálculo y borradores de correo (siempre con tu aprobación).'),
       el('div', { className: 'kata-quick' }, (KATA_QUICK[mode] || KATA_QUICK.general).map((q) => btn(q, '', () => kataSend(q), 'kata-chip'))),
     ]));
   } else {
