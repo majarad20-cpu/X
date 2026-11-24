@@ -25,7 +25,19 @@ const mock = () => {
   };
   sample.limits = async () => ({ tools: true });
   sample.json = async () => ({});
-  window.claude = { use: async (k) => (k === 'sample' ? sample : null) };
+  const mcp = {
+    callTool: async (server, tool, input) => {
+      window.__mcp = (window.__mcp || []).concat([[server, tool, input]]);
+      if (tool === 'web_search') return { payload: { results: [
+        { url: 'https://solutiontax.cl/blog', title: 'Blog de impuestos', publish_date: '2026-07-31', excerpts: ['El interés penal es 7,70 %'] },
+        { url: 'https://www.sii.cl/normativa_legislacion/resoluciones/2026/reso88.pdf', title: 'Res. Ex. SII N° 88', publish_date: '2026-06-26', excerpts: ['Tasa penal diaria 0,0213888889%'] },
+      ] } };
+      if (tool === 'search_files') return { payload: { files: [{ id: 'f1', title: 'Contrato cliente.pdf', mimeType: 'application/pdf', modifiedTime: '2026-11-01T00:00:00Z', contentSnippet: 'cláusula de honorarios' }] } };
+      if (tool === 'read_file_content') return { payload: { title: 'Contrato cliente.pdf', fileContent: 'Texto del contrato', viewUrl: 'https://drive.google.com/file/d/f1/view' } };
+      throw Object.assign(new Error('x'), { code: 'tool_error' });
+    },
+  };
+  window.claude = { use: async (k) => (k === 'sample' ? sample : k === 'mcp' ? mcp : null) };
 };
 (async () => {
   const b = await chromium.launch(launchOptions);
@@ -68,6 +80,28 @@ const mock = () => {
   await p.fill('#kata-panel .kata-import', 'Trabajo con pymes agrícolas\nUso régimen Pro Pyme');
   await p.click('#kata-panel .kata-empty .primary'); await p.waitForTimeout(150);
   check('memoria importada', await p.evaluate(() => /## Importado de Claude \(\d{4}-\d{2}-\d{2}\)\n- Trabajo con pymes agrícolas\n- Uso régimen Pro Pyme/.test(findNoteByName('Sistema/Memoria de Kataleya').body)), true);
+  // Internet y Drive
+  await p.evaluate(() => { kata.turns = []; kata.pending.clear(); kataRender(); });
+  const web = await p.evaluate(async () => {
+    kata.turns.push({ role: 'user', content: 'x' }, { role: 'assistant', content: 'Respuesta' });
+    const tools = kataTools();
+    const T = (n) => tools.find((t) => t.name === n);
+    const r = await T('buscar_en_internet').execute({ objetivo: 'interés penal 2027', consultas: ['interés penal SII 2027'] });
+    const d = await T('buscar_en_drive').execute({ consulta: "contrato d'agua" });
+    const f = await T('leer_archivo_drive').execute({ id: 'f1' });
+    await T('buscar_notas').execute({ consulta: 'IVA' });
+    kataRender();
+    return { names: tools.map((t) => t.name).filter((n) => /internet|pagina|drive/.test(n)), first: r.map((x) => [x.titulo, x.oficial]), drive: d.map((x) => x.titulo), file: f.texto, query: window.__mcp.find((c) => c[1] === 'search_files')[2].query, used: kata.turns.at(-1).used };
+  });
+  check('herramientas externas', web.names, ['buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive']);
+  check('oficial primero', web.first, [['Res. Ex. SII N° 88', true], ['Blog de impuestos', false]]);
+  check('drive', [web.drive, web.file, web.query], [['Contrato cliente.pdf'], 'Texto del contrato', "fullText contains 'contrato d\\'agua' and trashed = false"]);
+  check('fuentes usadas', web.used, ['web', 'drive', 'boveda']);
+  check('chips y enlaces', await p.evaluate(() => [[...document.querySelectorAll('#kata-panel .kata-chip-src')].map((x) => x.textContent), [...document.querySelectorAll('#kata-panel .kata-refs li')].map((x) => x.textContent)]), [['🌐 Internet', '📁 Drive', '🗂 Bóveda'], ['Res. Ex. SII N° 88 · sii.cl · 2026-06-26 ✓ oficial', 'Blog de impuestos · solutiontax.cl · 2026-07-31', '📁 Contrato cliente.pdf · drive.google.com']]);
+  if (out) await p.screenshot({ path: `${out}/104-kataleya-fuentes.png` });
+  await p.click('#kata-panel .kata-src >> text=Internet'); await p.waitForTimeout(100);
+  check('apagar internet', await p.evaluate(() => [kataCfg().web, kataTools().some((t) => t.name === 'buscar_en_internet'), /Internet está apagado/.test(kataRules())]), ['off', false, true]);
+  check('reglas de dónde buscar', await p.evaluate(() => { kataCfg().web = 'auto'; const r = kataRules(); return [/1\. 🗂 \*\*Bóveda\*\*/.test(r), /3\. 🌐 \*\*Internet\*\*: solo si/.test(r), /agregar_alerta/.test(r)]; }), [true, true, true]);
   await p.keyboard.press('Alt+k'); await p.waitForTimeout(100);
   check('cerrar con Alt+K', await p.evaluate(() => document.querySelector('#kata-panel').hidden), true);
   console.log('errors:', JSON.stringify(errs));

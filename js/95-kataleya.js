@@ -21,6 +21,42 @@ const kataCfg = () => {
   return state.settings.kata;
 };
 
+// ---------- Fuentes: bóveda (siempre), internet y Drive ----------
+// Internet usa el conector de búsqueda web de la cuenta (Parallel Search) y Drive el de Google Drive,
+// los dos con las credenciales de quien usa la app. «auto»: Kataleya decide según las reglas (primero la
+// bóveda); «off»: esa fuente no se le ofrece.
+const KATA_WEB = 'Parallel Search';
+const KATA_DRIVE = 'Google Drive';
+const KATA_OFFICIAL = ['bcn.cl', 'leychile.cl', 'diariooficial.interior.gob.cl', 'sii.cl', 'uaf.cl', 'cmfchile.cl', 'dt.gob.cl', 'spensiones.cl', 'suseso.cl', 'tgr.cl', 'previred.com', 'hacienda.cl', 'bcentral.cl', 'ine.gob.cl', 'contach.cl', 'ifrs.org', 'iaasb.org', 'theiia.org', 'camara.cl', 'senado.cl', 'gob.cl'];
+const kataOfficial = (url) => {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, '');
+    return KATA_OFFICIAL.some((d) => h === d || h.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+};
+const kataSource = (k) => (['auto', 'off'].includes(kataCfg()[k]) ? kataCfg()[k] : 'auto');
+const kataSearchId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}${Math.random()}`).replace(/-/g, '');
+let kataMcpNs;
+async function kataMcp(server, tool, input) {
+  if (kataMcpNs === undefined) kataMcpNs = (await window.claude?.use?.('mcp').catch(() => null)) || null;
+  if (!kataMcpNs) throw new Error('Esta fuente solo funciona al abrir Enfoque desde Claude.');
+  try {
+    const r = await kataMcpNs.callTool(server, tool, input);
+    return r?.payload ?? r;
+  } catch (e) {
+    const fix = { server_not_connected: `agrega «${server}» en claude.ai › Configuración › Conectores`, needs_reauth: `vuelve a conectar «${server}» en claude.ai › Configuración › Conectores`, not_in_manifest: `permite «${server}» en los permisos de esta página`, approval_required: 'aprueba el aviso de permiso', blocked_by_policy: 'tu organización no lo permite' }[e?.code];
+    throw new Error(fix ? `No pude usar ${server}: ${fix}.` : `No pude usar ${server} (${e?.code || 'error'}): ${e?.message || ''}`.trim());
+  }
+}
+const kataMark = (k, ref) => {
+  const t = kata.turns.at(-1);
+  if (!t || t.role !== 'assistant') return;
+  (t.used ||= []).includes(k) || t.used.push(k);
+  if (ref) (t.refs ||= []).some((r) => r.url === ref.url) || t.refs.push(ref);
+};
+
 // ---------- Memoria ----------
 const KATA_MEMORY_SEED = `---
 tipo: sistema
@@ -148,6 +184,19 @@ function kataContext() {
   return '';
 }
 
+// Dónde buscar: siempre primero la bóveda; Drive e internet solo cuando corresponde.
+function kataWhereRules() {
+  const web = kataSource('web') !== 'off';
+  const drive = kataSource('drive') !== 'off';
+  return `- Dónde buscar, en este orden:
+  1. 🗂 **Bóveda** (tus notas): siempre primero.
+  ${drive ? '2. 📁 **Drive**: si la persona habla de un archivo o documento (PDF, Word, planilla) que no es una nota, o la bóveda no lo tiene.' : '2. (Drive no está disponible ahora.)'}
+  ${web ? `3. 🌐 **Internet**: solo si la bóveda no lo cubre, si el dato puede haber cambiado (tasas, plazos, valores como UF o UTM, normas o circulares recientes, alertas abiertas) o si la persona lo pide. Prefiere fuentes oficiales: ${KATA_OFFICIAL.slice(0, 12).join(', ')}…; blogs y prensa solo de apoyo.` : '3. (Internet está apagado: no busques afuera; si hace falta, dilo.)'}
+- Cuando uses más de una fuente, sepáralas en la respuesta: «🗂 En tu bóveda: …» y «🌐 En internet (fuente, fecha): …» (y «📁 En tu Drive: …»).
+- Si lo de internet contradice o actualiza la bóveda, dilo con claridad y propone **agregar_alerta** (o guardar la fuente en la carpeta «Bandeja IA» con crear_nota, con el enlace, la fecha y el extracto). Nunca cambies una nota con datos de internet sin que la persona lo apruebe.
+- Cita cada dato de internet con su enlace y fecha de publicación.`;
+}
+
 function kataRules() {
   return `Eres **Kataleya**, la asistente de Enfoque, la app de notas y productividad de esta persona. Hablas en español de Chile, cercana y profesional, breve y concreta. Te presentas como Kataleya si te preguntan.
 
@@ -155,6 +204,7 @@ Hoy es ${new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric
 
 Reglas:
 - Busca en las notas antes de responder. Cita cada dato con [[Título exacto de la nota]]. Si no encuentras algo, dilo; no inventes.
+${kataWhereRules()}
 - Para crear o cambiar cosas usa las herramientas de acción: **no hacen nada solas**, dejan una propuesta que la persona aprueba con un botón. Di qué propusiste y nunca digas que ya está hecho.
 - Para mostrar algo, usa abrir_vista (no necesita aprobación).
 - Si la persona te cuenta algo que valga la pena recordar (una preferencia, una regla, una decisión), propón guardarlo con recordar.
@@ -226,6 +276,46 @@ function kataTools() {
     { name: 'calendario', description: 'Vencimientos tributarios, alertas con fecha y vigencias futuras de los próximos días (por defecto 30).', inputSchema: { type: 'object', properties: { dias: { type: 'number' } } }, execute: ({ dias = 30 } = {}) => ctEvents(dateKey(), dateKey(new Date(Date.now() + Math.min(366, Number(dias) || 30) * 864e5))).map((e) => `${e.date} · ${e.title}${e.detail ? ` · ${e.detail}` : ''}`).slice(0, 60) },
     { name: 'notas_por_revisar', description: 'Cola de revisión de vigencia: notas que conviene revisar y por qué.', inputSchema: { type: 'object', properties: { meses: { type: 'number' } } }, execute: ({ meses = 6 } = {}) => vgQueue({ t: 'all' }, Number(meses) || 6).slice(0, 25).map((x) => ({ nota: baseName(x.note.path), motivos: x.reasons.map((r) => r.text) })) },
   ] : [];
+  const ext = [];
+  if (kataSource('web') !== 'off') {
+    ext.push(
+      { name: 'buscar_en_internet', description: 'Busca en internet (datos actualizados). objetivo: qué se quiere saber; consultas: 2 o 3 búsquedas cortas (3 a 6 palabras), pueden usar site:sii.cl o site:bcn.cl. Devuelve hasta 6 resultados con título, url, fecha, si es fuente oficial y un extracto.', inputSchema: { type: 'object', properties: { objetivo: { type: 'string' }, consultas: { type: 'array', items: { type: 'string' } } }, required: ['objetivo', 'consultas'] }, execute: async (i) => {
+        kataProgress(`🌐 Buscando en internet: ${String(i.objetivo).slice(0, 50)}…`);
+        const r = await kataMcp(KATA_WEB, 'web_search', { objective: String(i.objetivo), search_queries: (i.consultas || []).map(String).slice(0, 4), session_id: kataSearchId });
+        const list = (r?.results || []).map((x) => ({ titulo: x.title, url: x.url, fecha: x.publish_date || null, oficial: kataOfficial(x.url), extracto: (x.excerpts || []).join(' … ').replace(/\s+/g, ' ').slice(0, 1800) }));
+        list.sort((a, b) => b.oficial - a.oficial);
+        const top = list.slice(0, 6);
+        top.forEach((x) => kataMark('web', { title: x.titulo, url: x.url, date: x.fecha, official: x.oficial }));
+        if (!top.length) kataMark('web');
+        return top;
+      } },
+      { name: 'leer_pagina', description: 'Lee una página web concreta (cuando los extractos no bastan). objetivo: qué buscar en ella.', inputSchema: { type: 'object', properties: { url: { type: 'string' }, objetivo: { type: 'string' } }, required: ['url'] }, execute: async (i) => {
+        if (!/^https:\/\//.test(String(i.url))) throw new Error('Solo leo páginas https');
+        kataProgress(`🌐 Leyendo ${String(i.url).replace(/^https:\/\/(www\.)?/, '').slice(0, 50)}…`);
+        const r = await kataMcp(KATA_WEB, 'web_fetch', { urls: [String(i.url)], objective: String(i.objetivo || '').slice(0, 200) || null, session_id: kataSearchId });
+        const x = (r?.results || [])[0] || {};
+        kataMark('web', { title: x.title || i.url, url: String(i.url), date: x.publish_date || null, official: kataOfficial(String(i.url)) });
+        return { titulo: x.title || null, fecha: x.publish_date || null, texto: (x.excerpts || [x.full_content || '']).join(' … ').slice(0, 6000) };
+      } }
+    );
+  }
+  if (kataSource('drive') !== 'off') {
+    ext.push(
+      { name: 'buscar_en_drive', description: 'Busca archivos en tu Google Drive (PDF, Word, planillas, documentos) por palabras de su título o contenido. Devuelve hasta 8 con id, título, tipo, fecha y un extracto.', inputSchema: { type: 'object', properties: { consulta: { type: 'string' }, solo_titulo: { type: 'boolean' } }, required: ['consulta'] }, execute: async (i) => {
+        const q = String(i.consulta).replace(/\\/g, '').replace(/'/g, "\\'").slice(0, 80);
+        kataProgress(`📁 Buscando en tu Drive: ${q}…`);
+        const r = await kataMcp(KATA_DRIVE, 'search_files', { query: `${i.solo_titulo ? 'title' : 'fullText'} contains '${q}' and trashed = false`, pageSize: 8, snippetVerbosity: 'BRIEF' });
+        kataMark('drive');
+        return (r?.files || []).map((f) => ({ id: f.id, titulo: f.title, tipo: f.mimeType, modificado: String(f.modifiedTime || '').slice(0, 10), extracto: String(f.contentSnippet || '').replace(/\s+/g, ' ').slice(0, 500) }));
+      } },
+      { name: 'leer_archivo_drive', description: 'Lee el contenido de un archivo de Drive por su id (de buscar_en_drive): PDF, Word, planilla, presentación o texto. Hasta 9.000 caracteres.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, execute: async (i) => {
+        kataProgress('📁 Leyendo el archivo de Drive…');
+        const r = await kataMcp(KATA_DRIVE, 'read_file_content', { fileId: String(i.id) });
+        kataMark('drive', r?.viewUrl ? { title: `📁 ${r.title || 'Archivo de Drive'}`, url: r.viewUrl, date: null, official: false, drive: true } : null);
+        return { titulo: r?.title || null, texto: String(r?.fileContent || '').slice(0, 9000) };
+      } }
+    );
+  }
   const views = Object.keys(VIEW_TITLES).filter((v) => !['settings'].includes(v));
   const actions = [
     { name: 'abrir_vista', description: `Abre una vista o una nota (no necesita aprobación). vista: una de ${views.join(', ')}; o nota: título. origen opcional para vistas gráficas; buscar opcional para radar o línea de tiempo.`, inputSchema: { type: 'object', properties: { vista: { type: 'string' }, nota: { type: 'string' }, origen: KATA_SRC_SCHEMA, buscar: { type: 'string' } } }, execute: (i) => {
@@ -295,7 +385,15 @@ function kataTools() {
     }) },
     { name: 'recordar', description: 'Propone guardar algo en tu memoria (preferencias, reglas, decisiones, datos de contexto). seccion: Sobre mí, Reglas de trabajo, Preferencias, Límites o Hechos y decisiones.', inputSchema: { type: 'object', properties: { hecho: { type: 'string' }, seccion: { type: 'string' } }, required: ['hecho'] }, execute: (i) => kataPropose('🧠 ¿Lo recuerdo?', `${i.hecho}${i.seccion ? ` (${i.seccion})` : ''}`, () => { kataRemember(String(i.hecho), String(i.seccion || 'Hechos y decisiones')); return { texto: 'Guardado en la memoria' }; }) },
   ];
-  return [...read, ...pro, ...actions];
+  // Lo que lee la bóveda queda marcado como fuente 🗂.
+  [...read, ...pro].forEach((t) => {
+    const run = t.execute;
+    t.execute = (input) => {
+      kataMark('boveda');
+      return run(input);
+    };
+  });
+  return [...read, ...pro, ...ext, ...actions];
 }
 
 // ---------- Dibujos generados ----------
@@ -459,7 +557,7 @@ function kataSaveConversation() {
 // ---------- Interfaz ----------
 const KATA_QUICK = {
   general: ['¿Qué tengo pendiente esta semana?', 'Resume la nota abierta', '¿Qué notas debería revisar hoy?', 'Hazme un tablero de mis notas por estado'],
-  contador: ['¿Qué vence en los próximos 15 días?', '¿Qué dice la bóveda sobre el art. 107 LIR?', '¿Hay contradicciones que deba revisar?', 'Prepara una respuesta para un cliente sobre esta nota', 'Dibújame el flujo del cierre contable mensual'],
+  contador: ['¿Qué vence en los próximos 15 días?', '¿Qué dice la bóveda sobre el art. 107 LIR?', '¿Salió algo nuevo de mis alertas abiertas? Búscalo en internet', '¿Hay contradicciones que deba revisar?', 'Dibújame el flujo del cierre contable mensual'],
   estoicismo: ['Ayúdame con la premeditatio de hoy', 'Hagamos el examen de la noche', 'Dame una cita de Séneca de mis notas', 'Separa esto en lo que depende de mí y lo que no'],
 };
 
@@ -513,6 +611,16 @@ function kataRender() {
   ]);
   const ctx = kataSeeing();
   const ctxBar = ctx ? el('div', { className: 'kata-ctx', title: 'Lo que Kataleya tiene a la vista' }, `Viendo: ${ctx}`) : '';
+  const srcBtn = (k, icon, label) => {
+    const on = kataSource(k) !== 'off';
+    const b = btn(`${icon} ${label}${on ? '' : ' (apagado)'}`, on ? `${label}: Kataleya lo usa cuando hace falta. Toca para apagarlo.` : `${label}: apagado. Toca para encenderlo.`, () => {
+      kataCfg()[k] = on ? 'off' : 'auto';
+      save();
+      kataRender();
+    }, `kata-src${on ? ' on' : ''}`);
+    return b;
+  };
+  const srcBar = el('div', { className: 'kata-srcbar' }, [el('span', { className: 'muted' }, 'Fuentes:'), el('span', { className: 'kata-src on fixed', title: 'Tus notas: siempre la primera fuente' }, '🗂 Bóveda'), srcBtn('drive', '📁', 'Drive'), srcBtn('web', '🌐', 'Internet')]);
   const msgs = el('div', { id: 'kata-messages', className: 'kata-messages' });
   if (!aiReady()) {
     msgs.append(el('div', { className: 'kata-empty' }, [el('p', {}, '👋 Soy Kataleya.'), el('p', { className: 'muted' }, 'Funciono cuando abres Enfoque desde Claude (con permiso para usar Claude). Aquí puedes revisar mi memoria con 🧠.')]));
@@ -559,7 +667,20 @@ function kataRender() {
           a.status === 'pending' ? el('div', { className: 'kata-row' }, [btn('Aprobar', '', () => kataApprove(id), 'primary'), btn('Descartar', '', () => kataReject(id), 'link')]) : el('div', { className: 'kata-row' }, [el('span', {}, status), a.status === 'done' && a.result?.abrir ? btn('Abrir', '', () => a.result.abrir(), 'link') : '']),
         ]);
       });
-      const bubble = el('div', { className: 'kata-msg assistant' }, [md, ...acts, t.error ? el('p', { className: 'ask-error' }, t.error) : '']);
+      const used = (t.used || []).map((k) => ({ boveda: '🗂 Bóveda', drive: '📁 Drive', web: '🌐 Internet' })[k]);
+      const refs = (t.refs || []).filter((r) => /^https:\/\//.test(r.url));
+      const srcs = used.length ? el('div', { className: 'kata-used' }, [
+        el('div', { className: 'kata-used-chips' }, [el('span', { className: 'muted' }, 'Consultó:'), ...used.map((u) => el('span', { className: 'kata-chip-src' }, u))]),
+        refs.length ? el('ol', { className: 'kata-refs' }, refs.slice(0, 8).map((r) => {
+          let host = '';
+          try {
+            host = new URL(r.url).hostname.replace(/^www\./, '');
+          } catch {}
+          const a = el('a', { href: r.url, target: '_blank', rel: 'noopener noreferrer' }, r.title || host);
+          return el('li', {}, [a, el('span', { className: 'muted' }, ` · ${host}${r.date ? ` · ${r.date}` : ''}`), r.official ? el('span', { className: 'kata-official' }, ' ✓ oficial') : '']);
+        })) : '',
+      ]) : '';
+      const bubble = el('div', { className: 'kata-msg assistant' }, [md, srcs, ...acts, t.error ? el('p', { className: 'ask-error' }, t.error) : '']);
       msgs.append(bubble);
     });
   }
@@ -590,7 +711,7 @@ function kataRender() {
     r.start();
   }, 'kata-icon kata-mic') : '';
   const foot = el('footer', { className: 'kata-foot' }, [el('div', { id: 'kata-progress', className: 'muted kata-progress' }), el('div', { className: 'kata-compose' }, [input, mic, send])]);
-  panel.replaceChildren(head, ctxBar, msgs, foot);
+  panel.replaceChildren(head, ctxBar, srcBar, msgs, foot);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
