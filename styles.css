@@ -2056,11 +2056,7 @@ details.callout[open] > summary.callout-title::after { transform: rotate(90deg);
 :root[data-riblabels="on"] .rib-gname { display: inline; }
 :root[data-riblabels="on"] .rib-gchev { display: inline; transition: transform .15s; font-size: .8rem; }
 :root[data-riblabels="on"] .rib-group.collapsed .rib-gchev { transform: rotate(-90deg); }
-/* Solo iconos: la raya entre secciones también pliega; una sección plegada se ve como «⋯». */
-:root:not([data-riblabels="on"]) .rib-ghead { height: 9px; margin: 2px auto; background: linear-gradient(var(--border), var(--border)) center / 24px 1px no-repeat; border-radius: 4px; cursor: pointer; pointer-events: auto; }
-:root:not([data-riblabels="on"]) .rib-ghead:hover { background-color: var(--side-hover); }
-:root:not([data-riblabels="on"]) .rib-group.collapsed .rib-ghead { width: 32px; height: 18px; background: none; font-size: .9rem; line-height: 18px; color: var(--muted); }
-:root:not([data-riblabels="on"]) .rib-group.collapsed .rib-ghead::after { content: "⋯"; }
+:root:not([data-riblabels="on"]) .rib-group.collapsed .rib:not(.active) { display: grid; }
 @media (max-height: 780px) {
   :root[data-riblabels="on"] .rib-ghead { margin-top: 6px; padding-top: 2px; padding-bottom: 2px; }
   .rib-ghead { margin: 4px auto; }
