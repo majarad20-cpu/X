@@ -63,6 +63,15 @@ Son fuentes de **menor rango** (apunte < circular < ley) y suelen tener años. S
 - **Ejercicios:** aplicar la regla de oro: el ejercicio **enlaza** la nota de la norma en vez de repetir sus tasas, y lleva `vigencia: "Cálculo con normas vigentes al AAAA-MM-DD"`. Si el apunte usaba tasas antiguas, recalcular con las vigentes o dejarlo explícitamente como ejercicio histórico.
 - **Datos personales** del cuaderno (nombres de profesores, compañeros, notas): no pasan a la bóveda.
 
+### Análisis previo de Gemini (opcional)
+Para PDF largos, el usuario puede dejar junto al PDF un archivo `<nombre del PDF> - Gemini.md` con un desglose hecho por Gemini (ficha, conceptos con datos duros y página, ejemplos y dudas).
+- Úsalo **solo como punto de partida** del paso 2: sirve para ubicar conceptos y páginas.
+- **Cada dato duro** (tasa, monto, tope, plazo, fecha, número de norma o artículo) se comprueba en la página del PDF antes de usarlo. Si no coincide o no aparece, manda el PDF y se informa la discrepancia. Gemini ya se equivocó antes de número de resolución (Res. 106/2020 en vez de 14/2021).
+- Lo que el análisis no cubra del PDF se desglosa igual (mirar el índice del documento).
+- En el informe, indicar «Desglose inicial: Gemini, verificado contra el PDF» y listar las correcciones hechas a su análisis.
+- Al cerrar, mover también el `.md` de Gemini a `Procesados`.
+- Documentos de clientes: no pasan por Gemini; se procesan directo y anonimizados.
+
 ### 2. Leer y desglosar
 - Extraer el texto (PDF con texto, Word, Excel, web). Si es escaneado, leerlo como imagen. Documentos largos: por partes, anotando página.
 - Separar en **conceptos** (unidades de conocimiento que serían una nota o una sección de nota): definiciones, normas, tasas y montos, plazos, procedimientos, ejemplos, criterios del SII, jurisprudencia.
