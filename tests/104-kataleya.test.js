@@ -62,7 +62,7 @@ const mock = () => {
   await p.fill('#kata-input', '¿Qué pasa con el art. 107?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
   const call = await p.evaluate(() => window.__calls[0]);
   check('instrucciones', [/Eres \*\*Kataleya\*\*/.test(call.first), /Modo Contador/.test(call.first), /Memoria de Kataleya/.test(call.first), /Comercial Cachapoal/.test(call.first), /\[\[Ganancias de Capital\]\]/.test(call.first)], [true, true, true, true, true]);
-  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_fuera', 'abrir_vista', 'editar_nota', 'organizar', 'proponer', 'crear_documento', 'crear_visual', 'comando']);
+  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_fuera', 'abrir_vista', 'editar_nota', 'enlazar', 'organizar', 'proponer', 'crear_documento', 'crear_visual', 'comando']);
   check('dentro de los límites', await p.evaluate(() => window.__sizes.filter(([, d, sch]) => d > 1000 || sch > 4000)), []);
   check('lectura', await p.evaluate(() => window.__res), { hits: ['Ganancias de Capital'], radar: [['DL 824', 1]] });
   check('propuestas pendientes', await p.$$eval('#kata-panel .kata-act.s-pending strong', (n) => n.map((x) => x.textContent)), ['📋 Tablero «Tributaria por estado»', '✏️ Dibujo «Cierre mensual»', '🗺️ Diagrama «IVA»', '☑ Tarea «Revisar F29 de Comercial Cachapoal»', '🧠 ¿Lo recuerdo?']);
@@ -164,6 +164,35 @@ const mock = () => {
   check('vista de cambios', [ed.diff, ed.diffShown], [['-El art. 107 LIR paga 10 % hasta el 31-12-2026; desde el 01-01-2027 es ingreso no renta (Ley 21.850).', '+El art. 107 LIR pagó 10 % hasta el 31-12-2026; desde el 01-01-2027 es ingreso no renta (Ley 21.850).'], true]);
   check('todas aplicadas, una tras otra', ed.status, ['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']);
   check('resultados', [ed.body, ed.renamed, ed.task, ed.idea, ed.diario, ed.habito, ed.listado.includes('Abrir la nota diaria de hoy'), /^Diario\//.test(ed.active || '')], ['El art. 107 LIR pagó 10 % hasta el 31-12-2026; desde el 01-01-2027 es ingreso no renta (Ley 21.850).|> [!info] Revisado por Kataleya|', 'MATRIZ/IVA a los Servicios', true, ['cursos'], true, true, true, true]);
+
+  // Enlazar notas
+  const ln = await p.evaluate(async () => {
+    const add = (id, path, body) => state.notes.push({ id, path, body, createdAt: 1, updatedAt: 1 });
+    add('ni', 'MATRIZ/Ingreso no renta', '# Ingreso no renta\nConcepto.\n');
+    add('moc', 'MOCS/MOC Tributaria', '# MOC Tributaria\n## Renta\n- [[IVA a los Servicios]]\n\n## IVA\n- nada\n');
+    add('rt', 'MATRIZ/Con roto', '# Roto\nVer [[Gananzias de Capital#Ganancias|la nota]] y [[IVA a los Servicios]].\n');
+    dataRev++; save();
+    kata.turns = [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'ok' }];
+    kata.pending.clear();
+    const T = kataTools(16).find((t) => t.name === 'enlazar');
+    const sug = T.execute({ accion: 'sugerir', nota: 'Ganancias de Capital' });
+    const rotos = T.execute({ accion: 'rotos' });
+    T.execute({ accion: 'menciones', nota: 'Ganancias de Capital', hacia: ['Ingreso no renta'] });
+    T.execute({ accion: 'relacionar', nota: 'Ganancias de Capital', con: ['IVA a los Servicios'], ambos_sentidos: true });
+    T.execute({ accion: 'moc', nota: 'Ganancias de Capital', moc: 'MOC Tributaria', seccion: 'Renta' });
+    T.execute({ accion: 'reparar', nota: 'Con roto', roto: 'Gananzias de Capital', por: 'Ganancias de Capital' });
+    const cards = [...kata.pending.values()].map((a) => a.label);
+    for (const id of [...kata.pending.keys()]) await kataApprove(id);
+    const g = noteById('a');
+    return { sug: [sug.menciones_sin_enlazar, sug.moc], rotos: rotos.primeros.map((r) => [r.nota, r.enlace]), cards, status: [...kata.pending.values()].map((x) => x.status),
+      gan: [/\[\[Ingreso no renta\|ingreso no renta\]\]/.test(g.body), /## Relacionadas\n- \[\[IVA a los Servicios\]\]/.test(g.body), propOf(g, 'moc')],
+      iva: /## Relacionadas\n- \[\[Ganancias de Capital\]\]/.test(noteById('b').body),
+      moc: noteById('moc').body.split('\n').slice(1, 4).join('|'), roto: noteById('rt').body.split('\n')[1] };
+  });
+  check('sugerir', ln.sug, [['Ingreso no renta'], null]);
+  check('rotos', ln.rotos, [['Con roto', 'Gananzias de Capital']]);
+  check('tarjetas de enlaces', ln.cards, ['🔗 Enlazar 1 mención en «Ganancias de Capital»', '🔗 Enlazar «Ganancias de Capital» con 1 nota', '🔗 Enlazar «IVA a los Servicios» con «Ganancias de Capital»', '🧭 Agregar «Ganancias de Capital» al MOC «MOC Tributaria» (bajo «Renta»)', '🏷 moc: [[MOC Tributaria]]', '🩹 Reparar [[Gananzias de Capital]] → [[Ganancias de Capital]] en «Con roto»']);
+  check('enlaces aplicados', [ln.status.every((x) => x === 'done'), ln.gan, ln.iva, ln.moc, ln.roto], [true, [true, true, '[[MOC Tributaria]]'], true, '## Renta|- [[IVA a los Servicios]]|- [[Ganancias de Capital]]', 'Ver [[Ganancias de Capital#Ganancias|la nota]] y [[IVA a los Servicios]].']);
 
   // Internet y Drive
   await p.evaluate(() => { kata.turns = []; kata.pending.clear(); kataRender(); });

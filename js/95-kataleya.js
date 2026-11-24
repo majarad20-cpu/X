@@ -207,7 +207,7 @@ Reglas:
 ${kataWhereRules()}
 - Para crear o cambiar cosas usa las herramientas de acción: **no hacen nada solas**, dejan una propuesta que la persona aprueba con un botón. Di qué propusiste y nunca digas que ya está hecho.
 - Para mostrar algo, usa abrir_vista (no necesita aprobación).
-- Puedes usar la app como la persona: editar notas (editar_nota: lee la nota primero y copia el fragmento exacto), organizar tareas, hábitos, proyectos, ideas, diario y Pomodoro (organizar) y ejecutar cualquier comando de la paleta (comando: primero listar). Todo queda como propuesta con vista previa.
+- Puedes usar la app como la persona: editar notas (editar_nota: lee la nota primero y copia el fragmento exacto), enlazarlas (enlazar: relacionar, menciones, entrantes, moc, sugerir, rotos y reparar; para «¿qué debería enlazar?» usa sugerir y después propone), organizar tareas, hábitos, proyectos, ideas, diario y Pomodoro (organizar) y ejecutar cualquier comando de la paleta (comando: primero listar). Todo queda como propuesta con vista previa.
 - Puedes ir más allá de las notas con crear_documento: PDF, Google Docs, hojas de cálculo (Google Sheets o CSV) y borradores de Gmail. Redacta con tono profesional, en español de Chile, con la norma, su vigencia y la fuente cuando corresponda; usa la firma de la sección «Firma» de tu memoria si existe; nunca pongas datos reales de clientes si no te los dio la persona. Los correos quedan como borrador: jamás digas que se enviaron.
 - Si la persona te cuenta algo que valga la pena recordar (una preferencia, una regla, una decisión), propón guardarlo con recordar.
 - Respeta la memoria: sus reglas y límites mandan.
@@ -455,7 +455,7 @@ function kataTools(max = 20) {
   if (Object.keys(outside).length) {
     out.push(group('buscar_fuera', `Busca fuera de la bóveda (solo cuando corresponda según las reglas). donde: ${[outside.internet && '«internet» (objetivo y 2 o 3 consultas cortas; devuelve resultados con url, fecha, si es oficial y extracto)', outside.pagina && '«pagina» (url y objetivo: lee una página concreta)', outside.drive && '«drive» (consulta: busca archivos del Google Drive; solo_titulo opcional)', outside.archivo_drive && '«archivo_drive» (id de un archivo de Drive: lee su contenido)'].filter(Boolean).join(', ')}.`, 'donde', outside, { objetivo: { type: 'string' }, consultas: { type: 'array', items: { type: 'string' } }, url: { type: 'string' }, consulta: { type: 'string' }, solo_titulo: { type: 'boolean' }, id: { type: 'string' } }));
   }
-  out.push(...pick('abrir_vista'), kataEditTool(), kataOrganizeTool());
+  out.push(...pick('abrir_vista'), kataEditTool(), kataLinkTool(), kataOrganizeTool());
   out.push(group('proponer', 'Propone una acción que la persona aprueba con un botón (no se hace sola). accion: «tarea» (titulo, fecha, hora, prioridad), «nota» (titulo, contenido en Markdown, carpeta, moc), «alerta» (texto y nota afectada), «evento» en Google Calendar (titulo, fecha, hora, minutos, detalle), «recordar» en la memoria (hecho, seccion), «propiedad» (notas, propiedad, valor; vacío la quita) o «revisadas» (notas).', 'accion', { tarea: 'crear_tarea', nota: 'crear_nota', alerta: 'agregar_alerta', evento: 'agendar', recordar: 'recordar', propiedad: 'cambiar_propiedad', revisadas: 'marcar_revisadas' }, {
     titulo: { type: 'string' }, contenido: { type: 'string' }, carpeta: { type: 'string' }, moc: { type: 'string' }, fecha: { type: 'string', description: 'AAAA-MM-DD' }, hora: { type: 'string', description: 'HH:MM' }, prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] }, minutos: { type: 'number' }, detalle: { type: 'string' }, texto: { type: 'string' }, nota: { type: 'string' }, hecho: { type: 'string' }, seccion: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, propiedad: { type: 'string' }, valor: { type: 'string' },
   }));
@@ -769,6 +769,147 @@ function kataCommandTool() {
         fresh.action({ newTab: false });
         return { texto: 'Comando ejecutado' };
       });
+    },
+  };
+}
+
+// ---------- Enlazar notas ----------
+// relacionar (sección «## Relacionadas», en uno o ambos sentidos) · menciones (convierte en [[enlace]]
+// la primera mención de otras notas dentro de esta) · entrantes (lo mismo, pero en las notas que
+// mencionan a esta) · moc (cuelga la nota de su MOC y le pone la propiedad moc) · sugerir (qué
+// convendría enlazar: menciones, misma norma, parecidas) · rotos (enlaces que no llevan a ninguna nota,
+// con la nota más parecida) · reparar (cambia un enlace roto por el bueno). Todo con vista de cambios.
+const kataEscRe = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Convierte la primera mención de `title` (fuera de enlaces, títulos, código y propiedades) en [[title]].
+function kataLinkFirst(body, title) {
+  const lines = body.split('\n');
+  const { end } = parseProps(body);
+  const re = new RegExp(`(?<![\\p{L}\\p{N}\\[])(${kataEscRe(title)})(?![\\p{L}\\p{N}])`, 'iu');
+  let inCode = false;
+  for (let i = end + 1; i < lines.length; i++) {
+    if (/^\s*```/.test(lines[i])) inCode = !inCode;
+    if (inCode || /^#{1,6}\s/.test(lines[i])) continue;
+    const parts = lines[i].split(/(!?\[\[[^\]\n]+?\]\]|`[^`]*`|https?:\/\/\S+)/);
+    let done = false;
+    const next = parts.map((p, k) => (done || k % 2 ? p : p.replace(re, (m) => ((done = true), `[[${title}${m !== title ? `|${m}` : ''}]]`)))).join('');
+    if (done) {
+      lines[i] = next;
+      return lines.join('\n');
+    }
+  }
+  return body;
+}
+const kataLinksTo = (n, target) => linksIn(n.body).some((l) => l.target && findNoteByName(l.target)?.id === target.id);
+// Títulos que se pueden buscar como menciones (no fechas, no muy cortos).
+// Solo títulos específicos (dos palabras o más, 10 letras o más, o con un número), para no enlazar
+// palabras sueltas como «Capital» o «Renta»; uno por nombre, con su expresión ya preparada.
+const kataTitles = () => gvCached('kata-titles', () => {
+  const seen = new Set();
+  return gvLive().map((n) => ({ n, t: baseName(n.path) }))
+    .filter(({ t }) => !/^\d{4}-\d{2}-\d{2}/.test(t) && t.length >= 5 && (/\s\S/.test(t.trim()) || t.length >= 10 || /\d/.test(t)))
+    .filter(({ t }) => !seen.has(fold(t)) && seen.add(fold(t)))
+    .sort((a, b) => b.t.length - a.t.length)
+    .map((x) => ({ ...x, re: new RegExp(`(?<![\\p{L}\\p{N}])${kataEscRe(x.t)}(?![\\p{L}\\p{N}])`, 'iu'), f: fold(x.t) }));
+});
+
+function kataAddRelated(body, titles) {
+  const lines = body.split('\n');
+  const h = lines.findIndex((l) => /^#{2,6}\s+(?:🔗\s*)?(Relacionadas|Notas relacionadas|Ver también)\s*$/i.test(l));
+  const add = titles.map((t) => `- [[${t}]]`);
+  if (h < 0) return `${body.replace(/\s+$/, '')}\n\n## Relacionadas\n${add.join('\n')}\n`;
+  let i = h + 1;
+  while (i < lines.length && !/^#{1,6}\s/.test(lines[i])) i++;
+  while (i > h + 1 && !lines[i - 1].trim()) i--;
+  lines.splice(i, 0, ...add);
+  return lines.join('\n');
+}
+
+function kataLinkTool() {
+  return {
+    name: 'enlazar',
+    description: 'Enlaza notas (cada cambio se aprueba viendo la diferencia). accion: «relacionar» (nota, con: títulos; ambos_sentidos opcional: agrega [[…]] en la sección Relacionadas), «menciones» (nota; hacia opcional: convierte en [[enlace]] las menciones de otras notas dentro de esta), «entrantes» (nota: convierte en enlace las menciones de esta nota en las demás), «moc» (nota, moc, seccion opcional: la cuelga de su MOC), «sugerir» (nota: qué convendría enlazar), «rotos» (nota opcional: enlaces que no llevan a ninguna nota, con la más parecida) o «reparar» (nota, roto, por).',
+    inputSchema: { type: 'object', properties: { accion: { type: 'string', enum: ['relacionar', 'menciones', 'entrantes', 'moc', 'sugerir', 'rotos', 'reparar'] }, nota: { type: 'string' }, con: { type: 'array', items: { type: 'string' } }, ambos_sentidos: { type: 'boolean' }, hacia: { type: 'array', items: { type: 'string' } }, moc: { type: 'string' }, seccion: { type: 'string' }, roto: { type: 'string' }, por: { type: 'string' } }, required: ['accion'] },
+    execute: (i) => {
+      const a = i.accion;
+      if (a === 'rotos') {
+        const scope = i.nota ? [kataNote(i.nota)] : gvLive();
+        const out = [];
+        let total = 0;
+        scope.forEach((n) => linksIn(n.body).forEach((l) => {
+          if (!l.target || /^(tarea|proyecto|idea|habito):/.test(l.target) || /^\d{4}-\d{2}-\d{2}$/.test(l.target) || (l.embed && /\.(png|jpe?g|gif|pdf|svg|webp)$/i.test(l.target)) || findNoteByName(l.target)) return;
+          total++;
+          if (out.length >= 40) return;
+          const want = fold(l.target.split('/').pop());
+          const best = want.length >= 4 && (kataTitles().find(({ f }) => f === want) || kataTitles().find(({ f }) => f.includes(want) || want.includes(f)));
+          out.push({ nota: baseName(n.path), enlace: l.target, parecida: best ? best.t : null });
+        }));
+        return { total, primeros: out, nota: 'Muchos pueden ser notas por escribir (en los MOC): pregunta antes de repararlos.' };
+      }
+      const n = kataNote(i.nota);
+      const name = baseName(n.path);
+      if (a === 'sugerir') {
+        const linked = new Set(linksIn(n.body).map((l) => l.target && findNoteByName(l.target)?.id).filter(Boolean));
+        const text = gvBodyText(n).replace(WIKILINK_RE, ' ');
+        const ft = fold(text);
+        const mentions = kataTitles().filter(({ n: x, f, re }) => x.id !== n.id && !linked.has(x.id) && ft.includes(f) && re.test(text)).slice(0, 15).map(({ t }) => t);
+        let sameNorm = [];
+        if (typeof proIndex === 'function') {
+          const keys = new Set(n.body.split('\n').flatMap((l) => proNormsIn(l, proProfile()).map((x) => x.key)));
+          const score = new Map();
+          proIndex().norms.forEach((e) => keys.has(e.key) && e.notes.size <= 60 && e.notes.forEach((_, id) => id !== n.id && !linked.has(id) && score.set(id, (score.get(id) || 0) + 1)));
+          sameNorm = [...score].sort((x, y) => y[1] - x[1]).slice(0, 8).map(([id, k]) => `${baseName(noteById(id)?.path || '')} (${plural(k, 'norma en común', 'normas en común')})`);
+        }
+        const similar = searchNotesForAI(name, 8).map((x) => x.titulo).filter((t) => t !== name && !mentions.includes(t)).slice(0, 6);
+        const back = backlinksOf(n);
+        return { ya_enlazadas: [...linked].map((id) => baseName(noteById(id)?.path || '')).slice(0, 30), menciones_sin_enlazar: mentions, misma_norma: sameNorm, parecidas: similar, la_mencionan_sin_enlace: back.unlinked.slice(0, 10).map((x) => baseName(x.note.path)), moc: propOf(n, 'moc') || null };
+      }
+      if (a === 'relacionar') {
+        const others = (i.con || []).map(kataNote).filter((x) => x.id !== n.id);
+        if (!others.length) throw new Error('Falta con qué notas enlazar');
+        const fresh = others.filter((x) => !kataLinksTo(n, x));
+        const res = [];
+        if (fresh.length) res.push(kataProposeEdit(n, `🔗 Enlazar «${name}» con ${plural(fresh.length, 'nota', 'notas')}`, (body) => kataAddRelated(body, fresh.map((x) => baseName(x.path)))));
+        if (i.ambos_sentidos) others.filter((x) => !kataLinksTo(x, n)).forEach((x) => res.push(kataProposeEdit(x, `🔗 Enlazar «${baseName(x.path)}» con «${name}»`, (body) => kataAddRelated(body, [name]))));
+        if (!res.length) return { estado: 'ya estaban enlazadas' };
+        return res;
+      }
+      if (a === 'menciones') {
+        const linked = new Set(linksIn(n.body).map((l) => l.target && findNoteByName(l.target)?.id).filter(Boolean));
+        const targets = i.hacia?.length ? i.hacia.map(kataNote).map((x) => baseName(x.path)) : kataTitles().filter(({ n: x }) => x.id !== n.id && !linked.has(x.id)).map(({ t }) => t);
+        let body = n.body;
+        const done = [];
+        for (const t of targets) {
+          const next = kataLinkFirst(body, t);
+          if (next !== body) {
+            body = next;
+            done.push(t);
+            if (done.length >= 25) break;
+          }
+        }
+        if (!done.length) return { estado: 'no hay menciones sin enlazar' };
+        return kataProposeEdit(n, `🔗 Enlazar ${plural(done.length, 'mención', 'menciones')} en «${name}»`, (cur) => done.reduce((b, t) => kataLinkFirst(b, t), cur));
+      }
+      if (a === 'entrantes') {
+        const back = backlinksOf(n).unlinked.slice(0, 10);
+        if (!back.length) return { estado: 'ninguna nota la menciona sin enlazarla' };
+        return back.map(({ note: x }) => kataProposeEdit(x, `🔗 En «${baseName(x.path)}», enlazar «${name}»`, (body) => kataLinkFirst(body, name)));
+      }
+      if (a === 'moc') {
+        const moc = kataNote(i.moc);
+        const res = [];
+        if (!kataLinksTo(moc, n)) res.push(kataProposeEdit(moc, `🧭 Agregar «${name}» al MOC «${baseName(moc.path)}»${i.seccion ? ` (bajo «${i.seccion}»)` : ''}`, (body) => kataAppend(body, `- [[${name}]]`, { under: String(i.seccion || '') })));
+        if (gvClean(propOf(n, 'moc')).split('/').pop() !== baseName(moc.path)) res.push(kataPropose(`🏷 moc: [[${baseName(moc.path)}]]`, `en «${name}»`, () => (gvSetProps(n, [['moc', `[[${baseName(moc.path)}]]`]]), { texto: 'Propiedad moc puesta' })));
+        return res.length ? res : { estado: 'ya está en ese MOC' };
+      }
+      if (a === 'reparar') {
+        const bad = String(i.roto || '');
+        const good = kataNote(i.por);
+        const goodName = baseName(good.path);
+        const re = new RegExp(`(!?)\\[\\[${kataEscRe(bad)}((?:#[^\\]|]*)?)(\\|[^\\]]*)?\\]\\]`, 'g');
+        if (!re.test(n.body)) throw new Error(`No hay un enlace [[${bad}]] en la nota`);
+        return kataProposeEdit(n, `🩹 Reparar [[${bad}]] → [[${goodName}]] en «${name}»`, (body) => body.replace(new RegExp(re.source, 'g'), (_, e, h, alias) => `${e}[[${goodName}${h || ''}${alias || ''}]]`));
+      }
+      throw new Error('accion no válida');
     },
   };
 }
