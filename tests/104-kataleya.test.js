@@ -12,18 +12,19 @@ const mock = () => {
     window.__calls.push({ first: input[0].content, tools: (o.tools || []).map((t) => t.name) });
     const T = (n) => o.tools.find((t) => t.name === n);
     const hits = await T('buscar_notas').execute({ consulta: 'art. 107' });
-    const radar = await T('radar_norma').execute({ norma: 'LIR' });
+    const radar = await T('contador').execute({ consulta: 'radar', norma: 'LIR' });
     window.__res = { hits: hits.map((h) => h.titulo), radar: radar.map((r) => [r.norma, r.notas.length]) };
-    await T('crear_tablero').execute({ nombre: 'Tributaria por estado', origen: { tipo: 'carpeta', valor: 'MATRIZ' }, agrupar: 'estado', columnas: ['borrador', 'completa'] });
-    await T('crear_dibujo').execute({ titulo: 'Cierre mensual', tipo: 'flujo', pasos: ['Inicio', 'Conciliar bancos', '¿Cuadra?', 'Emitir estados'] });
-    await T('crear_diagrama').execute({ titulo: 'IVA', tipo: 'org', esquema: 'Débito fiscal\n  Ventas\nCrédito fiscal\n  Compras' });
-    await T('crear_tarea').execute({ titulo: 'Revisar F29 de Comercial Cachapoal', fecha: '2026-12-20', prioridad: 'alta' });
-    await T('recordar').execute({ hecho: 'Prefiero los tableros por estado', seccion: 'Preferencias' });
+    await T('crear_visual').execute({ tipo: 'tablero', nombre: 'Tributaria por estado', origen: { tipo: 'carpeta', valor: 'MATRIZ' }, agrupar: 'estado', columnas: ['borrador', 'completa'] });
+    await T('crear_visual').execute({ tipo: 'dibujo', titulo: 'Cierre mensual', forma: 'flujo', pasos: ['Inicio', 'Conciliar bancos', '¿Cuadra?', 'Emitir estados'] });
+    await T('crear_visual').execute({ tipo: 'diagrama', titulo: 'IVA', forma: 'org', esquema: 'Débito fiscal\n  Ventas\nCrédito fiscal\n  Compras' });
+    await T('proponer').execute({ accion: 'tarea', titulo: 'Revisar F29 de Comercial Cachapoal', fecha: '2026-12-20', prioridad: 'alta' });
+    await T('proponer').execute({ accion: 'recordar', hecho: 'Prefiero los tableros por estado', seccion: 'Preferencias' });
+    window.__sizes = o.tools.map((t) => [t.name, t.description.length, JSON.stringify(t.inputSchema || {}).length]);
     const text = 'Según [[Ganancias de Capital]], el art. 107 LIR **cambia el 01-01-2027**. Te propuse un tablero, un dibujo, un diagrama, una tarea y guardar tu preferencia.';
     if (o.onText) { o.onText({ text: text.slice(0, 20) }); o.onText({ text }); }
     return { text, truncated: false };
   };
-  sample.limits = async () => ({ tools: true });
+  sample.limits = async () => ({ maxPromptBytes: 262144, tools: { maxCount: 16 } });
   sample.json = async () => ({});
   const mcp = {
     callTool: async (server, tool, input) => {
@@ -58,7 +59,8 @@ const mock = () => {
   await p.fill('#kata-input', '¿Qué pasa con el art. 107?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
   const call = await p.evaluate(() => window.__calls[0]);
   check('instrucciones', [/Eres \*\*Kataleya\*\*/.test(call.first), /Modo Contador/.test(call.first), /Memoria de Kataleya/.test(call.first), /Comercial Cachapoal/.test(call.first), /\[\[Ganancias de Capital\]\]/.test(call.first)], [true, true, true, true, true]);
-  check('herramientas', ['buscar_notas', 'radar_norma', 'contradicciones', 'crear_tablero', 'crear_base', 'crear_dibujo', 'crear_lienzo', 'recordar', 'agendar'].every((t) => call.tools.includes(t)), true);
+  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive', 'abrir_vista', 'proponer', 'crear_visual']);
+  check('dentro de los límites', await p.evaluate(() => window.__sizes.filter(([, d, sch]) => d > 1000 || sch > 4000)), []);
   check('lectura', await p.evaluate(() => window.__res), { hits: ['Ganancias de Capital'], radar: [['DL 824', 1]] });
   check('propuestas pendientes', await p.$$eval('#kata-panel .kata-act.s-pending strong', (n) => n.map((x) => x.textContent)), ['📋 Tablero «Tributaria por estado»', '✏️ Dibujo «Cierre mensual»', '🗺️ Diagrama «IVA»', '☑ Tarea «Revisar F29 de Comercial Cachapoal»', '🧠 ¿Lo recuerdo?']);
   check('nada se hizo aún', await p.evaluate(() => [gvCfg().boards.length, state.tasks.length, state.maps.length]), [0, 0, 0]);
@@ -80,11 +82,29 @@ const mock = () => {
   await p.fill('#kata-panel .kata-import', 'Trabajo con pymes agrícolas\nUso régimen Pro Pyme');
   await p.click('#kata-panel .kata-empty .primary'); await p.waitForTimeout(150);
   check('memoria importada', await p.evaluate(() => /## Importado de Claude \(\d{4}-\d{2}-\d{2}\)\n- Trabajo con pymes agrícolas\n- Uso régimen Pro Pyme/.test(findNoteByName('Sistema/Memoria de Kataleya').body)), true);
+  // Si Claude rechaza las herramientas, responde igual sin ellas y muestra el código si todo falla
+  const fb = await p.evaluate(async () => {
+    const orig = ai.sample;
+    const fake = async (input, o = {}) => { if (o.tools) throw { code: 'invalid_request', message: 'tools[3]: too many' }; const text = 'Respuesta sin herramientas'; o.onText && o.onText({ text }); return { text }; };
+    fake.limits = orig.limits;
+    ai.sample = fake;
+    await kataSend('hola');
+    const t = kata.turns.at(-1);
+    const fail = async () => { throw { code: 'rate_limited', message: 'x' }; };
+    fail.limits = orig.limits;
+    ai.sample = fail;
+    await kataSend('otra');
+    const t2 = kata.turns.at(-1);
+    ai.sample = orig;
+    return [t.content, t.note, t2.error];
+  });
+  check('respaldo sin herramientas', fb, ['Respuesta sin herramientas', 'Respondí sin mis herramientas (no pude usarlas en esta vista).', 'Has hecho muchas peticiones seguidas o llegaste a tu límite de uso. Prueba de nuevo en un rato. (código: rate_limited)']);
+
   // Internet y Drive
   await p.evaluate(() => { kata.turns = []; kata.pending.clear(); kataRender(); });
   const web = await p.evaluate(async () => {
     kata.turns.push({ role: 'user', content: 'x' }, { role: 'assistant', content: 'Respuesta' });
-    const tools = kataTools();
+    const tools = kataToolsAll();
     const T = (n) => tools.find((t) => t.name === n);
     const r = await T('buscar_en_internet').execute({ objetivo: 'interés penal 2027', consultas: ['interés penal SII 2027'] });
     const d = await T('buscar_en_drive').execute({ consulta: "contrato d'agua" });

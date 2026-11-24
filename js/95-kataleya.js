@@ -255,7 +255,9 @@ function kataPropose(label, detail, run) {
   return { propuesta: id, estado: 'pendiente de aprobación por la persona', resumen: `${label}${detail ? ` · ${detail}` : ''}` };
 }
 
-function kataTools() {
+// Todas las herramientas por separado (cada una con su lógica). Claude no recibe esta lista: recibe la
+// agrupada de kataTools(), porque cada llamada admite pocas herramientas.
+function kataToolsAll() {
   const read = [
     { name: 'buscar_notas', description: 'Busca en las notas por palabras clave. Devuelve hasta 8 notas con título, ruta, fecha y las líneas que coinciden.', inputSchema: { type: 'object', properties: { consulta: { type: 'string' } }, required: ['consulta'] }, execute: ({ consulta }) => (kataProgress(`Buscando «${String(consulta).slice(0, 40)}»…`), searchNotesForAI(String(consulta)).filter((x) => !findNoteByName(x.ruta)?.enc)) },
     { name: 'leer_nota', description: 'Texto completo (hasta 9.000 caracteres) de una nota por su título o ruta.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' } }, required: ['titulo'] }, execute: ({ titulo }) => { const n = kataNote(titulo); kataProgress(`Leyendo [[${baseName(n.path)}]]…`); return { titulo: baseName(n.path), ruta: n.path, texto: n.body.slice(0, 9000) }; } },
@@ -357,7 +359,7 @@ function kataTools() {
       openBase(note.id);
       return { texto: 'Base creada' };
     }) },
-    { name: 'crear_diagrama', description: 'Propone crear un diagrama en Ideas y mapas. tipo: mindmap, radial, org, outline, fishbone, process, timeline, matrix, pyramid, concept, flow, venn, cycle, funnel o radar. esquema: el contenido como lista con sangría (dos espacios por nivel), sin el título.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, tipo: { type: 'string' }, esquema: { type: 'string' } }, required: ['titulo', 'esquema'] }, execute: (i) => { const items = mmParseLines(String(i.esquema)); return kataPropose(`🗺️ Diagrama «${i.titulo}»`, `${i.tipo || 'mindmap'} · ${plural(items.length, 'elemento', 'elementos')}`, () => { const map = newMap(String(i.titulo)); mmAddLines(map, 'root', items); if (i.tipo && i.tipo !== 'mindmap') map.kind = String(i.tipo); map.updatedAt = Date.now(); save(); openMap(map.id); return { texto: 'Diagrama creado' }; }); } },
+    { name: 'crear_diagrama', description: 'Propone crear un diagrama en Ideas y mapas. tipo: mindmap, radial, org, outline, fishbone, process, timeline, matrix, pyramid, concept, flow, venn, cycle, funnel o radar. esquema: el contenido como lista con sangría (dos espacios por nivel), sin el título.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, tipo: { type: 'string' }, esquema: { type: 'string' } }, required: ['titulo', 'esquema'] }, execute: (i) => { const kind = String(i.tipoDiagrama || (i.tipo !== 'diagrama' ? i.tipo || '' : '') || 'mindmap'); const items = mmParseLines(String(i.esquema)); return kataPropose(`🗺️ Diagrama «${i.titulo}»`, `${kind} · ${plural(items.length, 'elemento', 'elementos')}`, () => { const map = newMap(String(i.titulo)); mmAddLines(map, 'root', items); if (kind !== 'mindmap') map.kind = kind; map.updatedAt = Date.now(); save(); openMap(map.id); return { texto: 'Diagrama creado' }; }); } },
     { name: 'crear_lienzo', description: 'Propone crear un lienzo con tarjetas: notas existentes (por título) y tarjetas de texto, unidas con flechas. conexiones: pares [desde, hasta] con los índices de tarjetas (primero las notas, después los textos), con etiqueta opcional.', inputSchema: { type: 'object', properties: { titulo: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, textos: { type: 'array', items: { type: 'string' } }, conexiones: { type: 'array', items: { type: 'object', properties: { desde: { type: 'number' }, hasta: { type: 'number' }, etiqueta: { type: 'string' } } } }, enlazar: { type: 'boolean', description: 'Unir también las notas según sus [[enlaces]]' } }, required: ['titulo'] }, execute: (i) => { const ns = (i.notas || []).map(kataNote); const ts = (i.textos || []).map(String); return kataPropose(`🧩 Lienzo «${i.titulo}»`, `${plural(ns.length, 'nota', 'notas')} · ${plural(ts.length, 'texto', 'textos')} · ${plural((i.conexiones || []).length, 'flecha', 'flechas')}`, () => {
       const c = newCanvas(String(i.titulo));
       const all = [...ns.map((n) => ({ type: 'note', noteId: n.id, w: 300, h: 200 })), ...ts.map((t) => ({ type: 'text', text: t, w: 260, h: 120 }))];
@@ -396,6 +398,49 @@ function kataTools() {
   return [...read, ...pro, ...ext, ...actions];
 }
 
+// Las herramientas que ve Claude: agrupadas (menos de 15) para caber en el límite de cada llamada.
+// Cada grupo elige con «tipo» o «accion» y pasa los demás campos a la herramienta original.
+function kataTools(max = 20) {
+  const all = new Map(kataToolsAll().map((t) => [t.name, t]));
+  const run = (name, input) => {
+    const t = all.get(name);
+    if (!t) throw new Error(`«${name}» no está disponible ahora`);
+    return t.execute(input || {});
+  };
+  const pick = (...names) => names.map((n) => all.get(n)).filter(Boolean);
+  const group = (name, description, key, map, properties, required = [key]) => ({
+    name,
+    description,
+    inputSchema: { type: 'object', properties: { [key]: { type: 'string', enum: Object.keys(map) }, ...properties }, required },
+    execute: (input = {}) => {
+      const target = map[String(input[key] || '')];
+      if (!target) throw new Error(`${key} debe ser uno de: ${Object.keys(map).join(', ')}`);
+      return run(target, input);
+    },
+  });
+  const out = [...pick('buscar_notas', 'leer_nota')];
+  out.push(group('tareas_y_diario', 'Lee tareas (donde: tareas; estado pendientes, hechas o todas) o entradas del diario (donde: diario; desde y hasta AAAA-MM-DD). consulta opcional filtra por palabras.', 'donde', { tareas: 'buscar_tareas', diario: 'buscar_diario' }, { consulta: { type: 'string' }, estado: { type: 'string', enum: ['pendientes', 'hechas', 'todas'] }, desde: { type: 'string' }, hasta: { type: 'string' } }));
+  if (all.has('radar_norma')) {
+    out.push(group('contador', 'Herramientas del contador. consulta: «radar» (una norma: notas que la citan, artículos, señales de derogación o cambio, vigencias futuras y alertas; requiere norma, p. ej. «Ley 21.713» o «LIR»), «contradicciones» (datos distintos entre notas), «alertas» (alertas normativas abiertas), «calendario» (vencimientos de los próximos días) o «por_revisar» (notas con la vigencia por revisar).', 'consulta', { radar: 'radar_norma', contradicciones: 'contradicciones', alertas: 'alertas_abiertas', calendario: 'calendario', por_revisar: 'notas_por_revisar' }, { norma: { type: 'string' }, dias: { type: 'number' }, meses: { type: 'number' } }));
+  }
+  out.push(...pick('buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive', 'abrir_vista'));
+  out.push(group('proponer', 'Propone una acción que la persona aprueba con un botón (no se hace sola). accion: «tarea» (titulo, fecha, hora, prioridad), «nota» (titulo, contenido en Markdown, carpeta, moc), «alerta» (texto y nota afectada), «evento» en Google Calendar (titulo, fecha, hora, minutos, detalle), «recordar» en la memoria (hecho, seccion), «propiedad» (notas, propiedad, valor; vacío la quita) o «revisadas» (notas).', 'accion', { tarea: 'crear_tarea', nota: 'crear_nota', alerta: 'agregar_alerta', evento: 'agendar', recordar: 'recordar', propiedad: 'cambiar_propiedad', revisadas: 'marcar_revisadas' }, {
+    titulo: { type: 'string' }, contenido: { type: 'string' }, carpeta: { type: 'string' }, moc: { type: 'string' }, fecha: { type: 'string', description: 'AAAA-MM-DD' }, hora: { type: 'string', description: 'HH:MM' }, prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] }, minutos: { type: 'number' }, detalle: { type: 'string' }, texto: { type: 'string' }, nota: { type: 'string' }, hecho: { type: 'string' }, seccion: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, propiedad: { type: 'string' }, valor: { type: 'string' },
+  }));
+  out.push(group('crear_visual', 'Propone crear algo visual (se aprueba con un botón). tipo: «tablero» kanban (nombre, agrupar por una propiedad, columnas, mostrar, origen), «base» (nombre, carpeta, propiedades, tablero_por, fecha, icono), «diagrama» en Ideas y mapas (titulo, esquema como lista con sangría de dos espacios, forma: mindmap, radial, org, outline, fishbone, process, timeline, matrix, pyramid, concept, flow, venn, cycle, funnel o radar), «lienzo» (titulo, notas, textos, conexiones [{desde, hasta, etiqueta}] por índice) o «dibujo» editable (titulo; forma «flujo» con pasos —un paso que termina en «?» es una decisión— o «libre» con elementos {forma, x, y, ancho, alto, texto} y flechas [[desde, hasta]]).', 'tipo', { tablero: 'crear_tablero', base: 'crear_base', diagrama: 'crear_diagrama', lienzo: 'crear_lienzo', dibujo: 'crear_dibujo' }, {
+    nombre: { type: 'string' }, titulo: { type: 'string' }, origen: KATA_SRC_SCHEMA, agrupar: { type: 'string' }, columnas: { type: 'array', items: { type: 'string' } }, mostrar: { type: 'array', items: { type: 'string' } }, carpeta: { type: 'string' }, propiedades: { type: 'array', items: { type: 'string' } }, tablero_por: { type: 'string' }, fecha: { type: 'string' }, icono: { type: 'string' }, esquema: { type: 'string' }, forma: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, textos: { type: 'array', items: { type: 'string' } }, conexiones: { type: 'array', items: { type: 'object' } }, pasos: { type: 'array', items: { type: 'string' } }, elementos: { type: 'array', items: { type: 'object' } }, flechas: { type: 'array', items: { type: 'array', items: { type: 'number' } } },
+  }));
+  // «forma» del diagrama y del dibujo va al campo que espera cada herramienta.
+  const visual = out.at(-1);
+  const visualRun = visual.execute;
+  visual.execute = (input = {}) => {
+    const i = { ...input };
+    if (i.tipo === 'diagrama' && i.forma && !i.tipo_diagrama) i.tipoDiagrama = i.forma;
+    return visualRun(i);
+  };
+  return out.slice(0, Math.max(1, max));
+}
+
 // ---------- Dibujos generados ----------
 function kataShape(type, x, y, w, h, text, extra = {}) {
   const id = uid();
@@ -428,7 +473,8 @@ function kataArrow(a, b) {
   b.boundElements.push({ id: arrow.id, type: 'arrow' });
   return arrow;
 }
-async function kataDrawing(i) {
+async function kataDrawing(raw) {
+  const i = { ...raw, tipo: raw.tipo === 'dibujo' ? raw.forma || (raw.elementos?.length ? 'libre' : 'flujo') : raw.tipo };
   const els = [];
   const shapes = [];
   if (i.tipo === 'libre' && Array.isArray(i.elementos) && i.elementos.length) {
@@ -484,28 +530,35 @@ async function kataSend(question) {
   kataRender();
   kataProgress('Pensando…');
   const history = kata.turns.slice(0, -1).filter((t) => t.content).slice(-10).map((t) => ({ role: t.role, content: t.content }));
-  let tools = false;
+  const limits = await ai.sample.limits().catch(() => null);
+  const maxTools = limits?.tools ? Number(limits.tools.maxCount) || 12 : 0;
+  const onText = ({ text: t }) => {
+    answer.content = t;
+    kataProgress('');
+    const b = $('#kata-messages .kata-msg.assistant:last-of-type .kata-md');
+    if (b) b.innerHTML = renderMd(t, { noTasks: true, noExternalImages: true });
+  };
+  const plain = () => ai.sample([{ role: 'user', content: `${kataRules()}\n\n${contextFor(q)}\n\n(Ahora no puedes usar herramientas: responde con lo que hay arriba y, si hace falta crear algo, explica cómo hacerlo.)` }, ...history], { signal: kata.ctl.signal, cache: false, onText });
   try {
-    tools = !!(await ai.sample.limits().catch(() => null))?.tools;
-  } catch {
-    tools = false;
-  }
-  const first = tools ? kataRules() : `${kataRules()}\n\n${contextFor(q)}\n\n(En esta vista no puedes usar herramientas: si hace falta crear algo, explica cómo hacerlo.)`;
-  try {
-    const { text } = await ai.sample([{ role: 'user', content: first }, ...history], {
-      signal: kata.ctl.signal,
-      ...(tools ? { tools: kataTools() } : { cache: false }),
-      onText: ({ text: t }) => {
-        answer.content = t;
-        kataProgress('');
-        const b = $('#kata-messages .kata-msg.assistant:last-of-type .kata-md');
-        if (b) b.innerHTML = renderMd(t, { noTasks: true, noExternalImages: true });
-      },
-    });
-    answer.content = text;
+    let res;
+    if (maxTools) {
+      try {
+        res = await ai.sample([{ role: 'user', content: kataRules() }, ...history], { signal: kata.ctl.signal, tools: kataTools(maxTools), onText });
+      } catch (e) {
+        // Si fallan las herramientas (no el permiso ni el límite de uso), responde igual sin ellas.
+        if (!['invalid_request', 'transform_error', 'tools_unavailable', 'prompt_too_large'].includes(e?.code) || answer.content) throw e;
+        console.warn('Kataleya: herramientas rechazadas', e?.code, e?.message);
+        kata.lastToolError = `${e?.code}: ${e?.message || ''}`;
+        kataProgress('Respondiendo sin herramientas…');
+        res = await plain();
+        answer.note = 'Respondí sin mis herramientas (no pude usarlas en esta vista).';
+      }
+    } else res = await plain();
+    answer.content = res.text;
   } catch (e) {
     answer.content = e?.text || answer.content;
-    if (e?.code !== 'cancelled') answer.error = aiErrorText(e);
+    console.warn('Kataleya:', e?.code, e?.message);
+    if (e?.code !== 'cancelled') answer.error = `${aiErrorText(e)}${e?.code ? ` (código: ${e.code})` : ''}`;
     if (AI_FATAL.includes(e?.code)) {
       ai.unavailable = true;
       renderAIControls();
@@ -680,7 +733,7 @@ function kataRender() {
           return el('li', {}, [a, el('span', { className: 'muted' }, ` · ${host}${r.date ? ` · ${r.date}` : ''}`), r.official ? el('span', { className: 'kata-official' }, ' ✓ oficial') : '']);
         })) : '',
       ]) : '';
-      const bubble = el('div', { className: 'kata-msg assistant' }, [md, srcs, ...acts, t.error ? el('p', { className: 'ask-error' }, t.error) : '']);
+      const bubble = el('div', { className: 'kata-msg assistant' }, [md, srcs, ...acts, t.note ? el('p', { className: 'muted kata-note' }, `ℹ️ ${t.note}`) : '', t.error ? el('p', { className: 'ask-error' }, t.error) : '']);
       msgs.append(bubble);
     });
   }
