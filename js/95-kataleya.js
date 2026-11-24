@@ -207,6 +207,7 @@ Reglas:
 ${kataWhereRules()}
 - Para crear o cambiar cosas usa las herramientas de acción: **no hacen nada solas**, dejan una propuesta que la persona aprueba con un botón. Di qué propusiste y nunca digas que ya está hecho.
 - Para mostrar algo, usa abrir_vista (no necesita aprobación).
+- Puedes usar la app como la persona: editar notas (editar_nota: lee la nota primero y copia el fragmento exacto), organizar tareas, hábitos, proyectos, ideas, diario y Pomodoro (organizar) y ejecutar cualquier comando de la paleta (comando: primero listar). Todo queda como propuesta con vista previa.
 - Puedes ir más allá de las notas con crear_documento: PDF, Google Docs, hojas de cálculo (Google Sheets o CSV) y borradores de Gmail. Redacta con tono profesional, en español de Chile, con la norma, su vigencia y la fuente cuando corresponda; usa la firma de la sección «Firma» de tu memoria si existe; nunca pongas datos reales de clientes si no te los dio la persona. Los correos quedan como borrador: jamás digas que se enviaron.
 - Si la persona te cuenta algo que valga la pena recordar (una preferencia, una regla, una decisión), propón guardarlo con recordar.
 - Respeta la memoria: sus reglas y límites mandan.
@@ -450,7 +451,11 @@ function kataTools(max = 20) {
   if (all.has('radar_norma')) {
     out.push(group('contador', 'Herramientas del contador. consulta: «radar» (una norma: notas que la citan, artículos, señales de derogación o cambio, vigencias futuras y alertas; requiere norma, p. ej. «Ley 21.713» o «LIR»), «contradicciones» (datos distintos entre notas), «alertas» (alertas normativas abiertas), «calendario» (vencimientos de los próximos días) o «por_revisar» (notas con la vigencia por revisar).', 'consulta', { radar: 'radar_norma', contradicciones: 'contradicciones', alertas: 'alertas_abiertas', calendario: 'calendario', por_revisar: 'notas_por_revisar' }, { norma: { type: 'string' }, dias: { type: 'number' }, meses: { type: 'number' } }));
   }
-  out.push(...pick('buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive', 'abrir_vista'));
+  const outside = Object.fromEntries([['internet', 'buscar_en_internet'], ['pagina', 'leer_pagina'], ['drive', 'buscar_en_drive'], ['archivo_drive', 'leer_archivo_drive']].filter(([, n]) => all.has(n)));
+  if (Object.keys(outside).length) {
+    out.push(group('buscar_fuera', `Busca fuera de la bóveda (solo cuando corresponda según las reglas). donde: ${[outside.internet && '«internet» (objetivo y 2 o 3 consultas cortas; devuelve resultados con url, fecha, si es oficial y extracto)', outside.pagina && '«pagina» (url y objetivo: lee una página concreta)', outside.drive && '«drive» (consulta: busca archivos del Google Drive; solo_titulo opcional)', outside.archivo_drive && '«archivo_drive» (id de un archivo de Drive: lee su contenido)'].filter(Boolean).join(', ')}.`, 'donde', outside, { objetivo: { type: 'string' }, consultas: { type: 'array', items: { type: 'string' } }, url: { type: 'string' }, consulta: { type: 'string' }, solo_titulo: { type: 'boolean' }, id: { type: 'string' } }));
+  }
+  out.push(...pick('abrir_vista'), kataEditTool(), kataOrganizeTool());
   out.push(group('proponer', 'Propone una acción que la persona aprueba con un botón (no se hace sola). accion: «tarea» (titulo, fecha, hora, prioridad), «nota» (titulo, contenido en Markdown, carpeta, moc), «alerta» (texto y nota afectada), «evento» en Google Calendar (titulo, fecha, hora, minutos, detalle), «recordar» en la memoria (hecho, seccion), «propiedad» (notas, propiedad, valor; vacío la quita) o «revisadas» (notas).', 'accion', { tarea: 'crear_tarea', nota: 'crear_nota', alerta: 'agregar_alerta', evento: 'agendar', recordar: 'recordar', propiedad: 'cambiar_propiedad', revisadas: 'marcar_revisadas' }, {
     titulo: { type: 'string' }, contenido: { type: 'string' }, carpeta: { type: 'string' }, moc: { type: 'string' }, fecha: { type: 'string', description: 'AAAA-MM-DD' }, hora: { type: 'string', description: 'HH:MM' }, prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] }, minutos: { type: 'number' }, detalle: { type: 'string' }, texto: { type: 'string' }, nota: { type: 'string' }, hecho: { type: 'string' }, seccion: { type: 'string' }, notas: { type: 'array', items: { type: 'string' } }, propiedad: { type: 'string' }, valor: { type: 'string' },
   }));
@@ -472,6 +477,7 @@ function kataTools(max = 20) {
     if (i.tipo === 'diagrama' && i.forma && !i.tipo_diagrama) i.tipoDiagrama = i.forma;
     return visualRun(i);
   };
+  out.push(kataCommandTool());
   return out.slice(0, Math.max(1, max));
 }
 
@@ -502,6 +508,269 @@ function kataCsv(cols, rows) {
     return /[",;\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
   return [cols, ...rows].filter((r) => Array.isArray(r) && r.length).map((r) => r.map(cell).join(',')).join('\r\n');
+}
+
+// ---------- Editar notas, organizar y usar comandos de la app ----------
+// Kataleya hace lo que haría la persona en la app, siempre como propuesta con vista previa:
+// · editar_nota: reemplazar un fragmento exacto, agregar texto (al inicio, al final o bajo un título),
+//   reescribir la nota, renombrarla, moverla o mandarla a la papelera. La versión anterior queda en el
+//   historial de la nota (antes y después del cambio).
+// · organizar: completar, editar o borrar tareas, marcar hábitos, crear proyectos, anotar ideas,
+//   escribir en el diario e iniciar un Pomodoro.
+// · comando: listar y ejecutar cualquier acción de la paleta de comandos (Ctrl+P).
+const KATA_PERSONAL = /(^|\/)(personal|estoic|mis\b)|ensayo/i;
+const kataIsPersonal = (n) => KATA_PERSONAL.test(n.path) || /^ensayo$/i.test(propOf(n, 'tipo'));
+
+// Diferencias por líneas (para la vista previa): [{ t: ' '|'-'|'+', l }].
+function kataDiff(a, b) {
+  const A = a.split('\n');
+  const B = b.split('\n');
+  if (A.length * B.length > 250000) return [...A.map((l) => ({ t: '-', l })), ...B.map((l) => ({ t: '+', l }))];
+  const dp = Array.from({ length: A.length + 1 }, () => new Uint16Array(B.length + 1));
+  for (let i = A.length - 1; i >= 0; i--) for (let j = B.length - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = [];
+  let i = 0;
+  let j = 0;
+  while (i < A.length && j < B.length) {
+    if (A[i] === B[j]) (out.push({ t: ' ', l: A[i] }), i++, j++);
+    else if (dp[i + 1][j] >= dp[i][j + 1]) out.push({ t: '-', l: A[i++] });
+    else out.push({ t: '+', l: B[j++] });
+  }
+  while (i < A.length) out.push({ t: '-', l: A[i++] });
+  while (j < B.length) out.push({ t: '+', l: B[j++] });
+  // Solo los cambios con dos líneas de contexto.
+  const keep = new Set();
+  out.forEach((d, k) => d.t !== ' ' && [-2, -1, 0, 1, 2].forEach((x) => keep.add(k + x)));
+  const res = [];
+  out.forEach((d, k) => {
+    if (keep.has(k)) res.push(d);
+    else if (res.length && res[res.length - 1].t !== '…') res.push({ t: '…', l: '' });
+  });
+  return res;
+}
+
+// Aplica un nuevo texto a una nota (con historial antes y después).
+function kataWriteNote(note, body) {
+  flushNoteSave();
+  if (typeof snapshotNote === 'function') snapshotNote(note, { force: true });
+  note.body = body;
+  note.updatedAt = Date.now();
+  dataRev++;
+  save();
+  if (typeof snapshotNote === 'function') snapshotNote(note, { force: true });
+  renderAll();
+}
+
+// makeBody(texto) → texto nuevo. Al aprobar se vuelve a calcular sobre el texto de ese momento, así
+// varias propuestas sobre la misma nota se aplican una tras otra.
+function kataProposeEdit(note, label, makeBody) {
+  const before = note.body;
+  const newBody = makeBody(before);
+  const id = kataPropose(`${label}${kataIsPersonal(note) ? ' ⚠️ nota personal' : ''}`, `[[${baseName(note.path)}]]`, () => {
+    const cur = noteById(note.id);
+    if (!cur) throw new Error('La nota ya no existe');
+    kataWriteNote(cur, cur.body === before ? newBody : makeBody(cur.body));
+    return { texto: 'Nota actualizada (la versión anterior queda en su historial)', abrir: () => openNote(cur) };
+  });
+  const a = kata.pending.get(id.propuesta);
+  if (a) a.diff = kataDiff(before, newBody);
+  kataRender();
+  return { ...id, cambios: (a?.diff || []).filter((d) => d.t !== ' ' && d.t !== '…').length };
+}
+
+function kataAppend(body, text, { under = '', where = 'final' } = {}) {
+  const lines = body.split('\n');
+  const add = String(text).replace(/\s+$/, '').split('\n');
+  if (under) {
+    const h = lines.findIndex((l) => /^#{1,6}\s/.test(l) && fold(l.replace(/^#+\s*/, '')).includes(fold(under)));
+    if (h < 0) throw new Error(`No encontré el título «${under}» en la nota`);
+    const level = lines[h].match(/^#+/)[0].length;
+    let i = h + 1;
+    while (i < lines.length && !(/^#{1,6}\s/.test(lines[i]) && lines[i].match(/^#+/)[0].length <= level)) i++;
+    while (i > h + 1 && !lines[i - 1].trim()) i--;
+    lines.splice(i, 0, ...add);
+    return lines.join('\n');
+  }
+  if (where === 'inicio') {
+    const { end } = parseProps(body);
+    let i = end + 1;
+    if (/^#\s/.test(lines[i] || '')) i++;
+    lines.splice(i, 0, '', ...add, '');
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+  return `${body.replace(/\s+$/, '')}\n\n${add.join('\n')}\n`;
+}
+
+function kataEditTool() {
+  return {
+    name: 'editar_nota',
+    description: 'Propone editar una nota existente (la persona ve los cambios y aprueba). accion: «reemplazar» (buscar: el texto EXACTO que hay, poner: el nuevo; todas: si aparece varias veces), «agregar» (texto; bajo_titulo para insertarlo al final de esa sección, o posicion inicio/final), «reescribir» (contenido completo; solo si la persona lo pide), «renombrar» (nuevo_nombre), «mover» (carpeta) o «papelera». Lee la nota antes. Nunca edites notas personales, de estoicismo ni ensayos sin que la persona lo pida.',
+    inputSchema: { type: 'object', properties: { accion: { type: 'string', enum: ['reemplazar', 'agregar', 'reescribir', 'renombrar', 'mover', 'papelera'] }, nota: { type: 'string' }, buscar: { type: 'string' }, poner: { type: 'string' }, todas: { type: 'boolean' }, texto: { type: 'string' }, bajo_titulo: { type: 'string' }, posicion: { type: 'string', enum: ['inicio', 'final'] }, contenido: { type: 'string' }, nuevo_nombre: { type: 'string' }, carpeta: { type: 'string' } }, required: ['accion', 'nota'] },
+    execute: (i) => {
+      const n = kataNote(i.nota);
+      const name = baseName(n.path);
+      if (i.accion === 'reemplazar') {
+        const find = String(i.buscar || '');
+        if (!find) throw new Error('Falta «buscar»');
+        const count = n.body.split(find).length - 1;
+        if (!count) throw new Error('No encontré ese texto exacto en la nota: léela y copia el fragmento tal cual');
+        if (count > 1 && !i.todas) throw new Error(`Ese texto aparece ${count} veces: agrega más contexto o usa todas: true`);
+        return kataProposeEdit(n, `✏️ Reemplazar en «${name}»`, (body) => {
+          if (!body.includes(find)) throw new Error('El texto a reemplazar ya no está en la nota');
+          return i.todas ? body.split(find).join(String(i.poner ?? '')) : body.replace(find, () => String(i.poner ?? ''));
+        });
+      }
+      if (i.accion === 'agregar') return kataProposeEdit(n, `➕ Agregar a «${name}»${i.bajo_titulo ? ` (bajo «${i.bajo_titulo}»)` : ''}`, (body) => kataAppend(body, String(i.texto || ''), { under: String(i.bajo_titulo || ''), where: i.posicion }));
+      if (i.accion === 'reescribir') {
+        let body = String(i.contenido || '');
+        if (!body.trim()) throw new Error('Falta el contenido');
+        const { end } = parseProps(n.body);
+        if (end > 0 && !/^---\n/.test(body)) body = `${n.body.split('\n').slice(0, end + 1).join('\n')}\n${body}`;
+        return kataProposeEdit(n, `📝 Reescribir «${name}»`, () => body);
+      }
+      if (i.accion === 'renombrar') {
+        const to = cleanName(String(i.nuevo_nombre || ''));
+        if (!to) throw new Error('Falta el nuevo nombre');
+        return kataPropose(`🏷 Renombrar «${name}» → «${to}»`, 'los enlaces [[…]] se actualizan solos', () => {
+          renameNote(n, to);
+          renderAll();
+          return { texto: 'Nota renombrada', abrir: () => openNote(n) };
+        });
+      }
+      if (i.accion === 'mover') {
+        const folder = String(i.carpeta || '').split('/').map(cleanName).filter(Boolean).join('/');
+        return kataPropose(`📁 Mover «${name}»`, `a ${folder || '(raíz)'}`, () => {
+          if (folder && !state.folders.includes(folder)) state.folders.push(folder);
+          moveNoteToFolder(n, folder);
+          renderAll();
+          return { texto: 'Nota movida', abrir: () => openNote(n) };
+        });
+      }
+      if (i.accion === 'papelera') {
+        return kataPropose(`🗑 Mandar «${name}» a la papelera${kataIsPersonal(n) ? ' ⚠️ nota personal' : ''}`, 'se recupera desde la Papelera durante 30 días', () => {
+          deleteNote(n);
+          return { texto: 'Nota en la papelera (se puede deshacer)', abrir: () => showView('trash') };
+        });
+      }
+      throw new Error('accion no válida');
+    },
+  };
+}
+
+const kataFindTask = (q) => {
+  const all = allTasks().concat(typeof noteTasks === 'function' ? noteTasks() : []).filter((t) => !t.done || true);
+  const f = fold(String(q || ''));
+  const exact = all.filter((t) => fold(t.title) === f);
+  const hits = exact.length ? exact : all.filter((t) => fold(t.title).includes(f));
+  if (!hits.length) throw new Error(`No encontré la tarea «${q}»`);
+  if (hits.length > 1 && !exact.length) throw new Error(`Hay ${hits.length} tareas parecidas: ${hits.slice(0, 5).map((t) => `«${t.title}»`).join(', ')}. Dime el título exacto`);
+  return hits[0];
+};
+
+function kataOrganizeTool() {
+  return {
+    name: 'organizar',
+    description: 'Propone acciones de organización (la persona aprueba). accion: «completar_tarea» (tarea), «editar_tarea» (tarea; nuevo_titulo, fecha AAAA-MM-DD, hora HH:MM, prioridad), «borrar_tarea» (tarea), «marcar_habito» (habito; fecha opcional, hoy por defecto), «crear_proyecto» (nombre; fecha_limite), «anotar_idea» (texto, puede llevar #etiquetas), «escribir_diario» (texto; va a la nota diaria de hoy) o «iniciar_pomodoro».',
+    inputSchema: { type: 'object', properties: { accion: { type: 'string', enum: ['completar_tarea', 'editar_tarea', 'borrar_tarea', 'marcar_habito', 'crear_proyecto', 'anotar_idea', 'escribir_diario', 'iniciar_pomodoro'] }, tarea: { type: 'string' }, nuevo_titulo: { type: 'string' }, fecha: { type: 'string' }, hora: { type: 'string' }, prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] }, habito: { type: 'string' }, nombre: { type: 'string' }, fecha_limite: { type: 'string' }, texto: { type: 'string' } }, required: ['accion'] },
+    execute: (i) => {
+      const a = i.accion;
+      if (a === 'completar_tarea') {
+        const t = kataFindTask(i.tarea);
+        return kataPropose(`✅ Completar «${t.title}»`, t.due ? `📅 ${t.due}` : '', () => (toggleDone(t, true), renderAll(), { texto: 'Tarea completada' }));
+      }
+      if (a === 'borrar_tarea') {
+        const t = kataFindTask(i.tarea);
+        if (t.virtual) throw new Error('Es una casilla dentro de una nota: edítala con editar_nota');
+        return kataPropose(`🗑 Borrar la tarea «${t.title}»`, '', () => (deleteTask(t), renderAll(), { texto: 'Tarea borrada (se puede deshacer)' }));
+      }
+      if (a === 'editar_tarea') {
+        const t = kataFindTask(i.tarea);
+        if (t.virtual) throw new Error('Es una casilla dentro de una nota: edítala con editar_nota');
+        const ch = [i.nuevo_titulo && `título «${i.nuevo_titulo}»`, /^\d{4}-\d{2}-\d{2}$/.test(i.fecha || '') && `📅 ${i.fecha}`, /^\d{2}:\d{2}$/.test(i.hora || '') && `⏰ ${i.hora}`, i.prioridad && `prioridad ${i.prioridad}`].filter(Boolean);
+        if (!ch.length) throw new Error('No hay cambios');
+        return kataPropose(`✏️ Editar «${t.title}»`, ch.join(' · '), () => {
+          if (i.nuevo_titulo) t.title = String(i.nuevo_titulo);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(i.fecha || '')) t.due = i.fecha;
+          if (/^\d{2}:\d{2}$/.test(i.hora || '')) t.time = i.hora;
+          if (i.prioridad) t.priority = { alta: 3, media: 2, baja: 1 }[i.prioridad] || t.priority;
+          save();
+          renderAll();
+          return { texto: 'Tarea editada' };
+        });
+      }
+      if (a === 'marcar_habito') {
+        const f = fold(String(i.habito || ''));
+        const h = state.habits.filter((x) => !x.archived).find((x) => fold(x.name) === f) || state.habits.filter((x) => !x.archived).find((x) => fold(x.name).includes(f));
+        if (!h) throw new Error(`No encontré el hábito «${i.habito}». Hábitos: ${state.habits.filter((x) => !x.archived).map((x) => x.name).join(', ') || 'ninguno'}`);
+        const day = /^\d{4}-\d{2}-\d{2}$/.test(i.fecha || '') ? i.fecha : dateKey();
+        return kataPropose(`🔥 ${h.log[day] ? 'Desmarcar' : 'Marcar'} «${h.name}»`, day, () => (toggleHabit(h, day), save(), renderAll(), { texto: 'Hábito actualizado' }));
+      }
+      if (a === 'crear_proyecto') {
+        const name = String(i.nombre || '').trim();
+        if (!name) throw new Error('Falta el nombre');
+        return kataPropose(`📁 Proyecto «${name}»`, i.fecha_limite ? `fecha límite ${i.fecha_limite}` : '', () => {
+          const used = state.projects.map((p) => p.color);
+          const p = { id: uid(), name, desc: '', status: 'active', deadline: /^\d{4}-\d{2}-\d{2}$/.test(i.fecha_limite || '') ? i.fecha_limite : null, color: PROJECT_COLORS.find((c) => !used.includes(c)) || PROJECT_COLORS[0], manual: null, milestone: 0, createdAt: Date.now() };
+          state.projects.push(p);
+          logEvent('project', `Nuevo proyecto: ${name}`, { ref: p.id });
+          save();
+          renderAll();
+          return { texto: 'Proyecto creado', abrir: () => showView('projects') };
+        });
+      }
+      if (a === 'anotar_idea') {
+        const raw = String(i.texto || '').trim();
+        if (!raw) throw new Error('Falta el texto');
+        return kataPropose('💡 Idea', raw.slice(0, 120), () => {
+          const idea = { id: uid(), ...extractTags(raw), pinned: false, createdAt: Date.now(), updatedAt: Date.now() };
+          state.ideas.push(idea);
+          logEvent('idea', idea.text.split('\n')[0], { ref: idea.id });
+          save();
+          renderAll();
+          return { texto: 'Idea anotada', abrir: () => showView('ideas') };
+        });
+      }
+      if (a === 'escribir_diario') {
+        const text = String(i.texto || '').trim();
+        if (!text) throw new Error('Falta el texto');
+        return kataPropose('📓 Entrada del diario', text.slice(0, 120), () => {
+          const entry = { id: uid(), date: dateKey(), createdAt: Date.now(), updatedAt: Date.now(), kind: 'free', mood: null, text };
+          const note = journalToNote(entry);
+          if (!note) state.journal.push(entry);
+          save();
+          renderAll();
+          return { texto: 'Escrito en el diario de hoy', abrir: () => (note ? openNote(note) : showView('journal')) };
+        });
+      }
+      if (a === 'iniciar_pomodoro') return kataPropose('🍅 Iniciar un Pomodoro', '', () => (showView('timer'), timer.endsAt || startTimer(), { texto: 'Pomodoro en marcha' }));
+      throw new Error('accion no válida');
+    },
+  };
+}
+
+// Paleta de comandos: todo lo que la app sabe hacer, por su nombre.
+function kataCommandTool() {
+  const list = () => (typeof commands === 'function' ? commands() : []).filter((c) => c && c.label && typeof c.action === 'function' && !c.disabled);
+  return {
+    name: 'comando',
+    description: 'Usa la paleta de comandos de la app (Ctrl+P), que tiene casi todo lo que la app sabe hacer (exportar a PDF, presentar, plegar títulos, ordenar formato, crear desde plantilla, ir a una sección…). accion «listar» (filtro opcional: palabras) devuelve los nombres; «ejecutar» (nombre exacto de la lista) propone ejecutarlo y la persona lo aprueba. Los comandos de nota actúan sobre la nota abierta.',
+    inputSchema: { type: 'object', properties: { accion: { type: 'string', enum: ['listar', 'ejecutar'] }, filtro: { type: 'string' }, nombre: { type: 'string' } }, required: ['accion'] },
+    execute: (i) => {
+      if (i.accion === 'listar') {
+        const f = fold(String(i.filtro || ''));
+        return list().map((c) => c.label).filter((l) => !f || f.split(/\s+/).every((w) => fold(l).includes(w))).slice(0, 80);
+      }
+      const name = String(i.nombre || '');
+      const cmd = list().find((c) => c.label === name) || list().find((c) => fold(c.label) === fold(name));
+      if (!cmd) throw new Error(`No existe el comando «${name}»: usa listar primero`);
+      const note = activeNote();
+      return kataPropose(`⌘ ${cmd.label}`, note ? `sobre la nota abierta: ${baseName(note.path)}` : '', () => {
+        const fresh = list().find((c) => c.label === cmd.label) || cmd;
+        fresh.action({ newTab: false });
+        return { texto: 'Comando ejecutado' };
+      });
+    },
+  };
 }
 
 // ---------- Dibujos generados ----------
@@ -778,8 +1047,10 @@ function kataRender() {
         const a = kata.pending.get(id);
         if (!a) return '';
         const status = { pending: '', running: '⏳ Haciendo…', done: `✅ ${a.result?.texto || 'Hecho'}`, rejected: '❌ Descartado', error: `⚠️ ${a.result?.texto || 'Error'}` }[a.status];
+        const diff = a.diff ? el('details', { className: 'kata-diff', open: a.status === 'pending' && a.diff.length <= 14 }, [el('summary', {}, `Ver cambios (${a.diff.filter((d) => d.t === '-').length} − · ${a.diff.filter((d) => d.t === '+').length} +)`), el('pre', {}, a.diff.slice(0, 200).map((d) => el('span', { className: `d${d.t === '-' ? 'm' : d.t === '+' ? 'p' : d.t === '…' ? 'e' : 'c'}` }, `${d.t === '…' ? '…' : `${d.t} ${d.l}`}\n`)))]) : '';
         return el('div', { className: `kata-act s-${a.status}` }, [
           el('div', {}, [el('strong', {}, a.label), a.detail ? el('div', { className: 'muted' }, a.detail) : '']),
+          diff,
           a.status === 'pending' ? el('div', { className: 'kata-row' }, [btn('Aprobar', '', () => kataApprove(id), 'primary'), btn('Descartar', '', () => kataReject(id), 'link')]) : el('div', { className: 'kata-row' }, [el('span', {}, status), a.status === 'done' && a.result?.abrir ? btn('Abrir', '', () => a.result.abrir(), 'link') : '']),
         ]);
       });

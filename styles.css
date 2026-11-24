@@ -3607,3 +3607,9 @@ body.kata-open .kata-fab { display: none; }
 .kata-refs { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
 .kata-refs a { color: var(--accent); }
 .kata-official { color: var(--low); font-weight: 600; }
+.kata-diff summary { cursor: pointer; font-size: .78rem; color: var(--muted); }
+.kata-diff pre { margin: 4px 0 0; max-height: 260px; overflow: auto; font-size: .74rem; line-height: 1.4; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.kata-diff .dm { display: block; background: color-mix(in srgb, var(--high) 14%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--high) 60%, transparent); }
+.kata-diff .dp { display: block; background: color-mix(in srgb, var(--low) 16%, transparent); }
+.kata-diff .dc { display: block; color: var(--muted); }
+.kata-diff .de { display: block; color: var(--muted); text-align: center; }

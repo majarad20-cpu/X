@@ -48,7 +48,7 @@ const mock = () => {
   const errs = [];
   const check = (label, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); console.log(`${label}: ${JSON.stringify(got)}${ok ? ' ok' : ` ESPERADO ${JSON.stringify(want)}`}`); if (!ok) errs.push(label); };
   const c = await b.newContext({ viewport: { width: 1400, height: 900 } });
-  await c.addInitScript((notes) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify({ tasks: [], habits: [], settings: { notesWelcome: true }, notes, updatedAt: 1 })); }, notes);
+  await c.addInitScript((notes) => { if (!localStorage.getItem('enfoque:v1')) localStorage.setItem('enfoque:v1', JSON.stringify({ tasks: [], habits: [{ id: 'h1', name: 'Leer', log: {}, createdAt: 1 }], settings: { notesWelcome: true }, notes, updatedAt: 1 })); }, notes);
   await c.addInitScript(mock);
   await c.route(/fonts\.g/, (r) => r.abort());
   const p = await c.newPage();
@@ -62,7 +62,7 @@ const mock = () => {
   await p.fill('#kata-input', '¿Qué pasa con el art. 107?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
   const call = await p.evaluate(() => window.__calls[0]);
   check('instrucciones', [/Eres \*\*Kataleya\*\*/.test(call.first), /Modo Contador/.test(call.first), /Memoria de Kataleya/.test(call.first), /Comercial Cachapoal/.test(call.first), /\[\[Ganancias de Capital\]\]/.test(call.first)], [true, true, true, true, true]);
-  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_en_internet', 'leer_pagina', 'buscar_en_drive', 'leer_archivo_drive', 'abrir_vista', 'proponer', 'crear_documento', 'crear_visual']);
+  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_fuera', 'abrir_vista', 'editar_nota', 'organizar', 'proponer', 'crear_documento', 'crear_visual', 'comando']);
   check('dentro de los límites', await p.evaluate(() => window.__sizes.filter(([, d, sch]) => d > 1000 || sch > 4000)), []);
   check('lectura', await p.evaluate(() => window.__res), { hits: ['Ganancias de Capital'], radar: [['DL 824', 1]] });
   check('propuestas pendientes', await p.$$eval('#kata-panel .kata-act.s-pending strong', (n) => n.map((x) => x.textContent)), ['📋 Tablero «Tributaria por estado»', '✏️ Dibujo «Cierre mensual»', '🗺️ Diagrama «IVA»', '☑ Tarea «Revisar F29 de Comercial Cachapoal»', '🧠 ¿Lo recuerdo?']);
@@ -131,6 +131,39 @@ const mock = () => {
   check('hoja', docs.hoja, ['text/csv', 'Fecha,Obligación\r\n2026-12-14,"F29, en papel"\r\n2026-12-21,"F29 ""internet"""']);
   check('csv', [docs.csv[0], docs.csv[1].replace(/^\ufeff/, '')], ['Vencimientos CSV.csv', 'A\r\n1']);
   check('borrador', docs.correo, ['create_draft', ['cliente@ejemplo.cl'], 'F29 atrasado', '<div>Hola,<br>le escribo por &lt;su&gt; F29.</div>']);
+
+  // Editar notas, organizar y comandos
+  const ed = await p.evaluate(async () => {
+    kata.turns = [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'ok' }];
+    kata.pending.clear();
+    const tools = kataTools(16);
+    const T = (n) => tools.find((t) => t.name === n);
+    const err = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
+    const notFound = err(() => T('editar_nota').execute({ accion: 'reemplazar', nota: 'Ganancias de Capital', buscar: 'no está', poner: 'x' }));
+    T('editar_nota').execute({ accion: 'reemplazar', nota: 'Ganancias de Capital', buscar: 'paga 10 % hasta el 31-12-2026', poner: 'pagó 10 % hasta el 31-12-2026' });
+    T('editar_nota').execute({ accion: 'agregar', nota: 'Ganancias de Capital', bajo_titulo: 'Ganancias', texto: '> [!info] Revisado por Kataleya' });
+    T('editar_nota').execute({ accion: 'renombrar', nota: 'IVA en Servicios', nuevo_nombre: 'IVA a los Servicios' });
+    T('organizar').execute({ accion: 'completar_tarea', tarea: 'Revisar F29 de Comercial Cachapoal' });
+    T('organizar').execute({ accion: 'anotar_idea', texto: 'Curso de Operación Renta #cursos' });
+    T('organizar').execute({ accion: 'escribir_diario', texto: 'Hoy configuré a Kataleya.' });
+    T('organizar').execute({ accion: 'marcar_habito', habito: 'leer' });
+    const listado = T('comando').execute({ accion: 'listar', filtro: 'nota diaria' });
+    T('comando').execute({ accion: 'ejecutar', nombre: 'Abrir la nota diaria de hoy' });
+    kataRender();
+    const cards = [...kata.pending.values()].map((a) => a.label);
+    const diff = kata.pending.get([...kata.pending.keys()][0]).diff.filter((d) => d.t !== ' ').map((d) => `${d.t}${d.l}`);
+    const diffShown = !!document.querySelector('#kata-panel .kata-diff .dm') && !!document.querySelector('#kata-panel .kata-diff .dp');
+    for (const id of [...kata.pending.keys()]) await kataApprove(id);
+    const a = noteById('a');
+    return { notFound, cards, diff, diffShown, status: [...kata.pending.values()].map((x) => x.status),
+      body: a.body.split('\n').slice(-3).join('|'), renamed: noteById('b').path, task: state.tasks.concat(state.archive).find((t) => t.title.startsWith('Revisar F29'))?.done,
+      idea: state.ideas.at(-1)?.tags, diario: !!state.notes.find((n) => /^Diario\//.test(n.path) && /Hoy configuré a Kataleya/.test(n.body)), habito: !!state.habits[0].log[dateKey()], listado, active: activeNote()?.path };
+  });
+  check('no adivina', ed.notFound, 'No encontré ese texto exacto en la nota: léela y copia el fragmento tal cual');
+  check('tarjetas de edición', ed.cards, ['✏️ Reemplazar en «Ganancias de Capital»', '➕ Agregar a «Ganancias de Capital» (bajo «Ganancias»)', '🏷 Renombrar «IVA en Servicios» → «IVA a los Servicios»', '✅ Completar «Revisar F29 de Comercial Cachapoal»', '💡 Idea', '📓 Entrada del diario', '🔥 Marcar «Leer»', '⌘ Abrir la nota diaria de hoy']);
+  check('vista de cambios', [ed.diff, ed.diffShown], [['-El art. 107 LIR paga 10 % hasta el 31-12-2026; desde el 01-01-2027 es ingreso no renta (Ley 21.850).', '+El art. 107 LIR pagó 10 % hasta el 31-12-2026; desde el 01-01-2027 es ingreso no renta (Ley 21.850).'], true]);
+  check('todas aplicadas, una tras otra', ed.status, ['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']);
+  check('resultados', [ed.body, ed.renamed, ed.task, ed.idea, ed.diario, ed.habito, ed.listado.includes('Abrir la nota diaria de hoy'), /^Diario\//.test(ed.active || '')], ['El art. 107 LIR pagó 10 % hasta el 31-12-2026; desde el 01-01-2027 es ingreso no renta (Ley 21.850).|> [!info] Revisado por Kataleya|', 'MATRIZ/IVA a los Servicios', true, ['cursos'], true, true, true, true]);
 
   // Internet y Drive
   await p.evaluate(() => { kata.turns = []; kata.pending.clear(); kataRender(); });
