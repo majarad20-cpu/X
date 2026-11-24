@@ -24,7 +24,7 @@ const notes = [
   await p.clock.install({ time: new Date('2026-11-24T10:00:00') });
   await p.goto(url); await p.clock.runFor(800);
   const shot = async (n) => out && p.screenshot({ path: `${out}/102-${n}.png` });
-  check('sección Contador', await p.$$eval('[data-group="especialidades"] .tb-col:first-child .rib', (n) => n.map((x) => x.dataset.view || x.id)), ['radar', 'contradicciones', 'vigencia', 'calendario-trib', 'rib-pro-profile']);
+  check('sección Contador', await p.$$eval('[data-group="especialidades"] .tb-col:first-child .rib', (n) => n.map((x) => x.dataset.view || x.id)), ['radar', 'contradicciones', 'vigencia', 'calendario-trib', 'clientes', 'calculadoras', 'rib-pro-profile']);
 
   // Revisión de vigencia
   check('cola', await p.evaluate(() => vgQueue({ t: 'all' }, 6).map((x) => [x.note.id, x.reasons.map((r) => r.id)])), [['a', ['llega', 'antigua']], ['c', ['derogada']], ['e', ['sin']]]);

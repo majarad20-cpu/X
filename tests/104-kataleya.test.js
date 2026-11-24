@@ -111,7 +111,7 @@ const mock = () => {
     kata.turns = [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'ok' }];
     kata.pending.clear();
     const T = kataTools(16).find((t) => t.name === 'crear_documento');
-    T.execute({ tipo: 'pdf', titulo: 'Cambio del art. 107 LIR', contenido: '## Qué cambia\nDesde el **01-01-2027** es ingreso no renta.', para: 'Comercial Cachapoal Ltda.', firma: 'Contador auditor', guardar_nota: true });
+    state.settings.firma = { nombre: 'Contador auditor' }; T.execute({ tipo: 'pdf', titulo: 'Cambio del art. 107 LIR', contenido: '## Qué cambia\nDesde el **01-01-2027** es ingreso no renta.', para: 'Comercial Cachapoal Ltda.', firma: true, guardar_nota: true });
     T.execute({ tipo: 'doc', titulo: 'Minuta', contenido: 'Texto con [[Ganancias de Capital]]' });
     T.execute({ tipo: 'hoja', titulo: 'Vencimientos diciembre', columnas: ['Fecha', 'Obligación'], filas: [['2026-12-14', 'F29, en papel'], ['2026-12-21', 'F29 "internet"']] });
     T.execute({ tipo: 'hoja', titulo: 'Vencimientos CSV', columnas: ['A'], filas: [[1]], destino: 'csv' });
@@ -126,7 +126,7 @@ const mock = () => {
   });
   check('tarjetas de documentos', docs.cards, ['📄 PDF «Cambio del art. 107 LIR»', '📝 Google Doc «Minuta»', '📊 Hoja «Vencimientos diciembre»', '📊 Hoja «Vencimientos CSV»', '✉️ Borrador «F29 atrasado»']);
   check('todas hechas', docs.status, ['done', 'done', 'done', 'done', 'done']);
-  check('pdf', [docs.pdf[0], /^# Cambio del art\. 107 LIR\n\*\d+ de \S+ de \d{4} · Para: Comercial Cachapoal Ltda\.\*\n\n## Qué cambia/.test(docs.pdf[1]), /---\nContador auditor$/.test(docs.pdf[1]), docs.nota], ['Cambio del art. 107 LIR', true, true, true]);
+  check('pdf', [docs.pdf[0], /^# Cambio del art\. 107 LIR\n\*\d+ de \S+ de \d{4} · Para: Comercial Cachapoal Ltda\.\*\n\n## Qué cambia/.test(docs.pdf[1]), /---\n\*\*Contador auditor\*\*$/.test(docs.pdf[1]), docs.nota], ['Cambio del art. 107 LIR', true, true, true]);
   check('google doc', docs.doc, ['Minuta', 'text/html', 'carpeta-k', true, false]);
   check('hoja', docs.hoja, ['text/csv', 'Fecha,Obligación\r\n2026-12-14,"F29, en papel"\r\n2026-12-21,"F29 ""internet"""']);
   check('csv', [docs.csv[0], docs.csv[1].replace(/^\ufeff/, '')], ['Vencimientos CSV.csv', 'A\r\n1']);

@@ -21,7 +21,7 @@ const notes = [
   p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
   await p.goto(url); await p.waitForTimeout(800);
 
-  check('sección Contador', await p.$$eval('[data-group="especialidades"] .tb-col:first-child .rib', (n) => n.map((x) => x.dataset.view || x.id)), ['radar', 'contradicciones', 'vigencia', 'calendario-trib', 'rib-pro-profile']);
+  check('sección Contador', await p.$$eval('[data-group="especialidades"] .tb-col:first-child .rib', (n) => n.map((x) => x.dataset.view || x.id)), ['radar', 'contradicciones', 'vigencia', 'calendario-trib', 'clientes', 'calculadoras', 'rib-pro-profile']);
   check('Finanzas oculta por defecto', await p.evaluate(() => [getComputedStyle(document.querySelector('.prodbar .rib[data-view="finanzas"]')).display]), ['none']);
   check('reconocer normas', await p.evaluate(() => proNormsIn('La Circular SII N° 53 de 2025, la Res. Ex. 88/2026, el DL 824, la ley 21713, NIC 12, el Oficio 278 de 2026 y el art. 85 ter CT', proProfile()).map((x) => x.key)), ['Circular SII 53/2025', 'Res. Ex. 88/2026', 'DL 824', 'Ley 21.713', 'NIC 12', 'Oficio 278/2026', 'DL 830']);
 

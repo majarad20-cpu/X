@@ -89,7 +89,7 @@ estado: en desarrollo
 
 ## Hechos y decisiones
 - 2026-11-24: Finanzas quedó oculta en Enfoque (sus datos se conservan).
-- 2026-11-24: Fase 3 de la especialidad Contador: panel de clientes, calculadoras (art. 53 CT, impuesto único, APV, finiquito, UF/UTM) e informe al cliente. La firma de documentos es opcional.
+- 2026-11-24: Fase 3 de la especialidad Contador: panel de clientes, calculadoras (interés penal, impuesto único, APV, finiquito, UF y UTM) e informe al cliente. La firma de documentos es opcional.
 `;
 
 const kataMemoryNote = () => findNoteByName(KATA_MEMORY_PATH) || null;
