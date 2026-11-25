@@ -967,16 +967,10 @@ html, body { overflow: hidden; }
 .graph-zoom button { padding: 4px 10px; font-size: .85rem; }
 .graph-stage { flex: 1; position: relative; min-height: 0; overflow: hidden; }
 .graph-stage canvas, .local-stage canvas { display: block; touch-action: none; cursor: grab; }
-.graph-pane.obs .graph-stage { background: #2e3440; }
+.graph-pane.obs .graph-stage { background: var(--graph-obs-bg, var(--editor)); }
 :root.graph-full #graph-pane { position: fixed; inset: 0; z-index: 80; padding-bottom: env(safe-area-inset-bottom, 0px); }
-:root.graph-full .graph-pane.obs .graph-tools, :root.graph-full .graph-pane.obs .graph-legend { background: #2e3440; color: #d8dee9; border-color: #3b4252; }
-:root.graph-full .graph-pane.obs .graph-tools input { background: #3b4252; color: #eceff4; border-color: #4c566a; }
-:root.graph-full .graph-pane.obs .graph-tools .chip, :root.graph-full .graph-pane.obs .graph-zoom button { background: #3b4252; color: #e5e9f0; border-color: #4c566a; }
-:root.graph-full .graph-pane.obs .graph-tools .chip.active { background: #4c566a; color: #eceff4; }
-:root.graph-full .graph-pane.obs .graph-count, :root.graph-full .graph-pane.obs .graph-legend { color: #a7b1c2; }
 :root.graph-full .picker-wrap, :root.graph-full .modal-back { z-index: 97; }
 :root.graph-full .toast { z-index: 98; }
-.graph-pane.obs .graph-empty { color: #a7b1c2; }
 .graph-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 24px; margin: 0; }
 .graph-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 12px; font-size: .76rem; color: var(--muted); border-top: 1px solid var(--border); }
 .gl-item { display: inline-flex; align-items: center; gap: 6px; }

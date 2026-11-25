@@ -38,11 +38,11 @@ const run = async (b, saved, fn) => {
     check('MOC de cada nota', await p.evaluate(() => { const d = buildGraphData({ obsidian: true }); const m = (id) => d.nodes.find((n) => n.id === `n:${id}`).moc; return [m('mm'), m('m1'), m('a'), m('b'), m('c'), m('d'), m('e'), d.nodes.filter((n) => n.isMoc).length]; }), ['mm', 'm1', 'm1', 'm1', 'm2', 'm2', null, 3]);
     check('nombres cortos', await p.evaluate(() => [graphMocName('1.- MOC - CONTABILIDAD'), graphMocName('8.- MOC - RECURSOS HUMANOS', { num: true }), graphMocName('00.- MOC DE MOCS')]), ['Contabilidad', '8. Recursos humanos', 'Moc de mocs']);
     await p.evaluate(() => openTab({ type: 'graph' })); await p.waitForTimeout(1500);
-    check('panel oscuro y botón', await p.evaluate(() => [document.querySelector('#graph-pane').classList.contains('obs'), document.querySelector('[data-gopt=obsidian]').ariaPressed, getComputedStyle(document.querySelector('#graph-pane .graph-stage')).backgroundColor]), [true, 'true', 'rgb(46, 52, 64)']);
+    check('panel oscuro y botón', await p.evaluate(() => [document.querySelector('#graph-pane').classList.contains('obs'), document.querySelector('[data-gopt=obsidian]').ariaPressed, getComputedStyle(document.querySelector('#graph-pane .graph-stage')).backgroundColor]), [true, 'true', 'rgb(247, 248, 250)']);
     check('leyenda por MOC', await p.evaluate(() => [...document.querySelectorAll('.gl-item')].map((x) => x.textContent)), ['Moc de mocs', '1. Contabilidad', '2. Administración', 'Sin MOC']);
-    check('colores', await p.evaluate(() => [globalGraph.nodeColor(globalGraph.byId.get('n:a')), globalGraph.nodeColor(globalGraph.byId.get('n:e')), globalGraph.nodeColor(globalGraph.byId.get('n:mm'))]), ['#88c0d0', '#616e88', '#eceff4']);
+    check('colores', await p.evaluate(() => [globalGraph.nodeColor(globalGraph.byId.get('n:a')), globalGraph.nodeColor(globalGraph.byId.get('n:e')), globalGraph.nodeColor(globalGraph.byId.get('n:mm'))]), ['#5e9fb3', '#a3abba', '#4c566a']);
     check('MOC más grande', await p.evaluate(() => globalGraph.radius(globalGraph.byId.get('n:m1')) > 2 * globalGraph.radius(globalGraph.byId.get('n:b'))), true);
-    check('fondo dibujado', await p.evaluate(() => [...document.querySelector('#graph-canvas').getContext('2d').getImageData(2, 2, 1, 1).data].slice(0, 3)), [46, 52, 64]);
+    check('fondo dibujado', await p.evaluate(() => [...document.querySelector('#graph-canvas').getContext('2d').getImageData(2, 2, 1, 1).data].slice(0, 3)), [247, 248, 250]);
     if (out) await p.screenshot({ path: `${out}/110-grafo-obsidian.png` });
     // Pantalla completa: botón, F y Esc.
     await p.click('#graph-full'); await p.waitForTimeout(200);

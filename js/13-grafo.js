@@ -118,12 +118,37 @@ function repelApprox(nodes, strength) {
 // ---------- Estilo Obsidian ----------
 // Fondo oscuro, enlaces finos y un color por MOC: cada nota toma el color del MOC al que pertenece
 // (ella misma si es un MOC; si no, su propiedad «moc»; si no, el primer MOC que la enlaza).
-// Paleta sobria (tonos apagados, estilo Nord) elegida el 25-11-2026.
-const GRAPH_OBS = { bg: '#2e3440', link: 'rgba(216,222,233,0.08)', text: '#d8dee9', none: '#616e88', ghost: '#4c566a', tag: '#8a94a8', mother: '#eceff4' };
+// Paleta sobria (tonos apagados, estilo Nord) elegida el 25-11-2026. El fondo sigue el tema de la app:
+// claro casi blanco con el tema claro y gris pizarra con el oscuro; los colores se oscurecen sobre blanco.
+const GRAPH_OBS_THEMES = {
+  light: {
+    bg: '#f7f8fa', link: 'rgba(46,52,64,0.10)', text: '#3b4252', strong: '#2e3440', none: '#a3abba', ghost: '#c3c9d4', tag: '#8a94a8', mother: '#4c566a',
+    palette: ['#5e9fb3', '#7fa36a', '#c79a2e', '#c26b4f', '#9a6f95', '#5f81ab', '#5f9e9c', '#b04a55', '#3f6796', '#a8834a', '#6f9a7a', '#7f78ad', '#b97c7c', '#4f8a83'],
+  },
+  dark: {
+    bg: '#2e3440', link: 'rgba(216,222,233,0.08)', text: '#d8dee9', strong: '#eceff4', none: '#616e88', ghost: '#4c566a', tag: '#8a94a8', mother: '#eceff4',
+    palette: ['#88c0d0', '#a3be8c', '#ebcb8b', '#d08770', '#b48ead', '#81a1c1', '#8fbcbb', '#bf616a', '#5e81ac', '#c9a26b', '#9fb8a3', '#a7a0c8', '#d4a5a5', '#7fa6a0'],
+  },
+};
+const GRAPH_OBS = { ...GRAPH_OBS_THEMES.light };
+const GRAPH_OBS_PALETTE = [...GRAPH_OBS_THEMES.light.palette];
+// Elige la variante según el fondo del editor (luminosidad del color --editor).
+function graphObsTheme() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--editor').trim();
+  const probe = document.createElement('span');
+  probe.style.color = raw || '#ffffff';
+  document.body.append(probe);
+  const [r, g, b] = (getComputedStyle(probe).color.match(/\d+(\.\d+)?/g) || [255, 255, 255]).map(Number);
+  probe.remove();
+  const dark = 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
+  const set = GRAPH_OBS_THEMES[dark ? 'dark' : 'light'];
+  Object.assign(GRAPH_OBS, set);
+  GRAPH_OBS_PALETTE.splice(0, GRAPH_OBS_PALETTE.length, ...set.palette);
+  return dark;
+}
 // Espaciado del estilo Obsidian: tamaño de cada región (spread × √notas), holgura entre regiones (gap),
 // repulsión entre notas, largo de los enlaces y fuerza que junta cada región en su lugar del anillo.
 const GRAPH_OBS_LAYOUT = { spread: 30, gap: 2, repel: 1800, len: 60, pull: 0.02 };
-const GRAPH_OBS_PALETTE = ['#88c0d0', '#a3be8c', '#ebcb8b', '#d08770', '#b48ead', '#81a1c1', '#8fbcbb', '#bf616a', '#5e81ac', '#c9a26b', '#9fb8a3', '#a7a0c8', '#d4a5a5', '#7fa6a0'];
 const graphIsMoc = (n) => /(^|\W)MOC(\W|$)/.test(baseName(n.path)) || (!n.enc && typeof propOf === 'function' && /^moc$/i.test(propOf(n, 'tipo')));
 const graphIsMother = (n) => /MOC DE MOCS/i.test(baseName(n.path));
 // «1.- MOC - CONTABILIDAD» → «Contabilidad» (con `num`, «1. Contabilidad»).
@@ -159,6 +184,7 @@ function graphMocOf() {
 // Nodos y enlaces a partir de las notas. Con `center`, solo su vecindario hasta `depth` saltos.
 function buildGraphData({ center = null, depth = 1, tags = false, ghosts = true, orphans = true, filter = '', obsidian = false } = {}) {
   const nodes = new Map();
+  if (obsidian) graphObsTheme();
   const mo = obsidian ? graphMocOf() : null;
   const links = new Map();
   const tops = [...new Set(state.notes.filter((n) => n.path.includes('/')).map((n) => n.path.split('/')[0]))].sort();
@@ -229,7 +255,7 @@ function buildGraphData({ center = null, depth = 1, tags = false, ghosts = true,
   const out = [...keep].map((id) => ({ ...nodes.get(id), degree: degree.get(id) || 0 }));
   // Color de cada MOC (el MOC de MOCs en blanco) y cuántas notas del grafo tiene.
   let ci = 0;
-  const mocs = mo ? mo.mocs.map((m) => ({ id: m.id, label: baseName(m.path), color: graphIsMother(m) ? GRAPH_OBS.mother : GRAPH_OBS_PALETTE[ci++ % GRAPH_OBS_PALETTE.length], count: out.filter((n) => n.moc === m.id).length })) : [];
+  const mocs = mo ? mo.mocs.map((m) => ({ id: m.id, label: baseName(m.path), mother: graphIsMother(m), color: graphIsMother(m) ? GRAPH_OBS.mother : GRAPH_OBS_PALETTE[ci++ % GRAPH_OBS_PALETTE.length], count: out.filter((n) => n.moc === m.id).length })) : [];
   return {
     nodes: out,
     links: list.filter((l) => keep.has(l.a) && keep.has(l.b)),
@@ -264,7 +290,7 @@ class GraphView {
     this.mocColor = new Map(mocs.map((m) => [m.id, m.color]));
     // Cada MOC recibe un arco del anillo proporcional al ancho de su región (√ de sus notas), así una
     // región grande no se monta sobre sus vecinas; el radio alcanza para que quepan todas con holgura.
-    const ring = mocs.filter((m) => m.count && m.color !== GRAPH_OBS.mother);
+    const ring = mocs.filter((m) => m.count && !m.mother);
     const { spread, gap } = GRAPH_OBS_LAYOUT;
     const width = ring.map((m) => spread * Math.sqrt(m.count + 4));
     const total = width.reduce((s, w) => s + w, 0) || 1;
@@ -604,7 +630,7 @@ class GraphView {
       }
       if (n.id === this.activeId || n.id === this.hover) {
         ctx.lineWidth = 1.6;
-        ctx.strokeStyle = '#ffffff';
+        ctx.strokeStyle = O.strong;
         ctx.beginPath();
         ctx.arc(p.x, p.y, r + 3, 0, Math.PI * 2);
         ctx.stroke();
@@ -622,7 +648,7 @@ class GraphView {
       ctx.lineWidth = 3;
       ctx.strokeStyle = O.bg;
       ctx.strokeText(label, p.x, p.y + r + 4);
-      ctx.fillStyle = n.kind === 'ghost' ? O.ghost : n.isMoc ? '#eceff4' : O.text;
+      ctx.fillStyle = n.kind === 'ghost' ? O.ghost : n.isMoc ? O.strong : O.text;
       ctx.fillText(label, p.x, p.y + r + 4);
     });
     ctx.globalAlpha = 1;
@@ -745,6 +771,7 @@ function renderGraph() {
   const data = buildGraphData(graphOpts);
   globalGraph.setData(data, { obsidian: !!graphOpts.obsidian });
   $('#graph-pane').classList.toggle('obs', !!graphOpts.obsidian);
+  $('#graph-pane').style.setProperty('--graph-obs-bg', GRAPH_OBS.bg);
   $('#graph-count').textContent = `${plural(data.nodes.length, 'nodo', 'nodos')} · ${plural(data.links.length, 'enlace', 'enlaces')}`;
   const sinMoc = data.nodes.filter((n) => n.kind === 'note' && !n.moc).length;
   $('#graph-legend').replaceChildren(
