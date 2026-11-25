@@ -588,7 +588,7 @@ $('#rib-files').addEventListener('click', () => {
 $('#rib-daily').addEventListener('click', () => openDailyNote());
 $('#rib-switcher').addEventListener('click', () => openSwitcher());
 $('#rib-palette').addEventListener('click', () => openPalette());
-$('#new-note').addEventListener('click', () => createNote({ folder: plainNewFolder() }));
+$('#new-note').addEventListener('click', () => (typeof ntNewDefault === 'function' ? ntNewDefault() : createNote({ folder: plainNewFolder() })));
 $('#ws-new-tab').addEventListener('click', () => createNote({ folder: noteHome(), newTab: true }));
 $('#new-folder').addEventListener('click', () => promptText({ placeholder: 'Nombre de la carpeta (p. ej. Trabajo/Clientes)', action: 'Crear carpeta', onSubmit: createFolder }));
 $$('.rib[data-view]').forEach((b) => b.addEventListener('click', (e) => showView(b.dataset.view, { newTab: e.ctrlKey || e.metaKey })));
