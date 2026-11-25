@@ -967,6 +967,8 @@ html, body { overflow: hidden; }
 .graph-zoom button { padding: 4px 10px; font-size: .85rem; }
 .graph-stage { flex: 1; position: relative; min-height: 0; overflow: hidden; }
 .graph-stage canvas, .local-stage canvas { display: block; touch-action: none; cursor: grab; }
+.graph-pane.obs .graph-stage { background: #2e3440; }
+.graph-pane.obs .graph-empty { color: #a7b1c2; }
 .graph-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 24px; margin: 0; }
 .graph-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 12px; font-size: .76rem; color: var(--muted); border-top: 1px solid var(--border); }
 .gl-item { display: inline-flex; align-items: center; gap: 6px; }
