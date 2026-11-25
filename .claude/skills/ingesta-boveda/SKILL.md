@@ -64,12 +64,17 @@ Son fuentes de **menor rango** (apunte < circular < ley) y suelen tener años. S
 - **Datos personales** del cuaderno (nombres de profesores, compañeros, notas): no pasan a la bóveda.
 
 ### Análisis previo de Gemini (opcional)
-Para PDF largos, el usuario puede dejar junto al PDF un archivo `<nombre del PDF> - Gemini.md` con un desglose hecho por Gemini (ficha, conceptos con datos duros y página, ejemplos y dudas).
+Para documentos largos (PDF, Word o Google Docs de 30 páginas o más) y para archivos Markdown (`.md`), el usuario puede dejar junto al documento un análisis `<nombre del documento> - Gemini` (Google Doc o `.md`) hecho con su Gem «Analista de la Bandeja IA»: ficha, conceptos con datos duros y página, ejemplos y dudas.
+- **Carpetas:** el usuario puede dejar subcarpetas dentro de la Bandeja IA (p. ej. `Bandeja IA/Laboral 2026`). Revisar la carpeta completa y procesar documento por documento (o agrupar los que tratan el mismo tema), cada uno con su informe.
+- **Markdown (`.md`):** Gemini también los analiza (por ejemplo, notas de otra bóveda u otra IA). Su análisis sirve para ubicar conceptos y datos, pero el cotejo se hace **nota por nota** contra el `.md` original, que siempre se lee completo: un `.md` es texto ya ordenado y puede traer enlaces `[[…]]`, YAML y tablas que el análisis no refleja. Un `.md` sin análisis de Gemini se procesa igual, directo. Si una carpeta trae muchos `.md` (más de 10), Gemini puede dejar un solo análisis para toda la carpeta (`<carpeta> - Gemini`), con una sección por nota.
+- **Lo que no pasa por Gemini y se lee directo:** documentos cortos (salvo `.md`), `.txt`, Excel e imágenes. Gemini los deja listados como «para Claude».
+- Un archivo cuyo nombre termina en «- Gemini» es un análisis, nunca una fuente.
+- **Mover a «Procesados»:** el conector no puede mover archivos subidos por el usuario o creados por Gemini. Al cerrar, decirle al usuario qué archivos mover.
 - Úsalo **solo como punto de partida** del paso 2: sirve para ubicar conceptos y páginas.
 - **Cada dato duro** (tasa, monto, tope, plazo, fecha, número de norma o artículo) se comprueba en la página del PDF antes de usarlo. Si no coincide o no aparece, manda el PDF y se informa la discrepancia. Gemini ya se equivocó antes de número de resolución (Res. 106/2020 en vez de 14/2021).
 - Lo que el análisis no cubra del PDF se desglosa igual (mirar el índice del documento).
 - En el informe, indicar «Desglose inicial: Gemini, verificado contra el PDF» y listar las correcciones hechas a su análisis.
-- Al cerrar, mover también el `.md` de Gemini a `Procesados`.
+- Al cerrar, pedirle al usuario que mueva también el análisis de Gemini a `Procesados`.
 - Documentos de clientes: no pasan por Gemini; se procesan directo y anonimizados.
 
 ### 2. Leer y desglosar
