@@ -62,7 +62,7 @@ const mock = () => {
   await p.fill('#kata-input', '¿Qué pasa con el art. 107?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
   const call = await p.evaluate(() => window.__calls[0]);
   check('instrucciones', [/Eres \*\*Kataleya\*\*/.test(call.first), /Modo Contador/.test(call.first), /Memoria de Kataleya/.test(call.first), /Comercial Cachapoal/.test(call.first), /\[\[Ganancias de Capital\]\]/.test(call.first)], [true, true, true, true, true]);
-  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_fuera', 'abrir_vista', 'editar_nota', 'enlazar', 'organizar', 'proponer', 'crear_documento', 'crear_visual', 'comando']);
+  check('herramientas agrupadas', call.tools, ['buscar_notas', 'leer_nota', 'tareas_y_diario', 'contador', 'buscar_fuera', 'abrir_vista', 'editar_nota', 'enlazar', 'organizar', 'proponer', 'crear_documento', 'crear_visual', 'imagenes', 'comando']);
   check('dentro de los límites', await p.evaluate(() => window.__sizes.filter(([, d, sch]) => d > 1000 || sch > 4000)), []);
   check('lectura', await p.evaluate(() => window.__res), { hits: ['Ganancias de Capital'], radar: [['DL 824', 1]] });
   check('propuestas pendientes', await p.$$eval('#kata-panel .kata-act.s-pending strong', (n) => n.map((x) => x.textContent)), ['📋 Tablero «Tributaria por estado»', '✏️ Dibujo «Cierre mensual»', '🗺️ Diagrama «IVA»', '☑ Tarea «Revisar F29 de Comercial Cachapoal»', '🧠 ¿Lo recuerdo?']);
