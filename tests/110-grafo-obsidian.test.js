@@ -44,6 +44,14 @@ const run = async (b, saved, fn) => {
     check('MOC más grande', await p.evaluate(() => globalGraph.radius(globalGraph.byId.get('n:m1')) > 2 * globalGraph.radius(globalGraph.byId.get('n:b'))), true);
     check('fondo dibujado', await p.evaluate(() => [...document.querySelector('#graph-canvas').getContext('2d').getImageData(2, 2, 1, 1).data].slice(0, 3)), [46, 52, 64]);
     if (out) await p.screenshot({ path: `${out}/110-grafo-obsidian.png` });
+    // Pantalla completa: botón, F y Esc.
+    await p.click('#graph-full'); await p.waitForTimeout(200);
+    check('pantalla completa', await p.evaluate(() => { const r = document.querySelector('#graph-pane').getBoundingClientRect(); return [document.documentElement.classList.contains('graph-full'), r.width === innerWidth && r.height === innerHeight, document.querySelector('#graph-full').textContent]; }), [true, true, '✕ Salir']);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+    check('Esc sale', await p.evaluate(() => document.documentElement.classList.contains('graph-full')), false);
+    await p.evaluate(() => document.activeElement?.blur()); await p.keyboard.press('f'); await p.waitForTimeout(100);
+    check('F entra', await p.evaluate(() => document.documentElement.classList.contains('graph-full')), true);
+    await p.click('#graph-full'); await p.waitForTimeout(100);
     // Volver al estilo clásico.
     await p.click('[data-gopt=obsidian]'); await p.waitForTimeout(300);
     check('clásico', await p.evaluate(() => [graphOpts.obsidian, document.querySelector('#graph-pane').classList.contains('obs'), [...document.querySelectorAll('.gl-item')].map((x) => x.textContent)[0], JSON.parse(localStorage.getItem('enfoque:graph')).obsidian]), [false, false, 'Raíz', false]);

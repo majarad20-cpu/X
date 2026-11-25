@@ -120,6 +120,9 @@ function repelApprox(nodes, strength) {
 // (ella misma si es un MOC; si no, su propiedad «moc»; si no, el primer MOC que la enlaza).
 // Paleta sobria (tonos apagados, estilo Nord) elegida el 25-11-2026.
 const GRAPH_OBS = { bg: '#2e3440', link: 'rgba(216,222,233,0.08)', text: '#d8dee9', none: '#616e88', ghost: '#4c566a', tag: '#8a94a8', mother: '#eceff4' };
+// Espaciado del estilo Obsidian: tamaño de cada región (spread × √notas), holgura entre regiones (gap),
+// repulsión entre notas, largo de los enlaces y fuerza que junta cada región en su lugar del anillo.
+const GRAPH_OBS_LAYOUT = { spread: 30, gap: 2, repel: 1800, len: 60, pull: 0.02 };
 const GRAPH_OBS_PALETTE = ['#88c0d0', '#a3be8c', '#ebcb8b', '#d08770', '#b48ead', '#81a1c1', '#8fbcbb', '#bf616a', '#5e81ac', '#c9a26b', '#9fb8a3', '#a7a0c8', '#d4a5a5', '#7fa6a0'];
 const graphIsMoc = (n) => /(^|\W)MOC(\W|$)/.test(baseName(n.path)) || (!n.enc && typeof propOf === 'function' && /^moc$/i.test(propOf(n, 'tipo')));
 const graphIsMother = (n) => /MOC DE MOCS/i.test(baseName(n.path));
@@ -259,9 +262,19 @@ class GraphView {
   setData({ nodes, links, mocs = [] }, { activeId = null, obsidian = false } = {}) {
     this.obsidian = obsidian;
     this.mocColor = new Map(mocs.map((m) => [m.id, m.color]));
+    // Cada MOC recibe un arco del anillo proporcional al ancho de su región (√ de sus notas), así una
+    // región grande no se monta sobre sus vecinas; el radio alcanza para que quepan todas con holgura.
     const ring = mocs.filter((m) => m.count && m.color !== GRAPH_OBS.mother);
-    const R = 22 * Math.sqrt(Math.max(40, nodes.length));
-    this.mocTarget = new Map(ring.map((m, i) => [m.id, { x: Math.cos((i / ring.length) * Math.PI * 2 - Math.PI / 2) * R, y: Math.sin((i / ring.length) * Math.PI * 2 - Math.PI / 2) * R }]));
+    const { spread, gap } = GRAPH_OBS_LAYOUT;
+    const width = ring.map((m) => spread * Math.sqrt(m.count + 4));
+    const total = width.reduce((s, w) => s + w, 0) || 1;
+    const R = Math.max(total * gap / (Math.PI * 2), Math.max(0, ...width) * 0.9, 120);
+    let acc = 0;
+    this.mocTarget = new Map(ring.map((m, i) => {
+      const a = ((acc + width[i] / 2) / total) * Math.PI * 2 - Math.PI / 2;
+      acc += width[i];
+      return [m.id, { x: Math.cos(a) * R, y: Math.sin(a) * R }];
+    }));
     const old = this.byId;
     this.byId = new Map();
     // Los nodos que ya existían conservan su posición; los nuevos aparecen junto a un vecino.
@@ -329,8 +342,8 @@ class GraphView {
   step() {
     const nodes = this.nodes;
     const k = this.alpha;
-    const REPEL = this.local ? 900 : 1400;
-    const LEN = this.local ? 60 : 80;
+    const REPEL = this.local ? 900 : this.obsidian ? GRAPH_OBS_LAYOUT.repel : 1400;
+    const LEN = this.local ? 60 : this.obsidian ? GRAPH_OBS_LAYOUT.len : 80;
     if (nodes.length > 1500) repelApprox(nodes, REPEL * k);
     else repelExact(nodes, REPEL * k);
     this.links.forEach(({ a, b }) => {
@@ -348,8 +361,8 @@ class GraphView {
       nodes.forEach((n) => {
         const t = n.moc && this.mocTarget.get(n.moc);
         if (!t) return;
-        n.vx += (t.x - n.x) * 0.012 * k;
-        n.vy += (t.y - n.y) * 0.012 * k;
+        n.vx += (t.x - n.x) * GRAPH_OBS_LAYOUT.pull * k;
+        n.vy += (t.y - n.y) * GRAPH_OBS_LAYOUT.pull * k;
       });
     }
     nodes.forEach((n) => {
@@ -424,7 +437,7 @@ class GraphView {
     // Margen lateral para que quepan los nombres, que son más anchos que los puntos.
     const padX = Math.min(90, this.w * 0.22);
     const s = Math.min((this.w - 2 * padX) / Math.max(1, maxX - minX), (this.h - 90) / Math.max(1, maxY - minY));
-    this.scale = Math.max(0.2, Math.min(this.local ? 1.6 : 2, s));
+    this.scale = Math.max(0.05, Math.min(this.local ? 1.6 : 2, s));
     this.panX = -((minX + maxX) / 2) * this.scale;
     this.panY = -((minY + maxY) / 2) * this.scale;
     this.draw();
@@ -434,7 +447,7 @@ class GraphView {
     this.autoFit = false;
     this.userView = true;
     const before = this.toWorld(cx, cy);
-    this.scale = Math.max(0.15, Math.min(4, this.scale * f));
+    this.scale = Math.max(0.05, Math.min(4, this.scale * f));
     this.panX = cx - this.w / 2 - before.x * this.scale;
     this.panY = cy - this.h / 2 - before.y * this.scale;
     this.draw();
@@ -783,6 +796,31 @@ $('#graph-filter').addEventListener('input', (e) => {
   renderGraph();
 });
 $('#graph-fit').addEventListener('click', () => globalGraph?.fit());
+
+// ---------- Pantalla completa ----------
+// El grafo ocupa toda la ventana (sin paneles ni pestañas); Esc o ✕ vuelven. Al cambiar de tamaño se encuadra.
+function graphFull(on = !document.documentElement.classList.contains('graph-full')) {
+  document.documentElement.classList.toggle('graph-full', on);
+  const b = $('#graph-full');
+  b.textContent = on ? '✕ Salir' : '⛶';
+  b.title = on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (F)';
+  b.ariaLabel = b.title;
+  b.ariaPressed = String(on);
+  requestAnimationFrame(() => {
+    globalGraph?.resize();
+    globalGraph?.fit();
+  });
+}
+$('#graph-full').addEventListener('click', () => graphFull());
+document.addEventListener('keydown', (e) => {
+  if (!document.documentElement.classList.contains('graph-full') && !(e.key === 'f' && $('#graph-pane') && !$('#graph-pane').hidden)) return;
+  const tag = e.target.tagName;
+  if (e.key === 'Escape' && document.documentElement.classList.contains('graph-full') && $('#picker').hidden) graphFull(false);
+  else if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'TEXTAREA' && !e.target.isContentEditable) {
+    e.preventDefault();
+    graphFull();
+  }
+});
 $('#graph-zoom-in').addEventListener('click', () => globalGraph?.zoom(1.25));
 $('#graph-zoom-out').addEventListener('click', () => globalGraph?.zoom(0.8));
 $('#local-depth').addEventListener('change', (e) => {
