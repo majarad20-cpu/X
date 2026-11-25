@@ -52,7 +52,7 @@ const seed = {
   // ＋ Nuevo
   await p.click('[data-group=new] .tb-head');
   const items = await p.$$eval('[data-group=new] .tb-item', (n) => n.map((x) => x.textContent));
-  check('nuevo: opciones', ['📝 Nota', '✅ Tarea…', '💡 Idea…', '💰 Gasto…', '🔥 Hábito…', '📁 Proyecto…', '📓 Nota diaria'].every((x) => items.includes(x)), true);
+  check('nuevo: opciones', ['📄 Nota en blanco', '✍️ Ensayo…', '🗂️ Nota por tipo…', '✅ Tarea…', '💡 Idea…', '💰 Gasto…', '🔥 Hábito…', '📁 Proyecto…', '📓 Nota diaria'].every((x) => items.includes(x)), true);
   await p.click('[data-group=new] .tb-item:has-text("Nota")'); await p.clock.runFor(50);
   check('nueva nota', await p.evaluate(() => activeTab().type === 'note' && state.notes.length), 1);
   await p.click('[data-group=new] .tb-head'); await p.click('.tb-item:has-text("Proyecto")'); await p.clock.runFor(80);

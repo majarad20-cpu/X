@@ -62,6 +62,14 @@ const notes = [
   await p.keyboard.press('Escape');
   check('comandos en la paleta', await p.evaluate(() => COMMANDS_EXTRA.flatMap((f) => f(null) || []).map((c) => c.label).filter((l) => /^(✍️|📝|⭐)/.test(l))), ['✍️ Nuevo ensayo (de mi autoría)', '📝 Nueva nota por tipo…', '⭐ Botón ＋ y Ctrl+N: volver a nota en blanco']);
 
+  // Menú «＋ Nuevo» de la barra superior.
+  await p.evaluate(() => ntToggleDefault());
+  await p.locator('.tb-dd[data-group=new] .tb-head').click(); await p.waitForTimeout(150);
+  check('menú Nuevo', await p.evaluate(() => [...document.querySelectorAll('.tb-dd[data-group=new] .tb-menu button')].slice(0, 4).map((b) => b.textContent)), ['📄 Nota en blanco', '✍️ Ensayo…', '🗂️ Nota por tipo…', '✅ Tarea…']);
+  await p.locator('.tb-dd[data-group=new] .tb-menu button', { hasText: 'Ensayo' }).click(); await p.waitForTimeout(150);
+  check('Nuevo › Ensayo pide el título', await p.evaluate(() => [!document.querySelector('#picker').hidden, document.querySelector('#picker-input').placeholder]), [true, 'Título del ensayo…']);
+  await p.keyboard.press('Escape');
+
   console.log('errors:', JSON.stringify(errs));
   await b.close();
   process.exit(errs.length ? 1 : 0);
