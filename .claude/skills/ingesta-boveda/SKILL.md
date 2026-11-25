@@ -70,10 +70,20 @@ Para documentos largos (PDF, Word o Google Docs de 30 páginas o más) y para ar
 - **Lo que no pasa por Gemini y se lee directo:** documentos cortos (salvo `.md`), `.txt`, Excel e imágenes. Gemini los deja listados como «para Claude».
 - Un archivo cuyo nombre termina en «- Gemini» es un análisis, nunca una fuente.
 - **Mover a «Procesados»:** el conector no puede mover archivos subidos por el usuario o creados por Gemini. Al cerrar, decirle al usuario qué archivos mover.
+- **Instrucciones del Gem:** están en `gem-analista-bandeja.md` (junto a esta skill). Si el usuario pide cambiar lo que capta Gemini, se edita ese archivo y se le entrega el bloque para pegar en Gemini.
+- **Secciones del análisis (versión 2) y cómo usarlas:**
+  - **Mapa del documento** y **Cuadro de cobertura:** comprobar que se leyó todo. Si hay páginas ilegibles u omitidas que importan, leerlas en el original o pedirle al usuario que las suba aparte; nunca suponer su contenido. Un análisis por partes («parte 1 de 3») solo está completo cuando están todas.
+  - **Citas textuales clave:** son el texto que la nota puede citar al pie de la letra. Antes de pegar una cita, abrir esa página del original y confirmar que coincide palabra por palabra (también las comillas y el «o fracción»). Citarla en la nota con su ubicación («p. 12, ¶3»).
+  - **Datos con fecha:** cotejarlos contra la bóveda dato por dato. Si la nota tiene otro valor, decidir con la regla de prevalencia (paso 4) y, si cambia, escribir el recuadro de historial (qué rigió, desde y hasta cuándo, por qué norma, qué rige hoy).
+  - **Tablas:** se pueden llevar a la nota después de verificar cada fila contra el original; si una sola fila no cuadra, se deja con ⚠️ en vez de copiar la tabla.
+  - **Artículos citados:** sirven para buscar notas relacionadas (`fullText contains`) y para llenar la propiedad `articulos` de las notas que se creen o enriquezcan (formato corto: «LIR 31 N° 5», «CT 97 N° 11», «DL 825 23 N° 2», «CdT 162»).
+  - **Cambios normativos detectados** y **Dudas «⚠️ posible dato antiguo»:** van directo a la columna 🔄 del informe o a ⛔ si el documento quedó desactualizado; se verifican en la BCN o el SII antes de tocar una nota.
+  - **Para la bóveda:** es solo una pista; el cotejo del paso 3 se hace igual.
+  - Análisis con el formato antiguo (sin estas secciones): se usan igual, pero las citas y los datos con fecha se sacan del original.
 - Úsalo **solo como punto de partida** del paso 2: sirve para ubicar conceptos y páginas.
 - **Cada dato duro** (tasa, monto, tope, plazo, fecha, número de norma o artículo) se comprueba en la página del PDF antes de usarlo. Si no coincide o no aparece, manda el PDF y se informa la discrepancia. Gemini ya se equivocó antes de número de resolución (Res. 106/2020 en vez de 14/2021).
 - Lo que el análisis no cubra del PDF se desglosa igual (mirar el índice del documento).
-- En el informe, indicar «Desglose inicial: Gemini, verificado contra el PDF» y listar las correcciones hechas a su análisis.
+- En el informe, indicar «Desglose inicial: Gemini, verificado contra el PDF», listar las correcciones hechas a su análisis y decir cuántas citas textuales y tablas de Gemini se verificaron y usaron.
 - Al cerrar, pedirle al usuario que mueva también el análisis de Gemini a `Procesados`.
 - Documentos de clientes: no pasan por Gemini; se procesan directo y anonimizados.
 
@@ -118,6 +128,8 @@ aliases:
   - "sigla o sinónimo"
 fuentes:
   - "Emisor, título, fecha, p. 12-14"
+articulos:            # opcional: los que la nota explica, en forma corta
+  - "LIR 31 N° 5"
 estado: borrador
 creada: AAAA-MM-DD
 vigencia: "Revisado mmm-AAAA" | "Permanente"
