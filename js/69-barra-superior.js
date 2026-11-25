@@ -2,7 +2,7 @@
 
 // ---------- Barra superior: productividad ----------
 // A la izquierda (la barra de iconos) queda lo de notas y pensar; arriba, lo de hacer: Hoy y los
-// menús Planificar, Seguimiento y Más, «＋ Nuevo», el Pomodoro en marcha, buscar, Drive y Ajustes.
+// menús Planificar, Seguimiento y Más, el Pomodoro en marcha, buscar, Drive y Ajustes.
 // Los elementos de los menús son los mismos botones .rib[data-view] de antes (12-notas.js los abre).
 const tb = { open: null };
 
@@ -17,7 +17,6 @@ function tbOpen(dd, { focus = false } = {}) {
   tbClose();
   const menu = dd.querySelector('.tb-menu');
   const head = dd.querySelector('.tb-head');
-  if (dd.dataset.group === 'new') tbFillNew(menu);
   menu.hidden = false;
   head.ariaExpanded = 'true';
   tb.open = dd;
@@ -30,26 +29,6 @@ function tbOpen(dd, { focus = false } = {}) {
 }
 
 const tbItems = (menu) => [...menu.querySelectorAll('button:not([hidden]):not(:disabled)')];
-
-// «＋ Nuevo»: se rehace al abrirlo (otros módulos añaden tipos de captura).
-function tbFillNew(menu) {
-  const item = (label, action) => {
-    const b = el('button', { className: 'tb-item', role: 'menuitem' }, label);
-    b.addEventListener('click', action);
-    return b;
-  };
-  const focusField = (view, sel) => () => {
-    showView(view);
-    setTimeout(() => $(sel)?.focus(), 30);
-  };
-  menu.replaceChildren(
-    item('📝 Nota', () => createNote({ folder: plainNewFolder() })),
-    ...CAPTURE_KINDS.filter(([k]) => k !== 'note').map(([k, icon, name]) => item(`${icon} ${name}…`, () => openCapture(k))),
-    item('🔥 Hábito…', focusField('habits', '#habit-name')),
-    item('📁 Proyecto…', focusField('projects', '#project-name')),
-    item('📓 Nota diaria', () => openDailyNote())
-  );
-}
 
 $$('.prodbar .tb-dd').forEach((dd) => {
   const head = dd.querySelector('.tb-head');

@@ -194,24 +194,3 @@ COMMANDS_EXTRA.push(() => [
   { label: '📝 Nueva nota por tipo…', kbd: 'Alt+Mayús+N', action: ntPickType },
   { label: state.settings.ntDefault ? '⭐ Botón ＋ y Ctrl+N: volver a nota en blanco' : '⭐ Botón ＋ y Ctrl+N: preguntar el tipo de nota', action: ntToggleDefault },
 ]);
-
-// «＋ Nuevo» de la barra superior (69-barra-superior.js): suma el ensayo y la nota por tipo.
-const ntFillNewBase = tbFillNew;
-tbFillNew = function (menu) {
-  ntFillNewBase(menu);
-  const item = (label, action, title = '') => {
-    const b = el('button', { className: 'tb-item', role: 'menuitem', title }, label);
-    b.addEventListener('click', action);
-    return b;
-  };
-  const first = menu.firstElementChild;
-  if (first) first.textContent = state.settings.ntDefault ? '📝 Nota por tipo…' : '📄 Nota en blanco';
-  first?.after(
-    item('✍️ Ensayo…', ntNewEssay, 'Alt+Mayús+E'),
-    ...(state.settings.ntDefault ? [item('📄 Nota en blanco', () => createNote({ folder: plainNewFolder() }))] : [item('🗂️ Nota por tipo…', ntPickType, 'Concepto, normativa, procedimiento, caso… (Alt+Mayús+N)')])
-  );
-  if (first && state.settings.ntDefault) {
-    const b = item('📝 Nota por tipo…', ntPickType, 'Alt+Mayús+N');
-    first.replaceWith(b);
-  }
-};

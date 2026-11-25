@@ -49,14 +49,8 @@ const seed = {
   check('flecha abajo', await p.evaluate(() => document.activeElement.dataset.view), 'tasks');
   await p.keyboard.press('Escape');
   check('Escape cierra', await p.evaluate(() => [document.querySelector('[data-group=plan] .tb-menu').hidden, document.activeElement.classList.contains('tb-head')]), [true, true]);
-  // ＋ Nuevo
-  await p.click('[data-group=new] .tb-head');
-  const items = await p.$$eval('[data-group=new] .tb-item', (n) => n.map((x) => x.textContent));
-  check('nuevo: opciones', ['📄 Nota en blanco', '✍️ Ensayo…', '🗂️ Nota por tipo…', '✅ Tarea…', '💡 Idea…', '💰 Gasto…', '🔥 Hábito…', '📁 Proyecto…', '📓 Nota diaria'].every((x) => items.includes(x)), true);
-  await p.click('[data-group=new] .tb-item:has-text("Nota")'); await p.clock.runFor(50);
-  check('nueva nota', await p.evaluate(() => activeTab().type === 'note' && state.notes.length), 1);
-  await p.click('[data-group=new] .tb-head'); await p.click('.tb-item:has-text("Proyecto")'); await p.clock.runFor(80);
-  check('nuevo proyecto: foco', await p.evaluate(() => [activeTab().view, document.activeElement.id]), ['projects', 'project-name']);
+  // Sin «＋ Nuevo»: crear va por el panel de notas, el botón flotante y Ctrl+N.
+  check('sin menú Nuevo', await p.evaluate(() => !document.querySelector('[data-group=new]')), true);
   // Pomodoro en marcha
   check('sin pomodoro', await p.isHidden('#tb-pomo'), true);
   await p.evaluate(() => { showView('timer'); startTimer(); }); await p.clock.runFor(2100);

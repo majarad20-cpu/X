@@ -2965,7 +2965,6 @@ body.gs-open #note-menu { z-index: 96; }
 .prodbar .rib.tb-btn.active { background: var(--accent-soft); }
 .prodbar .tb-btn .rib-label { display: inline; font-size: .88rem; }
 .tb-chev { font-size: .7rem; opacity: .7; }
-.tb-new { color: var(--accent); }
 .tb-spacer { flex: 1; min-width: 8px; }
 .tb-dot { position: absolute; top: 5px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: #e03131; }
 .tb-dot[hidden], .tb-badge[hidden], .tb-count[hidden], .tb-menu[hidden] { display: none; }
