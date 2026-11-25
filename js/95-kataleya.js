@@ -209,6 +209,7 @@ ${kataWhereRules()}
 - Para mostrar algo, usa abrir_vista (no necesita aprobación).
 - Puedes usar la app como la persona: editar notas (editar_nota: lee la nota primero y copia el fragmento exacto), enlazarlas (enlazar: relacionar, menciones, entrantes, moc, sugerir, rotos y reparar; para «¿qué debería enlazar?» usa sugerir y después propone), organizar tareas, hábitos, proyectos, ideas, diario y Pomodoro (organizar) y ejecutar cualquier comando de la paleta (comando: primero listar). Todo queda como propuesta con vista previa.
 - Puedes ir más allá de las notas con crear_documento: PDF, Google Docs, hojas de cálculo (Google Sheets o CSV) y borradores de Gmail. Redacta con tono profesional, en español de Chile, con la norma, su vigencia y la fuente cuando corresponda; no escribas firma ni datos de contacto en el contenido: la app agrega la firma de la persona solo si ella la configuró y la deja marcada en la tarjeta (con firma: true o false solo sugieres); nunca pongas datos reales de clientes si no te los dio la persona. Los correos quedan como borrador: jamás digas que se enviaron.
+- Puedes ver imágenes: la app te muestra las que la persona adjunta (📎 o pegándolas) y los dibujos o imágenes de la nota abierta cuando pregunta por ellos. Describe solo lo que ves; si te preguntan por una imagen que no te llegó, pide que abra la nota o la adjunte con 📎.
 - Si la persona te cuenta algo que valga la pena recordar (una preferencia, una regla, una decisión), propón guardarlo con recordar.
 - Respeta la memoria: sus reglas y límites mandan.
 - Markdown sencillo: párrafos cortos y listas.
@@ -1029,13 +1030,92 @@ async function kataDrawing(raw) {
 }
 
 // ---------- Conversación ----------
+// ---------- Imágenes: Kataleya ve los dibujos y las imágenes ----------
+// Se le muestran (a) las que la persona adjunta con 📎 o pegando en el cuadro de texto y (b) las de la
+// nota abierta, cuando la pregunta habla de imágenes o dibujos o la nota es casi solo imágenes. Van con
+// el mensaje de ese turno (en los siguientes no se reenvían). Requiere `sample: {images: true}`.
+const KATA_IMG_WORDS = /(imagen|im[aá]genes|dibujo|foto|captura|pantallazo|diagrama|esquema|gr[aá]fico|lienzo|figura|ilustraci|\bves\b|\bmira\b|qu[eé] (muestra|aparece|dice)|esta nota|\besto\b)/i;
+const KATA_IMG_REF = /!\[([^\]\n]*)\]\(img:([a-z0-9]+)\)/gi;
+kata.attach = [];
+function kataDataBlob(d) {
+  const [head, b64] = String(d).split(',');
+  const mime = (head.match(/^data:([^;]+)/) || [])[1] || 'image/png';
+  const bin = atob(b64 || '');
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+// Imágenes de una nota: [{ blob, name }] (las que siguen guardadas en el dispositivo).
+async function kataNoteImages(note, max) {
+  const seen = new Set();
+  const refs = [...String(note?.body || '').matchAll(KATA_IMG_REF)].filter((m) => !seen.has(m[2]) && seen.add(m[2]));
+  const out = [];
+  for (const m of refs) {
+    if (out.length >= max) break;
+    const rec = typeof getFile === 'function' ? await getFile(m[2]).catch(() => null) : null;
+    const data = rec?.data || (typeof files !== 'undefined' ? files.cache.get(m[2]) : null);
+    if (typeof isImageData === 'function' && isImageData(data)) out.push({ blob: kataDataBlob(data), name: m[1] || 'imagen', drawing: !!rec?.drawing });
+  }
+  return { list: out, total: refs.length };
+}
+// ¿Mostrarle las imágenes de la nota abierta? Si la pregunta habla de imágenes o si la nota es casi solo imágenes.
+function kataWantsNoteImages(q, note) {
+  if (!note || note.enc || !KATA_IMG_REF.test(note.body)) return false;
+  KATA_IMG_REF.lastIndex = 0;
+  const text = note.body.replace(/^---\n[\s\S]*?\n---\n?/, '').replace(KATA_IMG_REF, '').replace(/[#>*_\s-]/g, '');
+  KATA_IMG_REF.lastIndex = 0;
+  return KATA_IMG_WORDS.test(q) || text.length < 120;
+}
+async function kataCollectImages(q, limits) {
+  const lim = limits?.images;
+  if (!lim) return { blobs: [], labels: [], skipped: kata.attach.length ? 'adjuntas' : '' };
+  const max = Number(lim.maxCount) || 4;
+  const ok = (b) => !lim.mediaTypes?.length || lim.mediaTypes.includes(b.type);
+  const blobs = [];
+  const labels = [];
+  kata.attach.filter((a) => ok(a.blob)).slice(0, max).forEach((a) => {
+    blobs.push(a.blob);
+    labels.push(`«${a.name}» (adjunta por la persona)`);
+  });
+  const tab = activeTab();
+  const note = tab?.type === 'note' ? noteById(tab.id) : null;
+  let extra = 0;
+  if (blobs.length < max && kataWantsNoteImages(q, note)) {
+    const { list, total } = await kataNoteImages(note, max - blobs.length);
+    list.filter((x) => ok(x.blob)).forEach((x) => {
+      blobs.push(x.blob);
+      labels.push(`${x.drawing ? 'dibujo' : 'imagen'} «${x.name}» de la nota [[${baseName(note.path)}]]`);
+    });
+    extra = Math.max(0, total - list.length);
+  }
+  return { blobs, labels, extra };
+}
+function kataPickImages() {
+  const inp = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', multiple: true });
+  inp.addEventListener('change', () => kataAddAttach([...inp.files]));
+  inp.click();
+}
+function kataAddAttach(list) {
+  const imgs = [...(list || [])].filter((f) => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
+  if (!imgs.length) return;
+  imgs.forEach((f) => kata.attach.push({ blob: f, name: (f.name || 'imagen pegada').replace(/\.[a-z0-9]+$/i, ''), url: URL.createObjectURL(f) }));
+  kata.attach = kata.attach.slice(-6);
+  kataRender();
+  setTimeout(() => $('#kata-input')?.focus(), 30);
+}
+function kataClearAttach() {
+  kata.attach.forEach((a) => a.url && URL.revokeObjectURL(a.url));
+  kata.attach = [];
+}
+
 async function kataSend(question) {
   const q = String(question || '').trim();
   if (!q || kata.busy) return;
   if (!aiReady()) return kataRender();
   kata.busy = true;
   kata.ctl = new AbortController();
-  kata.turns.push({ role: 'user', content: q });
+  const userTurn = { role: 'user', content: q };
+  kata.turns.push(userTurn);
   const answer = { role: 'assistant', content: '' };
   kata.turns.push(answer);
   kataRender();
@@ -1043,18 +1123,42 @@ async function kataSend(question) {
   const history = kata.turns.slice(0, -1).filter((t) => t.content).slice(-10).map((t) => ({ role: t.role, content: t.content }));
   const limits = await ai.sample.limits().catch(() => null);
   const maxTools = limits?.tools ? Number(limits.tools.maxCount) || 12 : 0;
+  // Imágenes de este turno (adjuntas o de la nota abierta).
+  const pics = await kataCollectImages(q, limits).catch(() => ({ blobs: [], labels: [] }));
+  if (pics.skipped) answer.note = 'No puedo ver imágenes en esta vista de Claude: descríbemela con palabras.';
+  kataClearAttach();
+  if (pics.labels.length) {
+    userTurn.images = pics.labels;
+    history[history.length - 1] = { role: 'user', content: `${q}\n\n[La app te muestra ${pics.labels.length === 1 ? 'esta imagen' : `estas ${pics.labels.length} imágenes`} junto a este mensaje: ${pics.labels.map((l, i) => `${i + 1}) ${l}`).join('; ')}.${pics.extra ? ` La nota tiene ${pics.extra} imagen(es) más que no te alcanzo a mostrar.` : ''} Míralas para responder; describe solo lo que realmente ves.]` };
+    kataRender();
+  }
+  let imgs = pics.blobs.length ? pics.blobs : null;
   const onText = ({ text: t }) => {
     answer.content = t;
     kataProgress('');
     const b = $('#kata-messages .kata-msg.assistant:last-of-type .kata-md');
     if (b) b.innerHTML = renderMd(t, { noTasks: true, noExternalImages: true });
   };
-  const plain = () => ai.sample([{ role: 'user', content: `${kataRules()}\n\n${contextFor(q)}\n\n(Ahora no puedes usar herramientas: responde con lo que hay arriba y, si hace falta crear algo, explica cómo hacerlo.)` }, ...history], { signal: kata.ctl.signal, cache: false, onText });
+  const withImgs = (o) => (imgs ? { ...o, images: imgs } : o);
+  const plain = () => ai.sample([{ role: 'user', content: `${kataRules()}\n\n${contextFor(q)}\n\n(Ahora no puedes usar herramientas: responde con lo que hay arriba y, si hace falta crear algo, explica cómo hacerlo.)` }, ...history], withImgs({ signal: kata.ctl.signal, cache: false, onText }));
+  // Si las imágenes no pasan, se responde igual sin ellas y se avisa.
+  const dropImages = (e) => {
+    if (!imgs || !['images_unavailable', 'image_rejected'].includes(e?.code) || answer.content) return false;
+    imgs = null;
+    history[history.length - 1] = { role: 'user', content: q };
+    answer.note = e.code === 'image_rejected' ? 'No pude abrir la imagen (formato o tamaño no aceptado): respondí sin verla.' : 'No puedo ver imágenes en esta vista de Claude: respondí sin verlas.';
+    return true;
+  };
   try {
     let res;
     if (maxTools) {
       try {
-        res = await ai.sample([{ role: 'user', content: kataRules() }, ...history], { signal: kata.ctl.signal, tools: kataTools(maxTools), onText });
+        try {
+          res = await ai.sample([{ role: 'user', content: kataRules() }, ...history], withImgs({ signal: kata.ctl.signal, tools: kataTools(maxTools), onText }));
+        } catch (e) {
+          if (!dropImages(e)) throw e;
+          res = await ai.sample([{ role: 'user', content: kataRules() }, ...history], { signal: kata.ctl.signal, tools: kataTools(maxTools), onText });
+        }
       } catch (e) {
         // Si fallan las herramientas (no el permiso ni el límite de uso), responde igual sin ellas.
         if (!['invalid_request', 'transform_error', 'tools_unavailable', 'prompt_too_large'].includes(e?.code) || answer.content) throw e;
@@ -1064,7 +1168,14 @@ async function kataSend(question) {
         res = await plain();
         answer.note = 'Respondí sin mis herramientas (no pude usarlas en esta vista).';
       }
-    } else res = await plain();
+    } else {
+      try {
+        res = await plain();
+      } catch (e) {
+        if (!dropImages(e)) throw e;
+        res = await plain();
+      }
+    }
     answer.content = res.text;
   } catch (e) {
     answer.content = e?.text || answer.content;
@@ -1219,7 +1330,7 @@ function kataRender() {
     ]));
   } else {
     kata.turns.forEach((t) => {
-      if (t.role === 'user') return msgs.append(el('div', { className: 'kata-msg user' }, t.content));
+      if (t.role === 'user') return msgs.append(el('div', { className: 'kata-msg user' }, [t.content, t.images?.length ? el('div', { className: 'kata-imgs-note', title: t.images.join('\n') }, `🖼 ${t.images.length === 1 ? '1 imagen' : `${t.images.length} imágenes`}`) : '']));
       const md = el('div', { className: 'kata-md md' });
       md.innerHTML = renderMd(t.content || (kata.busy && t === kata.turns.at(-1) ? '…' : ''), { noTasks: true, noExternalImages: true });
       const acts = (t.actions || []).map((id) => {
@@ -1277,7 +1388,20 @@ function kataRender() {
     r.onerror = () => mic.classList.remove('on');
     r.start();
   }, 'kata-icon kata-mic') : '';
-  const foot = el('footer', { className: 'kata-foot' }, [el('div', { id: 'kata-progress', className: 'muted kata-progress' }), el('div', { className: 'kata-compose' }, [input, mic, send])]);
+  input.addEventListener('paste', (e) => {
+    const imgs = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+    if (imgs.length) {
+      e.preventDefault();
+      kataAddAttach(imgs);
+    }
+  });
+  const clip = aiReady() ? btn('📎', 'Adjuntar una imagen para que Kataleya la vea (también puedes pegarla)', kataPickImages, 'kata-icon kata-clip') : '';
+  const thumbs = kata.attach.length ? el('div', { className: 'kata-attach' }, kata.attach.map((a, i) => el('span', { className: 'kata-thumb', title: a.name }, [el('img', { src: a.url, alt: a.name }), btn('✕', 'Quitar', () => {
+    URL.revokeObjectURL(a.url);
+    kata.attach.splice(i, 1);
+    kataRender();
+  }, 'kata-thumb-x')]))) : '';
+  const foot = el('footer', { className: 'kata-foot' }, [el('div', { id: 'kata-progress', className: 'muted kata-progress' }), thumbs, el('div', { className: 'kata-compose' }, [input, clip, mic, send])]);
   panel.replaceChildren(head, ctxBar, srcBar, msgs, foot);
   msgs.scrollTop = msgs.scrollHeight;
 }
