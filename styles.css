@@ -3689,3 +3689,7 @@ body.kata-open .kata-fab { display: none; }
 .kc-img-quick { padding: 0 2px 6px; }
 .kata-quick.kc-img-quick { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
 .kata-quick.kc-img-quick .kata-chip { width: auto; flex: 0 0 auto; padding: 4px 10px; font-size: 12.5px; min-height: 0; }
+
+/* Kataleya: habilidades */
+.kh-used { font-size: 12px; margin-bottom: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.kh-used .link { font-size: 12px; padding: 0; }
